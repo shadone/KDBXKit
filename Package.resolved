@@ -1,0 +1,33 @@
+{
+  "originHash" : "0a44322ae01b2bb12ccada6e435c8acb3ab08c07e9f225ae5d0a32fce40d5d05",
+  "pins" : [
+    {
+      "identity" : "phc-winner-argon2",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/P-H-C/phc-winner-argon2.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "f57e61e19229e23c4445b85494dbf7c07de721cb"
+      }
+    },
+    {
+      "identity" : "swift-argument-parser",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-argument-parser",
+      "state" : {
+        "revision" : "41982a3656a71c768319979febd796c6fd111d5c",
+        "version" : "1.5.0"
+      }
+    },
+    {
+      "identity" : "swift-gzip",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/mihai8804858/swift-gzip",
+      "state" : {
+        "branch" : "main",
+        "revision" : "a01e2bc547eabea00d42666df39d40b022de4983"
+      }
+    }
+  ],
+  "version" : 3
+}

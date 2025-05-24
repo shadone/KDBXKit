@@ -4,21 +4,44 @@
 import PackageDescription
 
 let package = Package(
-    name: "SwiftKDBX",
+    name: "KDBX",
+    platforms: [
+        .macOS(.v15),
+        .iOS(.v18),
+    ],
     products: [
-        // Products define the executables and libraries a package produces, making them visible to other packages.
+        .executable(
+            name: "kdbx",
+            targets: ["kdbx-cli"],
+        ),
         .library(
-            name: "SwiftKDBX",
-            targets: ["SwiftKDBX"]),
+            name: "KDBXKit",
+            targets: ["KDBXKit"],
+        ),
+    ],
+    dependencies: [
+        .package(url: "https://github.com/P-H-C/phc-winner-argon2.git", branch: "master"),
+        .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
+        .package(url: "https://github.com/mihai8804858/swift-gzip", branch: "main"),
     ],
     targets: [
-        // Targets are the basic building blocks of a package, defining a module or a test suite.
-        // Targets can depend on other targets in this package and products from dependencies.
+        .executableTarget(
+            name: "kdbx-cli",
+            dependencies: [
+                "KDBXKit",
+                .product(name: "ArgumentParser", package: "swift-argument-parser"),
+            ],
+        ),
         .target(
-            name: "SwiftKDBX"),
+            name: "KDBXKit",
+            dependencies: [
+                .product(name: "argon2", package: "phc-winner-argon2"),
+                .product(name: "SwiftGzip", package: "swift-gzip"),
+            ],
+        ),
         .testTarget(
-            name: "SwiftKDBXTests",
-            dependencies: ["SwiftKDBX"]
+            name: "KDBXKitTests",
+            dependencies: ["KDBXKit"],
         ),
     ]
 )
