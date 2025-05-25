@@ -1,0 +1,46 @@
+# file options
+
+--swiftversion 5.8
+
+# format options
+
+--binarygrouping 4,8
+--octalgrouping 4,8
+--decimalgrouping 3,6
+--hexgrouping none
+--hexliteralcase uppercase
+--fractiongrouping disabled
+
+--trimwhitespace always
+--indent 4
+--indentstrings true
+
+--importgrouping testable-last
+
+--semicolons never
+--commas always
+--emptybraces spaced
+
+--ifdef no-indent
+--nospaceoperators ...,..<
+--stripunusedargs closure-only
+
+--wraparguments before-first
+--wrapcollections before-first
+--wrapparameters before-first
+
+--typeattributes prev-line
+--funcattributes prev-line
+--varattributes preserve
+
+--elseposition same-line
+--voidtype void
+
+--self remove
+--selfrequired info,error,fault,debug,trace,critical,UIHostingController
+
+# rules
+
+--enable initCoderUnavailable
+--enable isEmpty
+--enable redundantStaticSelf
