@@ -6,7 +6,7 @@
 
 import Foundation
 
-class HeaderReader {
+struct HeaderReader: Sendable {
     enum Error: Swift.Error {
         case invalidSignature
         case unsupportedFormatVersion(major: UInt16, minor: UInt16)
@@ -25,7 +25,7 @@ class HeaderReader {
         pos = data.startIndex
     }
 
-    private func readUInt8() throws(Error) -> UInt8 {
+    private mutating func readUInt8() throws(Error) -> UInt8 {
         if pos + 1 > data.count {
             throw Error.unexpectedEOF
         }
@@ -37,11 +37,11 @@ class HeaderReader {
         return b
     }
 
-    private func readUInt32() throws(Error) -> UInt32 {
+    private mutating func readUInt32() throws(Error) -> UInt32 {
         try readData(length: 4).asUInt32LE()! // safe to force unwrap as we guaranteed to read enough bytes
     }
 
-    private func readData(length: Int) throws(Error) -> Data {
+    private mutating func readData(length: Int) throws(Error) -> Data {
         let start = pos
         let end = pos.advanced(by: length)
 
@@ -56,7 +56,7 @@ class HeaderReader {
         return subdata
     }
 
-    func parse() throws(Error) -> (header: Header, length: Int) {
+    mutating func parse() throws(Error) -> (header: Header, length: Int) {
         let signature1 = try readUInt32()
         let signature2 = try readUInt32()
         if signature1 != 0x9AA2D903 || signature2 != 0xB54BFB67 {

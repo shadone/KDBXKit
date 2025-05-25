@@ -5,7 +5,7 @@
 //
 
 // https://keepass.info/help/kb/kdbx.html#iheader
-enum InnerHeaderFieldType: UInt8 {
+enum InnerHeaderFieldType: UInt8, Sendable {
     /// Indicates the end of the header.
     ///
     /// Must be present exactly once, as the last header field.

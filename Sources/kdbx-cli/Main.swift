@@ -19,7 +19,7 @@ struct App: ParsableCommand {
     mutating func run() throws {
         let data = try! Data(contentsOf: URL(filePath: filepath))
 
-        let kdbx = KDBXReader(data)
+        var kdbx = KDBXReader(data)
         let xmlDocument = try kdbx.parse(unlockData: .init(masterPassword: masterPassword))
         let header = kdbx.header!
 

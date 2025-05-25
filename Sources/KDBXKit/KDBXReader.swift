@@ -9,7 +9,7 @@ import CryptoKit
 import Foundation
 import SwiftGzip
 
-public class KDBXReader {
+public struct KDBXReader: Sendable {
     enum Error: Swift.Error {
         case corrupted(reason: String)
         case unexpectedEOF
@@ -28,11 +28,11 @@ public class KDBXReader {
         pos = data.startIndex
     }
 
-    private func readInt32() throws(Error) -> Int32 {
+    private mutating func readInt32() throws(Error) -> Int32 {
         try readData(length: 4).asInt32LE()! // safe to force unwrap as we guaranteed to read enough bytes
     }
 
-    private func readData(length: Int) throws(Error) -> Data {
+    private mutating func readData(length: Int) throws(Error) -> Data {
         let start = pos
         let end = pos.advanced(by: length)
 
@@ -47,8 +47,8 @@ public class KDBXReader {
         return subdata
     }
 
-    public func parse(unlockData: UnlockData) throws -> String {
-        let reader = HeaderReader(data: data)
+    public mutating func parse(unlockData: UnlockData) throws -> String {
+        var reader = HeaderReader(data: data)
         let (header, headerLength) = try reader.parse()
         self.header = header
 
@@ -164,7 +164,7 @@ public class KDBXReader {
         // Parse Inner Header
 
         do {
-            let innerHeaderReader = InnerHeaderReader(data: payload)
+            var innerHeaderReader = InnerHeaderReader(data: payload)
             let (innerHeader, innerHeaderLength) = try innerHeaderReader.parse()
             self.innerHeader = innerHeader
             payload.removeFirst(innerHeaderLength)

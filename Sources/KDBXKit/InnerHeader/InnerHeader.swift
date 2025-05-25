@@ -6,8 +6,8 @@
 
 import Foundation
 
-public struct InnerHeader {
-    public enum EncryptionAlgorithm {
+public struct InnerHeader: Sendable {
+    public enum EncryptionAlgorithm: Sendable {
         case Salsa20
         case ChaCha20
     }
@@ -16,7 +16,7 @@ public struct InnerHeader {
 
     public let encryptionKey: Data
 
-    public struct BinaryContent {
+    public struct BinaryContent: Sendable {
         /// The flag indicates that the binary content should be protected in the process memory.
         public let shouldBeProtected: Bool
         public let data: Data

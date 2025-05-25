@@ -6,7 +6,7 @@
 
 import Foundation
 
-class InnerHeaderReader {
+struct InnerHeaderReader {
     enum Error: Swift.Error {
         case corrupted(reason: String)
         case unexpectedEOF
@@ -20,7 +20,7 @@ class InnerHeaderReader {
         pos = data.startIndex
     }
 
-    private func readUInt8() throws(Error) -> UInt8 {
+    private mutating func readUInt8() throws(Error) -> UInt8 {
         if pos + 1 > data.count {
             throw Error.unexpectedEOF
         }
@@ -32,11 +32,11 @@ class InnerHeaderReader {
         return b
     }
 
-    private func readInt32() throws(Error) -> Int32 {
+    private mutating func readInt32() throws(Error) -> Int32 {
         try readData(length: 4).asInt32LE()! // safe to force unwrap as we guaranteed to read enough bytes
     }
 
-    private func readData(length: Int) throws(Error) -> Data {
+    private mutating func readData(length: Int) throws(Error) -> Data {
         let start = pos
         let end = pos.advanced(by: length)
 
@@ -51,7 +51,7 @@ class InnerHeaderReader {
         return subdata
     }
 
-    func parse() throws(Error) -> (header: InnerHeader, length: Int) {
+    mutating func parse() throws(Error) -> (header: InnerHeader, length: Int) {
         var encryptionAlgorithm: InnerHeader.EncryptionAlgorithm?
         var encryptionKey: Data?
         var binaryContent: [InnerHeader.BinaryContent] = []
