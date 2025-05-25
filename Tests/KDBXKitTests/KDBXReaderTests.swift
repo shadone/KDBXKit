@@ -77,3 +77,35 @@ func KDBXReaderSimple_Argon2id_AES256() async throws {
     let referenceXmlDocument = try String(contentsOfFile: xmlFilepath, encoding: .utf8)
     #expect(xmlDocument == referenceXmlDocument)
 }
+
+@Test
+func KDBXReaderSimple_AES256_AES256() async throws {
+    // KDF: AES256
+    // Content encryption: AES256CBC
+    let kdbxFilepath = Bundle.module.path(forResource: "Resources/simple-aes256-aes256", ofType: "kdbx")!
+    let xmlFilepath = Bundle.module.path(forResource: "Resources/simple-aes256-aes256", ofType: "xml")!
+    let data = try Data(contentsOf: URL(filePath: kdbxFilepath))
+
+    var reader = KDBXReader(data)
+    let xmlDocument = try reader.parse(unlockData: .init(masterPassword: "123"))
+
+    #expect(reader.header != nil)
+
+    #expect(reader.header?.formatVersion == .v4_0)
+    #expect(reader.header?.encryptionAlgorithm == .AES256CBC)
+    #expect(reader.header?.compressionAlgorithm == .gzip)
+    #expect(reader.header?.masterSalt.hexString == "68809cfbd28cb5e5a6292bc47a0f9da676004855179dde445b6f74c4c90e659b")
+    #expect(reader.header?.encryptionNonce.hexString == "371d051e5d4a9acc290498700c6d22a8")
+
+    #expect(reader.header?.kdfParameters.aes != nil)
+    #expect(reader.header?.kdfParameters.aes?.params.rounds == 1000)
+    #expect(reader.header?.kdfParameters.aes?.params.salt.hexString == "bff164e9044a359f4b473f882d83fe1e85f4e88ac6caf2c28f0c75e24c8e7569")
+
+    #expect(reader.innerHeader != nil)
+    #expect(reader.innerHeader?.encryptionAlgorithm == .ChaCha20)
+    #expect(reader.innerHeader?.encryptionKey.hexString == "40b2e668db617d0cd1ed710ec717e4df17ee5f0f3d5abfd06a41b5e8ff4e061308007e8d04a00df48b28184cb141e5564e5b81266a83c4d019cb4a18cfa141d5")
+    #expect(reader.innerHeader?.binaryContent.count == 0)
+
+    let referenceXmlDocument = try String(contentsOfFile: xmlFilepath, encoding: .utf8)
+    #expect(xmlDocument == referenceXmlDocument)
+}

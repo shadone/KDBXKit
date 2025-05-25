@@ -9,10 +9,10 @@ import Testing
 @testable import KDBXKit
 
 @Test
-func argon2id() async throws {
+func Argon2KDF_argon2id() async throws {
     let password = Data("password".utf8)
     let salt = Data("some salt".utf8)
-    let result = argon2id(
+    let result = Argon2KDF.argon2id(
         password: password,
         params: .init(version: .v1_3, salt: salt, iterations: 16, memory: 32768 * 1024, parallelism: 2)
     )
@@ -20,10 +20,10 @@ func argon2id() async throws {
 }
 
 @Test
-func argon2d() async throws {
+func Argon2KDF_argon2d() async throws {
     let password = Data("password".utf8)
     let salt = Data("some salt".utf8)
-    let result = argon2d(
+    let result = Argon2KDF.argon2d(
         password: password,
         params: .init(version: .v1_3, salt: salt, iterations: 16, memory: 32768 * 1024, parallelism: 2)
     )

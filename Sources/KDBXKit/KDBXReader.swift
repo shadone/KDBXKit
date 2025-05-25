@@ -269,14 +269,14 @@ public struct KDBXReader: Sendable {
         // Let T be the result of transforming R using a key derivation function. The function and
         // parameters for it are stored in the header.
         switch kdfParameters {
-        case .aes:
-            fatalError("unimplemented")
+        case .aes(let params, additional: _):
+            return AESKDF.derive(salt: params.salt, rounds: params.rounds, keydata)
 
         case .argon2d(let params, additional: _):
-            return argon2d(password: keydata, params: params)
+            return Argon2KDF.argon2d(password: keydata, params: params)
 
         case .argon2id(let params, additional: _):
-            return argon2id(password: keydata, params: params)
+            return Argon2KDF.argon2id(password: keydata, params: params)
 
         case .unknown:
             fatalError("Internal error: unknown KDF")
