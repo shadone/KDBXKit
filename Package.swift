@@ -33,6 +33,7 @@ let package = Package(
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
+                .enableUpcomingFeature("StrictConcurrency")
             ],
         ),
         .target(
@@ -43,6 +44,7 @@ let package = Package(
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
+                .enableUpcomingFeature("StrictConcurrency")
             ],
         ),
         .testTarget(
@@ -53,6 +55,7 @@ let package = Package(
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
+                .enableUpcomingFeature("StrictConcurrency")
             ],
         ),
     ]
