@@ -14,14 +14,52 @@ struct App: ParsableCommand {
     var filepath: String
 
     @Argument(help: "The master password to use")
-    var masterPassword: String
+    var masterPassword: String?
+
+    var unlockData: UnlockData? {
+        if let masterPassword {
+            return .init(masterPassword: masterPassword)
+        }
+        return nil
+    }
 
     mutating func run() throws {
         let data = try! Data(contentsOf: URL(filePath: filepath))
 
         var kdbx = KDBXReader(data)
-        let xmlDocument = try kdbx.parse(unlockData: .init(masterPassword: masterPassword))
-        let header = kdbx.header!
+        let xmlDocument: String?
+        /// The master password was specified but is not correct.
+        let hasUnlockDataButNotCorrect: Bool
+
+        do {
+            xmlDocument = try kdbx.parse(unlockData: unlockData)
+            hasUnlockDataButNotCorrect = false
+        } catch {
+            xmlDocument = nil
+            switch error {
+            case .invalidUnlockData:
+                if unlockData != nil {
+                    // The master password was given but doesn't match the password used for encryption
+                    hasUnlockDataButNotCorrect = true
+                } else {
+                    // No master password was given, we didn't even try to decrypt the content
+                    hasUnlockDataButNotCorrect = false
+                }
+            case .unsupported(let reason):
+                print("The specified KDBX file is not supported: \(reason)")
+                return
+            case .corrupted(let reason):
+                print("Failed to parse KDBX file: \(reason)")
+                return
+            case .unexpectedEOF:
+                print("Failed to parse KDBX file: unexpected end of file")
+                return
+            }
+        }
+
+        guard let header = kdbx.header else {
+            fatalError("Internal error: should have the header after parsing")
+        }
 
         print("Format version: \(header.formatVersion)")
         print("Encryption algorithm: \(header.encryptionAlgorithm)")
@@ -64,23 +102,33 @@ struct App: ParsableCommand {
             }
         }
 
-        print("")
-
-        print("Block stream sizes: \(kdbx.blockSizes)")
-
-        print("")
-
-        let innerHeader = kdbx.innerHeader!
-        print("Inner Header:")
-        print("\tEncryption Algorithm: \(innerHeader.encryptionAlgorithm)")
-        print("\tEncryption key: \(innerHeader.encryptionKey.hexString)")
-        print("\tBinary Content: \(innerHeader.binaryContent.count) elements")
-        for (index, element) in innerHeader.binaryContent.enumerated() {
-            print("\t\t\(index): \(element.data.count) bytes" + (element.shouldBeProtected ? " [protected]" : ""))
+        if hasUnlockDataButNotCorrect {
+            print("")
+            print("Error: The specified master password is not correct.")
         }
 
-        print("")
+        if !kdbx.blockSizes.isEmpty {
+            print("")
 
-        print(xmlDocument)
+            print("Block stream sizes: \(kdbx.blockSizes)")
+        }
+
+        if let innerHeader = kdbx.innerHeader {
+            print("")
+
+            print("Inner Header:")
+            print("\tEncryption Algorithm: \(innerHeader.encryptionAlgorithm)")
+            print("\tEncryption key: \(innerHeader.encryptionKey.hexString)")
+            print("\tBinary Content: \(innerHeader.binaryContent.count) elements")
+            for (index, element) in innerHeader.binaryContent.enumerated() {
+                print("\t\t\(index): \(element.data.count) bytes" + (element.shouldBeProtected ? " [protected]" : ""))
+            }
+        }
+
+        if let xmlDocument {
+            print("")
+
+            print(xmlDocument)
+        }
     }
 }

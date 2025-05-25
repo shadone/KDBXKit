@@ -10,7 +10,16 @@ import Foundation
 import SwiftGzip
 
 public struct KDBXReader: Sendable {
-    enum Error: Swift.Error {
+    public enum Error: Swift.Error {
+        /// The provided key data (e.g. master password) does not match.
+        ///
+        /// This is triggered early in the parsing, when computing HMAC-SHA256 of the header and comparing it with the one
+        /// stored in the file.
+        case invalidUnlockData
+
+        /// The provided KDBX file is not supported.
+        case unsupported(reason: String)
+
         case corrupted(reason: String)
         case unexpectedEOF
     }
@@ -47,10 +56,30 @@ public struct KDBXReader: Sendable {
         return subdata
     }
 
-    public mutating func parse(unlockData: UnlockData) throws -> String {
-        var reader = HeaderReader(data: data)
-        let (header, headerLength) = try reader.parse()
-        self.header = header
+    public mutating func parse(unlockData: UnlockData?) throws (Error) -> String {
+        let header: Header
+        let headerLength: Int
+
+        do {
+            var reader = HeaderReader(data: data)
+            (header, headerLength) = try reader.parse()
+            self.header = header
+        } catch {
+            switch error {
+            case .invalidSignature:
+                throw .corrupted(reason: "Invalid file signature")
+            case .unsupportedFormatVersion(let major, let minor):
+                throw .unsupported(reason: "KDBX format version \(major).\(minor) is not supported")
+            case .unsupportedCompression(let compression):
+                throw .unsupported(reason: "The specified compression algorithm (\(compression)) is not supported")
+            case .unsupportedEncryption(let uuid):
+                throw .unsupported(reason: "The specified encryption algorithm (\(uuid.uuidString)) is not supported")
+            case .corrupted(let reason):
+                throw .corrupted(reason: "Header: \(reason)")
+            case .unexpectedEOF:
+                throw .unexpectedEOF
+            }
+        }
 
         pos = pos.advanced(by: headerLength)
 
@@ -69,6 +98,12 @@ public struct KDBXReader: Sendable {
             throw Error.corrupted(reason: "Invalid header SHA256 digest")
         }
 
+        guard let unlockData else {
+            // Shortcircuit early if the master password was not provided, maybe the intention
+            // is to read the header only.
+            throw .invalidUnlockData
+        }
+
         // calculate HMAC-SHA256 of the header
         let unlockKey = computeUnlockKey(
             salt: header.masterSalt,
@@ -83,7 +118,7 @@ public struct KDBXReader: Sendable {
         if headerHMACSHA256 != headerHMACSHA256FromFile {
             print("### headerHMACSHA256 (ours)", headerHMACSHA256.hexString)
             print("### headerHMACSHA256 (file)", headerHMACSHA256FromFile.hexString)
-            throw Error.corrupted(reason: "Invalid header HMAC-SHA256 digest")
+            throw Error.invalidUnlockData
         }
 
         // Parse HMAC-protected block stream
