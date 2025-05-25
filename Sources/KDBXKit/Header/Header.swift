@@ -28,7 +28,7 @@ public struct Header: Sendable {
 
     public enum EncryptionAlgorithm: Sendable {
         /// AES-256 (NIST FIPS 197, CBC mode, PKCS #7 padding).
-        case AES256
+        case AES256CBC
 
         /// ChaCha20 (RFC 8439).
         case ChaCha20

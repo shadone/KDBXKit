@@ -42,6 +42,9 @@ let package = Package(
         .testTarget(
             name: "KDBXKitTests",
             dependencies: ["KDBXKit"],
+            resources: [
+                .copy("Resources"),
+            ]
         ),
     ]
 )

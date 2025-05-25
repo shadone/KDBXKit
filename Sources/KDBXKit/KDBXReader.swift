@@ -137,7 +137,7 @@ public struct KDBXReader: Sendable {
         let mainDecryptKey = (header.masterSalt + unlockKey).sha256()
 
         switch header.encryptionAlgorithm {
-        case .AES256:
+        case .AES256CBC:
             let decrypted = AES256CBC.decrypt(iv: header.encryptionNonce, cipherText: payload, mainDecryptKey)
             payload = decrypted
 

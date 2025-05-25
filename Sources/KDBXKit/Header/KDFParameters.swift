@@ -67,6 +67,26 @@ public enum KDFParameters: Sendable {
     /// The KDF UUID value is not implemented.
     case unknown(uuid: UUID)
 
+    var aes: (params: AES, additional: VariantDictionary)? {
+        guard case let .aes(aes, additional) = self else { return nil }
+        return (aes, additional)
+    }
+
+    var argon2d: (params: Argon2, additional: VariantDictionary)? {
+        guard case let .argon2d(argon2, additional) = self else { return nil }
+        return (argon2, additional)
+    }
+
+    var argon2id: (params: Argon2, additional: VariantDictionary)? {
+        guard case let .argon2id(argon2, additional) = self else { return nil }
+        return (argon2, additional)
+    }
+
+    var unknown: UUID? {
+        guard case let .unknown(uuid) = self else { return nil }
+        return uuid
+    }
+
     init?(from params: VariantDictionary) {
         guard case let .bytes(uuidData) = params["$UUID"] else {
             print("KDF Parameters: Missing required '$UUID' key")

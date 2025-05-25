@@ -126,7 +126,7 @@ struct HeaderReader: Sendable {
 
                 if let uuid = valueData.asUUIDLE() {
                     if uuid == aes256 {
-                        encryptionAlgorithm = .AES256
+                        encryptionAlgorithm = .AES256CBC
                     } else if uuid == chacha20 {
                         encryptionAlgorithm = .ChaCha20
                     } else {
@@ -188,7 +188,7 @@ struct HeaderReader: Sendable {
             throw Error.corrupted(reason: "Missing encryption nonce")
         }
         switch encryptionAlgorithm {
-        case .AES256:
+        case .AES256CBC:
             guard encryptionNonce.count == 16 else {
                 throw Error.corrupted(reason: "Invalid AES256 encryption nonce length. Length: \(encryptionNonce.count); bytes: \(encryptionNonce.hexString)")
             }
