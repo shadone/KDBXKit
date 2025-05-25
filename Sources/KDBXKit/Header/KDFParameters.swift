@@ -97,11 +97,14 @@ public enum KDFParameters: Sendable {
             return nil
         }
 
-        let aes = UUID(uuid: (0xEA, 0x4F, 0x8A, 0xC1, 0x08, 0x0D, 0x74, 0xBF, 0x60, 0x44, 0x8A, 0x62, 0x9A, 0xF3, 0xD9, 0xC9))
-        let argon2d = UUID(uuid: (0x0C, 0x0A, 0xE3, 0x03, 0xA4, 0xA9, 0xF7, 0x91, 0x4B, 0x44, 0x29, 0x8C, 0xDF, 0x6D, 0x63, 0xEF))
-        let argon2id = UUID(uuid: (0xE6, 0xA1, 0xF0, 0xC6, 0x3E, 0xFC, 0x3D, 0xB2, 0x73, 0x47, 0xDB, 0x56, 0x19, 0x8B, 0x29, 0x9E))
+        enum KDF {
+            static let AES = UUID(uuid: (0xEA, 0x4F, 0x8A, 0xC1, 0x08, 0x0D, 0x74, 0xBF, 0x60, 0x44, 0x8A, 0x62, 0x9A, 0xF3, 0xD9, 0xC9))
+            static let Argon2d = UUID(uuid: (0x0C, 0x0A, 0xE3, 0x03, 0xA4, 0xA9, 0xF7, 0x91, 0x4B, 0x44, 0x29, 0x8C, 0xDF, 0x6D, 0x63, 0xEF))
+            static let Argon2id = UUID(uuid: (0xE6, 0xA1, 0xF0, 0xC6, 0x3E, 0xFC, 0x3D, 0xB2, 0x73, 0x47, 0xDB, 0x56, 0x19, 0x8B, 0x29, 0x9E))
 
-        if uuid == aes {
+        }
+
+        if uuid == KDF.AES {
             guard
                 case let .bytes(salt) = params["S"],
                 case let .uint64(rounds) = params["R"]
@@ -115,7 +118,7 @@ public enum KDFParameters: Sendable {
             additionalParams.removeValue(forKey: "R")
 
             self = .aes(.init(salt: salt, rounds: rounds), additional: params)
-        } else if uuid == argon2d || uuid == argon2id {
+        } else if uuid == KDF.Argon2d || uuid == KDF.Argon2id {
             guard
                 case let .uint32(versionRawValue) = params["V"],
                 case let .bytes(salt) = params["S"],
@@ -151,7 +154,7 @@ public enum KDFParameters: Sendable {
                 memory: memory,
                 parallelism: parallelism
             )
-            if uuid == argon2d {
+            if uuid == KDF.Argon2d {
                 self = .argon2d(params, additional: additionalParams)
             } else {
                 self = .argon2id(params, additional: additionalParams)
