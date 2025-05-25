@@ -1,6 +1,15 @@
 {
-  "originHash" : "353eaa0a965040978e37157a9f73ff8eec57b9409009b0ae0bc28b2c58db5d72",
+  "originHash" : "4e646ceb2a7b7dde79f8501556b8466fa8e90fe984f019cbd7d8ed08d89f8761",
   "pins" : [
+    {
+      "identity" : "nodal",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tomasf/Nodal.git",
+      "state" : {
+        "revision" : "763efeebe6bf1c26958dcbb29661a9af45cced52",
+        "version" : "0.3.1"
+      }
+    },
     {
       "identity" : "phc-winner-argon2",
       "kind" : "remoteSourceControl",
