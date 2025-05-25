@@ -31,6 +31,9 @@ let package = Package(
                 "KDBXKit",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+            ],
         ),
         .target(
             name: "KDBXKit",
@@ -38,13 +41,19 @@ let package = Package(
                 .product(name: "argon2", package: "phc-winner-argon2"),
                 .product(name: "SwiftGzip", package: "swift-gzip"),
             ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+            ],
         ),
         .testTarget(
             name: "KDBXKitTests",
             dependencies: ["KDBXKit"],
             resources: [
                 .copy("Resources"),
-            ]
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+            ],
         ),
     ]
 )
