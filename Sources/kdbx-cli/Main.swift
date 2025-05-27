@@ -45,10 +45,10 @@ struct App: ParsableCommand {
                     // No master password was given, we didn't even try to decrypt the content
                     hasUnlockDataButNotCorrect = false
                 }
-            case .unsupported(let reason):
+            case let .unsupported(reason):
                 print("The specified KDBX file is not supported: \(reason)")
                 return
-            case .corrupted(let reason):
+            case let .corrupted(reason):
                 print("Failed to parse KDBX file: \(reason)")
                 return
             case .unexpectedEOF:
@@ -137,6 +137,5 @@ struct App: ParsableCommand {
                 print("Error, failed to parse XML document: \(error)")
             }
         }
-
     }
 }

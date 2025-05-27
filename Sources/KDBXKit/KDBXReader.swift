@@ -56,7 +56,7 @@ public struct KDBXReader: Sendable {
         return subdata
     }
 
-    public mutating func parse(unlockData: UnlockData?) throws (Error) -> String {
+    public mutating func parse(unlockData: UnlockData?) throws(Error) -> String {
         let header: Header
         let headerLength: Int
 
@@ -68,13 +68,13 @@ public struct KDBXReader: Sendable {
             switch error {
             case .invalidSignature:
                 throw .corrupted(reason: "Invalid file signature")
-            case .unsupportedFormatVersion(let major, let minor):
+            case let .unsupportedFormatVersion(major, minor):
                 throw .unsupported(reason: "KDBX format version \(major).\(minor) is not supported")
-            case .unsupportedCompression(let compression):
+            case let .unsupportedCompression(compression):
                 throw .unsupported(reason: "The specified compression algorithm (\(compression)) is not supported")
-            case .unsupportedEncryption(let uuid):
+            case let .unsupportedEncryption(uuid):
                 throw .unsupported(reason: "The specified encryption algorithm (\(uuid.uuidString)) is not supported")
-            case .corrupted(let reason):
+            case let .corrupted(reason):
                 throw .corrupted(reason: "Header: \(reason)")
             case .unexpectedEOF:
                 throw .unexpectedEOF

@@ -30,14 +30,14 @@ func KDBXReaderSimple_Argon2d_AES256() async throws {
     #expect(reader.header?.kdfParameters.argon2d != nil)
     #expect(reader.header?.kdfParameters.argon2d?.params.version == .v1_3)
     #expect(reader.header?.kdfParameters.argon2d?.params.iterations == 10)
-    #expect(reader.header?.kdfParameters.argon2d?.params.memory == 67108864)
+    #expect(reader.header?.kdfParameters.argon2d?.params.memory == 67_108_864)
     #expect(reader.header?.kdfParameters.argon2d?.params.parallelism == 12)
     #expect(reader.header?.kdfParameters.argon2d?.params.salt.hexString == "ddf3bb53e421cf7e2be15ac8556c8228cbb7e0fc60359b61295c6533de645bb7")
 
     #expect(reader.innerHeader != nil)
     #expect(reader.innerHeader?.encryptionAlgorithm == .ChaCha20)
     #expect(reader.innerHeader?.encryptionKey.hexString == "89b089183e2dc2c220df1e94feef6d658dacf87dbb4e2a1337e5380f25eed8dc72492e6fb9794329d7fc80b0932ad37a4fca03ae7ea2c17b7e829e5256054496")
-    #expect(reader.innerHeader?.binaryContent.count == 0)
+    #expect(reader.innerHeader?.binaryContent.isEmpty == true)
 
     let referenceXmlDocument = try String(contentsOfFile: xmlFilepath, encoding: .utf8)
     #expect(xmlDocument == referenceXmlDocument)
@@ -65,14 +65,14 @@ func KDBXReaderSimple_Argon2id_AES256() async throws {
     #expect(reader.header?.kdfParameters.argon2id != nil)
     #expect(reader.header?.kdfParameters.argon2id?.params.version == .v1_3)
     #expect(reader.header?.kdfParameters.argon2id?.params.iterations == 10)
-    #expect(reader.header?.kdfParameters.argon2id?.params.memory == 67108864)
+    #expect(reader.header?.kdfParameters.argon2id?.params.memory == 67_108_864)
     #expect(reader.header?.kdfParameters.argon2id?.params.parallelism == 12)
     #expect(reader.header?.kdfParameters.argon2id?.params.salt.hexString == "144c6206ad60ea2bb3fe92522a8553b706e285964440f30b7dbf1d27405c81ef")
 
     #expect(reader.innerHeader != nil)
     #expect(reader.innerHeader?.encryptionAlgorithm == .ChaCha20)
     #expect(reader.innerHeader?.encryptionKey.hexString == "f17626dfb97ba00416955501fb794e34f95da47472985d4916accb3e0853c6b6e1c11a42ab6b3265279bd169c16c4a546968deb54760c0a42bc549120f88b55e")
-    #expect(reader.innerHeader?.binaryContent.count == 0)
+    #expect(reader.innerHeader?.binaryContent.isEmpty == true)
 
     let referenceXmlDocument = try String(contentsOfFile: xmlFilepath, encoding: .utf8)
     #expect(xmlDocument == referenceXmlDocument)
@@ -104,7 +104,7 @@ func KDBXReaderSimple_AES256_AES256() async throws {
     #expect(reader.innerHeader != nil)
     #expect(reader.innerHeader?.encryptionAlgorithm == .ChaCha20)
     #expect(reader.innerHeader?.encryptionKey.hexString == "40b2e668db617d0cd1ed710ec717e4df17ee5f0f3d5abfd06a41b5e8ff4e061308007e8d04a00df48b28184cb141e5564e5b81266a83c4d019cb4a18cfa141d5")
-    #expect(reader.innerHeader?.binaryContent.count == 0)
+    #expect(reader.innerHeader?.binaryContent.isEmpty == true)
 
     let referenceXmlDocument = try String(contentsOfFile: xmlFilepath, encoding: .utf8)
     #expect(xmlDocument == referenceXmlDocument)

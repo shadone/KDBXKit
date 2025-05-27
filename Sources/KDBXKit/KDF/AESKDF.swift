@@ -4,8 +4,8 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
-import Foundation
 import CommonCrypto
+import Foundation
 
 enum AESKDF {
     static func derive(salt: Data, rounds: UInt64, _ password: Data) -> Data {
@@ -39,8 +39,7 @@ enum AESKDF {
         return buffer.sha256()
     }
 
-
-    static private func aes256EncryptBlockECB(input: Data, key: Data) -> Data {
+    private static func aes256EncryptBlockECB(input: Data, key: Data) -> Data {
         precondition(input.count == kCCBlockSizeAES128, "AESKDF: Invalid input size \(input.count) != \(kCCBlockSizeAES128)")
         precondition(key.count == kCCKeySizeAES256, "AESKDF: Invalid key size \(key.count) != \(kCCKeySizeAES256)")
 

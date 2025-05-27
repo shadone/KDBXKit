@@ -23,4 +23,3 @@ func AESKDF() async throws {
     let result = AESKDF.derive(salt: salt, rounds: 1000, password)
     #expect(result.hexString == "68a581af1d3aacc7506eab9ddb32abb192d10214fb08499a6be29d58d0f5c83a")
 }
-
