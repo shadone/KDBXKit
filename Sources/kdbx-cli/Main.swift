@@ -129,6 +129,14 @@ struct App: ParsableCommand {
             print("")
 
             print(xmlDocument)
+
+            var databaseReader = DatabaseReader(xmlDocument: xmlDocument)
+            do {
+                try databaseReader.parse()
+            } catch {
+                print("Error, failed to parse XML document: \(error)")
+            }
         }
+
     }
 }

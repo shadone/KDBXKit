@@ -8,9 +8,9 @@ import Foundation
 
 extension KDBX {
     struct Root: Sendable {
-        let group: Group
+        var group: Group
 
         /// When the user deletes an object (group, entry, ...), an item is created in this list. When synchronizing/merging database files, this information can be used to decide whether an object has been deleted.
-        let deletedObjects: [DeletedObject]?
+        var deletedObjects: [DeletedObject]?
     }
 }

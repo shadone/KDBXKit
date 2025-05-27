@@ -12,7 +12,7 @@ extension KDBX {
         case color(red: UInt8, green: UInt8, blue: UInt8)
         case `default`
 
-        init(stringValue: String) {
+        init?(stringValue: String) {
             if stringValue.isEmpty {
                 self = .default
             } else {

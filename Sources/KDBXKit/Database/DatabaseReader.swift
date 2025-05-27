@@ -4,16 +4,855 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
+import Foundation
 import Nodal
 
-struct DatabaseReader {
-    let document: Document
-
-    init(xmlDocument: String) {
-        self.document = try! Document(string: xmlDocument)
+public struct DatabaseReader {
+    public enum Error: Swift.Error {
+        case corrupted(reason: String)
     }
 
-    mutating func parse() {
-        //document.documentElement?.children
+    let document: Document
+
+    var meta = KDBX.Meta()
+    var root: KDBX.Root?
+
+    /// This is the .NET DateTime epoch.
+    ///
+    /// KDBX documents stores dates as the number of seconds (Int64) elapsed since 0001-01-01 00:00:00 UTC encoded using Base64.
+    private static let dotNetEpoch = DateComponents(
+        calendar: Calendar(identifier: .gregorian),
+        timeZone: TimeZone(secondsFromGMT: 0),
+        year: 1,
+        month: 1,
+        day: 1,
+        hour: 0,
+        minute: 0,
+        second: 0
+    ).date!
+
+    public init(xmlDocument: String) {
+        document = try! Document(string: xmlDocument)
+    }
+
+    private func parseDate(_ string: String, node: Node) throws(Error) -> Date {
+        guard
+            let secondsSinceDotnetEpoch = Data(base64Encoded: string)?.asInt64LE()
+        else {
+            throw .corrupted(reason: "Failed to parse date '\(string)' from \(node.fullyQualifiedName)")
+        }
+
+        return Self.dotNetEpoch.addingTimeInterval(TimeInterval(secondsSinceDotnetEpoch))
+    }
+
+    private func parseNumber<T: FixedWidthInteger>(_ string: String, node: Node) throws(Error) -> T {
+        guard let number = T(string) else {
+            throw .corrupted(reason: "Failed to parse \(T.self) '\(string)' from \(node.fullyQualifiedName)")
+        }
+        return number
+    }
+
+    private func parseBool(_ string: String, node: Node) throws(Error) -> Bool {
+        switch string {
+        case "True":
+            return true
+        case "False":
+            return false
+        default:
+            throw .corrupted(reason: "Failed to parse bool '\(string)' from \(node.fullyQualifiedName)")
+        }
+    }
+
+    private func parseColor(_ string: String, node: Node) throws(Error) -> KDBX.Color {
+        guard let color = KDBX.Color(stringValue: string) else {
+            throw .corrupted(reason: "Failed to parse color '\(string)' from \(node.fullyQualifiedName)")
+        }
+        return color
+    }
+
+    private func parseValueOrNever<T: Sendable & FixedWidthInteger>(_ string: String, node: Node) throws(Error) -> KDBX.ValueOrNever<T> {
+        if string == "-1" {
+            return .never
+        }
+        return try .value(parseNumber(string, node: node))
+    }
+
+    private func parseValueOrUnlimited<T: Sendable & FixedWidthInteger>(_ string: String, node: Node) throws(Error) -> KDBX.ValueOrUnlimited<T> {
+        if string == "-1" {
+            return .unlimited
+        }
+        return try .value(parseNumber(string, node: node))
+    }
+
+    /// - parameter string: A 128-bit UUID encoded using Base64.
+    private func parseUUID(_ string: String, node: Node) throws(Error) -> UUID {
+        guard
+            let uuidValue = Data(base64Encoded: string)?.asUUIDLE()
+        else {
+            throw .corrupted(reason: "Failed to parse UUID '\(string)' from \(node.fullyQualifiedName)")
+        }
+        return uuidValue
+    }
+
+    private func text(in node: Node) -> String? {
+        let textNodes = node.children(ofKind: .text)
+
+        var numberOfTextNodes = 0
+        var result = ""
+        for textNode in textNodes {
+            result += textNode.value
+            numberOfTextNodes += 1
+        }
+
+        return numberOfTextNodes == 0 ? nil : result
+    }
+
+    public mutating func parse() throws(Error) {
+        guard let documentElement = document.documentElement else {
+            return
+        }
+
+        guard documentElement.name == "KeePassFile" else {
+            throw .corrupted(reason: "Invalid root element: \(documentElement.name)")
+        }
+
+        try parseKeepassFile(documentElement)
+    }
+
+    mutating func parseKeepassFile(_ node: Node) throws(Error) {
+        for child in node.children {
+            switch child.name {
+            case "Meta":
+                meta = try parseMeta(child)
+            case "Root":
+                root = try parseRoot(child)
+            default:
+                print("Unexpected element: \(child.fullyQualifiedName)")
+            }
+        }
+    }
+
+    func parseMeta(_ node: Node) throws(Error) -> KDBX.Meta {
+        var meta = KDBX.Meta()
+
+        for child in node.children {
+            switch child.name {
+            case "Generator":
+                meta.generator = text(in: child)
+
+            case "HeaderHash":
+                meta.headerHash = text(in: child)
+
+            case "SettingsChanged":
+                if let stringValue = text(in: child) {
+                    meta.settingsChanged = try parseDate(stringValue, node: child)
+                }
+
+            case "DatabaseName":
+                meta.databaseName = text(in: child)
+
+            case "DatabaseNameChanged":
+                if let stringValue = text(in: child) {
+                    meta.databaseNameChanged = try parseDate(stringValue, node: child)
+                }
+
+            case "DatabaseDescription":
+                meta.databaseDescription = text(in: child)
+
+            case "DatabaseDescriptionChanged":
+                if let stringValue = text(in: child) {
+                    meta.databaseDescriptionChanged = try parseDate(stringValue, node: child)
+                }
+            case "DefaultUserName":
+                meta.defaultUserName = text(in: child)
+
+            case "DefaultUserNameChanged":
+                if let stringValue = text(in: child) {
+                    meta.defaultUserNameChanged = try parseDate(stringValue, node: child)
+                }
+
+            case "MaintenanceHistoryDays":
+                if let stringValue = text(in: child) {
+                    meta.maintenanceHistoryDays = try parseNumber(stringValue, node: child)
+                }
+
+            case "Color":
+                if let stringValue = text(in: child) {
+                    meta.color = try parseColor(stringValue, node: child)
+                }
+
+            case "MasterKeyChanged":
+                if let stringValue = text(in: child) {
+                    meta.masterKeyChanged = try parseDate(stringValue, node: child)
+                }
+
+            case "MasterKeyChangeRec":
+                if let stringValue = text(in: child) {
+                    meta.masterKeyChangeRec = try parseValueOrNever(stringValue, node: child)
+                }
+
+            case "MasterKeyChangeForce":
+                if let stringValue = text(in: child) {
+                    meta.masterKeyChangeForce = try parseValueOrNever(stringValue, node: child)
+                }
+
+            case "MasterKeyChangeForceOnce":
+                if let stringValue = text(in: child) {
+                    meta.masterKeyChangeForceOnce = try parseBool(stringValue, node: child)
+                }
+
+            case "MemoryProtection":
+                meta.memoryProtection = try parseMemoryProtection(child)
+
+            case "CustomIcons":
+                meta.customIcons = try parseCustomIconList(child)
+
+            case "RecycleBinEnabled":
+                if let stringValue = text(in: child) {
+                    meta.recycleBinEnabled = try parseBool(stringValue, node: child)
+                }
+
+            case "RecycleBinUUID":
+                if let stringValue = text(in: child) {
+                    meta.recycleBinUUID = try parseUUID(stringValue, node: child)
+                }
+
+            case "RecycleBinChanged":
+                if let stringValue = text(in: child) {
+                    meta.recycleBinChanged = try parseDate(stringValue, node: child)
+                }
+
+            case "EntryTemplatesGroup":
+                if let stringValue = text(in: child) {
+                    meta.entryTemplatesGroup = try parseUUID(stringValue, node: node)
+                }
+
+            case "EntryTemplatesGroupChanged":
+                if let stringValue = text(in: child) {
+                    meta.entryTemplatesGroupChanged = try parseDate(stringValue, node: node)
+                }
+
+            case "HistoryMaxItems":
+                if let stringValue = text(in: child) {
+                    meta.historyMaxItems = try parseValueOrUnlimited(stringValue, node: node)
+                }
+
+            case "HistoryMaxSize":
+                if let stringValue = text(in: child) {
+                    meta.historyMaxSize = try parseValueOrUnlimited(stringValue, node: node)
+                }
+
+            case "LastSelectedGroup":
+                if let stringValue = text(in: child) {
+                    meta.lastSelectedGroup = try parseUUID(stringValue, node: node)
+                }
+
+            case "LastTopVisibleGroup":
+                if let stringValue = text(in: child) {
+                    meta.lastTopVisibleGroup = try parseUUID(stringValue, node: node)
+                }
+
+            case "CustomData":
+                meta.customData = try parseCustomDataWithTimesList(child)
+
+            default:
+                print("Unexpected element \(child.fullyQualifiedName)")
+            }
+        }
+
+        return meta
+    }
+
+    func parseRoot(_ node: Node) throws(Error) -> KDBX.Root {
+        var group: KDBX.Group?
+        var deletedObjects: [KDBX.DeletedObject]?
+
+        for child in node.children {
+            switch child.name {
+            case "Group":
+                group = try parseGroup(child)
+
+            case "DeletedObjects":
+                deletedObjects = try parseDeletedObjects(child)
+
+            default:
+                print("Unexpected element \(child.fullyQualifiedName)")
+            }
+        }
+
+        guard let group else {
+            throw .corrupted(reason: "Missing Group element in \(node.fullyQualifiedName)")
+        }
+
+        return .init(group: group, deletedObjects: deletedObjects)
+    }
+
+    func parseMemoryProtection(_ node: Node) throws(Error) -> KDBX.MemoryProtectionConfig {
+        var memoryProtection = KDBX.MemoryProtectionConfig()
+
+        for child in node.children {
+            switch child.name {
+            case "ProtectTitle":
+                if let stringValue = text(in: child) {
+                    memoryProtection.protectTitle = try parseBool(stringValue, node: child)
+                }
+            case "ProtectUserName":
+                if let stringValue = text(in: child) {
+                    memoryProtection.protectUserName = try parseBool(stringValue, node: child)
+                }
+            case "ProtectPassword":
+                if let stringValue = text(in: child) {
+                    memoryProtection.protectPassword = try parseBool(stringValue, node: child)
+                }
+            case "ProtectURL":
+                if let stringValue = text(in: child) {
+                    memoryProtection.protectURL = try parseBool(stringValue, node: child)
+                }
+            case "ProtectNotes":
+                if let stringValue = text(in: child) {
+                    memoryProtection.protectNotes = try parseBool(stringValue, node: child)
+                }
+            default:
+                print("Unexpected element \(child.fullyQualifiedName)")
+            }
+        }
+
+        return memoryProtection
+    }
+
+    func parseCustomIconList(_ node: Node) throws(Error) -> [KDBX.CustomIcon] {
+        var customIcons: [KDBX.CustomIcon] = []
+
+        for itemNode in node.children {
+            guard itemNode.name == "Icon" else {
+                print("Unexpected element \(itemNode.fullyQualifiedName)")
+                continue
+            }
+
+            let customIcon = try parseCustomIcon(itemNode)
+            customIcons.append(customIcon)
+        }
+
+        return customIcons
+    }
+
+    func parseCustomIcon(_ node: Node) throws(Error) -> KDBX.CustomIcon {
+        var uuid: UUID?
+        var data: Data?
+        var name: String?
+        var lastModificationTime: Date?
+
+        for child in node.children {
+            switch child.name {
+            case "UUID":
+                if let stringValue = text(in: child) {
+                    uuid = try parseUUID(stringValue, node: node)
+                }
+
+            case "Data":
+                if let stringValue = text(in: child) {
+                    guard let decodedData = Data(base64Encoded: stringValue) else {
+                        throw .corrupted(reason: "Failed to parse base64 data in \(child.fullyQualifiedName)")
+                    }
+                    data = decodedData
+                }
+
+            case "Name":
+                name = text(in: child)
+
+            case "LastModificationTime":
+                if let stringValue = text(in: child) {
+                    lastModificationTime = try parseDate(stringValue, node: node)
+                }
+
+            default:
+                print("Unexpected element \(child.fullyQualifiedName)")
+            }
+        }
+
+        guard let uuid, let data else {
+            throw .corrupted(reason: "Missing UUID or Data in CustomIcon in \(node.fullyQualifiedName)")
+        }
+
+        return .init(uuid: uuid, data: data, name: name, lastModificationTime: lastModificationTime)
+    }
+
+    func parseCustomDataItemList(_ node: Node) throws(Error) -> [KDBX.CustomDataItem] {
+        var customData: [KDBX.CustomDataItem] = []
+
+        for itemNode in node.children {
+            guard itemNode.name == "Item" else {
+                print("Unexpected element \(itemNode.fullyQualifiedName)")
+                continue
+            }
+
+            var key: String?
+            var value: String?
+
+            for child in itemNode.children {
+                switch child.name {
+                case "Key":
+                    key = child.value
+                case "Value":
+                    value = child.value
+                default:
+                    print("Unexpected element \(child.fullyQualifiedName)")
+                }
+            }
+
+            guard let key, let value else {
+                print("Missing Key or Value node in CustomDataWithTimes in \(itemNode.fullyQualifiedName)")
+                continue
+            }
+
+            customData.append(.init(key: key, value: value))
+        }
+
+        return customData
+    }
+
+    func parseCustomDataWithTimesList(_ node: Node) throws(Error) -> [KDBX.CustomDataWithTimes] {
+        var customData: [KDBX.CustomDataWithTimes] = []
+
+        for itemNode in node.children {
+            guard itemNode.name == "Item" else {
+                print("Unexpected element \(itemNode.fullyQualifiedName)")
+                continue
+            }
+
+            var key: String?
+            var value: String?
+            var lastModificationTime: Date?
+
+            for child in itemNode.children {
+                switch child.name {
+                case "Key":
+                    key = child.value
+                case "Value":
+                    value = child.value
+                case "LastModificationTime":
+                    lastModificationTime = try parseDate(child.value, node: child)
+                default:
+                    print("Unexpected element \(child.fullyQualifiedName)")
+                }
+            }
+
+            guard let key, let value else {
+                print("Missing Key or Value node in CustomDataWithTimes in \(itemNode.fullyQualifiedName)")
+                continue
+            }
+
+            customData.append(.init(key: key, value: value, lastModificationTime: lastModificationTime))
+        }
+
+        return customData
+    }
+
+    func parseGroup(_ node: Node) throws(Error) -> KDBX.Group {
+        var group = KDBX.Group(uuid: UUID(), iconID: 0)
+
+        for child in node.children {
+            switch child.name {
+            case "UUID":
+                if let stringValue = text(in: child) {
+                    group.uuid = try parseUUID(stringValue, node: child)
+                }
+
+            case "Name":
+                group.name = text(in: child)
+
+            case "Notes":
+                group.notes = text(in: child)
+
+            case "IconID":
+                if let stringValue = text(in: child) {
+                    group.iconID = try parseNumber(stringValue, node: node)
+                }
+
+            case "CustomIconUUID":
+                if let stringValue = text(in: child) {
+                    group.customIconUUID = try parseUUID(stringValue, node: child)
+                }
+
+            case "Times":
+                group.times = try parseTimes(child)
+
+            case "IsExpanded":
+                if let stringValue = text(in: child) {
+                    group.isExpanded = try parseBool(stringValue, node: child)
+                }
+
+            case "DefaultAutoTypeSequence":
+                group.defaultAutoTypeSequence = text(in: child)
+
+            case "EnableAutoType":
+                group.enableAutoType = try parseNullableBoolEx(child)
+
+            case "EnableSearching":
+                group.enableSearching = try parseNullableBoolEx(child)
+
+            case "LastTopVisibleEntry":
+                if let stringValue = text(in: child) {
+                    group.lastTopVisibleEntry = try parseUUID(stringValue, node: node)
+                }
+
+            case "PreviousParentGroup":
+                if let stringValue = text(in: child) {
+                    group.previousParentGroup = try parseUUID(stringValue, node: node)
+                }
+
+            case "Tags":
+                group.tags = try parseTags(child)
+
+            case "CustomData":
+                group.customData = try parseCustomDataItemList(child)
+
+            case "Entry":
+                if group.entries == nil {
+                    group.entries = []
+                }
+                let entry = try parseEntry(child)
+                group.entries?.append(entry)
+
+            case "Group":
+                if group.groups == nil {
+                    group.groups = []
+                }
+                let subGroup = try parseGroup(child)
+                group.groups?.append(subGroup)
+
+            default:
+                print("Unexpected element \(child.fullyQualifiedName)")
+            }
+        }
+
+        return group
+    }
+
+    func parseTimes(_ node: Node) throws(Error) -> KDBX.Times {
+        var times = KDBX.Times()
+
+        for child in node.children {
+            switch child.name {
+            case "CreationTime":
+                if let stringValue = text(in: child) {
+                    times.creationTime = try parseDate(stringValue, node: child)
+                }
+
+            case "LastModificationTime":
+                if let stringValue = text(in: child) {
+                    times.lastModificationTime = try parseDate(stringValue, node: child)
+                }
+
+            case "LastAccessTime":
+                if let stringValue = text(in: child) {
+                    times.lastAccessTime = try parseDate(stringValue, node: child)
+                }
+
+            case "ExpiryTime":
+                if let stringValue = text(in: child) {
+                    times.expiryTime = try parseDate(stringValue, node: child)
+                }
+
+            case "Expires":
+                if let stringValue = text(in: child) {
+                    times.expires = try parseBool(stringValue, node: child)
+                }
+
+            case "UsageCount":
+                if let stringValue = text(in: child) {
+                    times.usageCount = try parseNumber(stringValue, node: node)
+                }
+
+            case "LocationChanged":
+                if let stringValue = text(in: child) {
+                    times.locationChanged = try parseDate(stringValue, node: node)
+                }
+
+            default:
+                print("Unexpected element \(child.fullyQualifiedName)")
+            }
+        }
+
+        return times
+    }
+
+    func parseNullableBoolEx(_ node: Node) throws(Error) -> KDBX.NullableBoolEx? {
+        guard let stringValue = text(in: node) else {
+            return nil
+        }
+
+        switch stringValue {
+        case "Null", "null":
+            return .null
+        case "False", "false":
+            return .value(false)
+        case "True", "true":
+            return .value(true)
+        default:
+            throw .corrupted(reason: "Failed to parse NullableBoolEx value \(stringValue) in \(node.fullyQualifiedName)")
+        }
+    }
+
+    func parseTags(_ node: Node) throws(Error) -> [String]? {
+        guard let stringValue = text(in: node) else {
+            return nil
+        }
+
+        return stringValue.components(separatedBy: ",")
+    }
+
+    func parseEntry(_ node: Node) throws(Error) -> KDBX.Entry {
+        var entry = KDBX.Entry(uuid: UUID(), iconID: 0)
+
+        for child in node.children {
+            switch child.name {
+            case "UUID":
+                if let stringValue = text(in: child) {
+                    entry.uuid = try parseUUID(stringValue, node: child)
+                }
+
+            case "IconID":
+                if let stringValue = text(in: child) {
+                    entry.iconID = try parseNumber(stringValue, node: child)
+                }
+
+            case "CustomIconUUID":
+                if let stringValue = text(in: child) {
+                    entry.customIconUUID = try parseUUID(stringValue, node: child)
+                }
+
+            case "ForegroundColor":
+                if let stringValue = text(in: child) {
+                    entry.foregroundColor = try parseColor(stringValue, node: child)
+                }
+
+            case "BackgroundColor":
+                if let stringValue = text(in: child) {
+                    entry.backgroundColor = try parseColor(stringValue, node: child)
+                }
+
+            case "OverrideURL":
+                entry.overrideURL = text(in: child)
+
+            case "QualityCheck":
+                if let stringValue = text(in: child) {
+                    entry.qualityCheck = try parseBool(stringValue, node: child)
+                }
+
+            case "Tags":
+                entry.tags = try parseTags(child)
+
+            case "PreviousParentGroup":
+                if let stringValue = text(in: child) {
+                    entry.previousParentGroup = try parseUUID(stringValue, node: node)
+                }
+
+            case "Times":
+                entry.times = try parseTimes(child)
+
+            case "String":
+                if entry.strings == nil {
+                    entry.strings = []
+                }
+                let protectedString = try parseProtectedString(child)
+                entry.strings?.append(protectedString)
+
+            case "Binary":
+                // TODO:
+                print("Binary not implemented")
+
+            case "AutoType":
+                entry.autoType = try parseAutoType(child)
+
+            case "CustomData":
+                entry.customData = try parseCustomDataItemList(child)
+
+            case "History":
+                entry.history = try parseEntryList(child)
+
+            default:
+                print("Unexpected element \(child.fullyQualifiedName)")
+            }
+        }
+
+        return entry
+    }
+
+    func parseEntryList(_ node: Node) throws(Error) -> [KDBX.Entry] {
+        var entries: [KDBX.Entry] = []
+
+        for child in node.children {
+            switch child.name {
+            case "Entry":
+                let entry = try parseEntry(child)
+                entries.append(entry)
+            default:
+                print("Unexpected element \(child.fullyQualifiedName)")
+            }
+        }
+
+        return entries
+    }
+
+    func parseProtectedString(_ node: Node) throws(Error) -> KDBX.ProtectedString {
+        var key: String?
+        var rawValue: String?
+        var isProtected: Bool?
+        var shouldProtectInMemory: Bool?
+
+        for child in node.children {
+            switch child.name {
+            case "Key":
+                key = text(in: child)
+            case "Value":
+                rawValue = text(in: child)
+                for (name, value) in child.attributes {
+                    switch name {
+                    case "Protected":
+                        isProtected = true
+                    case "ProtectInMemory":
+                        shouldProtectInMemory = true
+                    default:
+                        print("Unexpected attribute '\(name)' in String in \(child.fullyQualifiedName)")
+                    }
+                }
+            default:
+                print("Unexpected element \(child.fullyQualifiedName)")
+            }
+        }
+
+        guard let key else {
+            throw .corrupted(reason: "Failed to parse ProtectedString, missing key in \(node.fullyQualifiedName)")
+        }
+
+        let value: KDBX.ProtectedString.Value
+        if let isProtected, isProtected {
+            if let rawValue {
+                guard let data = Data(base64Encoded: rawValue) else {
+                    throw .corrupted(reason: "Failed to parse base64 ProtectedData in \(node.fullyQualifiedName)")
+                }
+                value = .protected(data)
+            } else {
+                value = .protected(Data())
+            }
+        } else if let shouldProtectInMemory, shouldProtectInMemory {
+            // TODO: we are currently not protecting in memory
+            print("Protect in memory not yet implemented in \(node.fullyQualifiedName)")
+            value = .protectedInMemory(rawValue ?? "")
+        } else {
+            value = .regular(rawValue ?? "")
+        }
+
+        return .init(key: key, value: value)
+    }
+
+    func parseDeletedObject(_ node: Node) throws(Error) -> KDBX.DeletedObject {
+        var uuid: UUID?
+        var deletionTime: Date?
+
+        for child in node.children {
+            switch child.name {
+            case "UUID":
+                if let stringValue = text(in: child) {
+                    uuid = try parseUUID(stringValue, node: node)
+                }
+            case "DeletionTime":
+                if let stringValue = text(in: child) {
+                    deletionTime = try parseDate(stringValue, node: child)
+                }
+            default:
+                print("Unexpected element \(child.fullyQualifiedName)")
+            }
+        }
+
+        guard let uuid, let deletionTime else {
+            throw .corrupted(reason: "Missing UUID or DeletionTime in DeletedObject in \(node.fullyQualifiedName)")
+        }
+
+        return .init(uuid: uuid, deletionTime: deletionTime)
+    }
+
+    func parseDeletedObjects(_ node: Node) throws(Error) -> [KDBX.DeletedObject] {
+        var deletedObjects: [KDBX.DeletedObject] = []
+        for child in node.children {
+            switch child.name {
+            case "DeletedObject":
+                let deletedObject = try parseDeletedObject(child)
+                deletedObjects.append(deletedObject)
+            default:
+                print("Unexpected element \(child.fullyQualifiedName)")
+            }
+        }
+        return deletedObjects
+    }
+
+    func parseAutoType(_ node: Node) throws(Error) -> KDBX.AutoType {
+        var autotype = KDBX.AutoType()
+
+        for child in node.children {
+            switch child.name {
+            case "Enabled":
+                if let stringValue = text(in: child) {
+                    autotype.enabled = try parseBool(stringValue, node: node)
+                }
+
+            case "DataTransferObfuscation":
+                autotype.dataTransferObfuscation = try parseDataTransferObfuscation(child)
+
+            case "DefaultSequence":
+                autotype.defaultSequence = text(in: child)
+
+            case "Association":
+                if autotype.association == nil {
+                    autotype.association = []
+                }
+                let association = try parseAutoTypeAssociation(child)
+                autotype.association?.append(association)
+
+            default:
+                print("Unexpected element \(child.fullyQualifiedName)")
+            }
+        }
+
+        return autotype
+    }
+
+    func parseAutoTypeAssociation(_ node: Node) throws(Error) -> KDBX.AutoType.Association {
+        var window: String?
+        var keyStrokeSequence: String?
+
+        for child in node.children {
+            switch child.name {
+            case "Window":
+                window = text(in: child)
+
+            case "KeystrokeSequence":
+                keyStrokeSequence = text(in: child)
+
+            default:
+                print("Unexpected element \(child.fullyQualifiedName)")
+            }
+        }
+
+        guard let window, let keyStrokeSequence else {
+            throw .corrupted(reason: "Mising Window or KeystrokeSequence in AutoType Association in \(node.fullyQualifiedName)")
+        }
+
+        return .init(window: window, keystrokeSequence: keyStrokeSequence)
+    }
+
+    func parseDataTransferObfuscation(_ node: Node) throws(Error) -> KDBX.AutoType.DataTransferObfuscation {
+        guard let stringValue = text(in: node) else {
+            throw .corrupted(reason: "Missing value in DataTransferObfuscation in \(node.fullyQualifiedName)")
+        }
+
+        let value: Int32 = try parseNumber(stringValue, node: node)
+
+        guard let dtob = KDBX.AutoType.DataTransferObfuscation(rawValue: value) else {
+            throw .corrupted(reason: "Unknown value for DataTransferObfuscation in \(node.fullyQualifiedName)")
+        }
+
+        return dtob
     }
 }

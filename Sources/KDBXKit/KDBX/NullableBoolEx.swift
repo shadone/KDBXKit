@@ -5,6 +5,14 @@
 //
 
 extension KDBX {
+    /// Allowed values in XML:
+    ///
+    /// - Null
+    /// - null
+    /// - False
+    /// - false
+    /// - True
+    /// - true
     enum NullableBoolEx: Sendable {
         case value(Bool)
         case null

@@ -8,7 +8,8 @@ import Foundation
 
 extension KDBX {
     struct CustomDataWithTimes: Sendable {
-        let customDataItem: CustomDataItem
-        let lastModificationTime: Date?
+        var key: String
+        var value: String
+        var lastModificationTime: Date?
     }
 }

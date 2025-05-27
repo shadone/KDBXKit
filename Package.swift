@@ -60,6 +60,7 @@ let package = Package(
             swiftSettings: [
                 .swiftLanguageMode(.v6),
                 .enableUpcomingFeature("StrictConcurrency"),
+                .interoperabilityMode(.Cxx),
             ],
         ),
     ]

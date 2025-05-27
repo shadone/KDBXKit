@@ -7,11 +7,19 @@
 import Foundation
 
 extension KDBX {
-    enum ProtectedString: Sendable {
-        /// Used in a KDBX file.
-        case protected(Data)
+    struct ProtectedString {
+        enum Value: Sendable {
+            /// Plaintext string.
+            case regular(String)
 
-        /// Used in an unencrypted XML file.
-        case protectedInMemory(Data)
+            /// Used in a KDBX file.
+            case protected(Data)
+
+            /// Used in an unencrypted XML file.
+            case protectedInMemory(String)
+        }
+
+        let key: String
+        let value: Value
     }
 }

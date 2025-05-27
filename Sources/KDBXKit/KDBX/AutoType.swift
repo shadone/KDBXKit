@@ -11,7 +11,7 @@ extension KDBX {
     struct AutoType: Sendable {
         //  This is actually unordered except for the Association child elements, where the order matters.
 
-        let enabled: Bool?
+        var enabled: Bool?
 
         enum DataTransferObfuscation: Int32, Sendable {
             /// No obfuscation.
@@ -21,15 +21,15 @@ extension KDBX {
             case twoChannelObfuscation = 1
         }
 
-        let dataTransferObfuscation: DataTransferObfuscation?
+        var dataTransferObfuscation: DataTransferObfuscation?
 
-        let defaultSequence: String?
+        var defaultSequence: String?
 
         struct Association: Sendable {
-            let window: String
-            let keystrokeSequence: String
+            var window: String
+            var keystrokeSequence: String
         }
 
-        let association: [Association]?
+        var association: [Association]?
     }
 }
