@@ -725,18 +725,36 @@ public struct DatabaseReader {
             switch child.name {
             case "Key":
                 key = text(in: child)
+
             case "Value":
                 rawValue = text(in: child)
                 for (name, value) in child.attributes {
                     switch name {
                     case "Protected":
-                        isProtected = true
+                        switch value {
+                        case "True":
+                            isProtected = true
+                        case "False":
+                            isProtected = false
+                        default:
+                            print("Unexpected attribute value '\(value)' in attribute \(name) in \(child.fullyQualifiedName)")
+                        }
+
                     case "ProtectInMemory":
-                        shouldProtectInMemory = true
+                        switch value {
+                        case "True":
+                            shouldProtectInMemory = true
+                        case "False":
+                            shouldProtectInMemory = false
+                        default:
+                            print("Unexpected attribute value '\(value)' in attribute \(name) in \(child.fullyQualifiedName)")
+                        }
+
                     default:
                         print("Unexpected attribute '\(name)' in String in \(child.fullyQualifiedName)")
                     }
                 }
+
             default:
                 print("Unexpected element \(child.fullyQualifiedName)")
             }
