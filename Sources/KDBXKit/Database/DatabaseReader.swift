@@ -20,8 +20,8 @@ import Nodal
 ///          - Inner header.
 ///          - XML document.             <<- parses XML document
 /// ```
-public struct DatabaseReader {
-    public enum Error: Swift.Error {
+struct DatabaseReader {
+    enum Error: Swift.Error {
         case corrupted(reason: String)
     }
 
@@ -45,7 +45,7 @@ public struct DatabaseReader {
         second: 0
     ).date!
 
-    public init(xmlDocument: String) {
+    init(xmlDocument: String) {
         document = try! Document(string: xmlDocument)
     }
 
@@ -125,31 +125,43 @@ public struct DatabaseReader {
 
     // MARK: Public API
 
-    public mutating func parse() throws(Error) {
+    func parse() throws(Error) -> Database {
         guard let documentElement = document.documentElement else {
-            return
+            throw .corrupted(reason: "Missig root element")
         }
 
         guard documentElement.name == "KeePassFile" else {
             throw .corrupted(reason: "Invalid root element: \(documentElement.name)")
         }
 
-        try parseKeepassFile(documentElement)
+        let (meta, root) = try parseKeepassFile(documentElement)
+        return .init(meta: meta, root: root)
     }
 
     // MARK: Parse <XML Tag> helpers
 
-    mutating func parseKeepassFile(_ node: Node) throws(Error) {
+    func parseKeepassFile(_ node: Node) throws(Error) -> (KDBX.Meta, KDBX.Root) {
+        var meta: KDBX.Meta?
+        var root: KDBX.Root?
+
         for child in node.children {
             switch child.name {
             case "Meta":
                 meta = try parseMeta(child)
+
             case "Root":
                 root = try parseRoot(child)
+
             default:
                 print("Unexpected element: \(child.fullyQualifiedName)")
             }
         }
+
+        guard let meta, let root else {
+            throw .corrupted(reason: "Missing Meta or Root element in \(node.fullyQualifiedName)")
+        }
+
+        return (meta, root)
     }
 
     func parseMeta(_ node: Node) throws(Error) -> KDBX.Meta {

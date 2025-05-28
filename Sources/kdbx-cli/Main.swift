@@ -32,7 +32,8 @@ struct App: ParsableCommand {
         let hasUnlockDataButNotCorrect: Bool
 
         do {
-            xmlDocument = try kdbx.parse(unlockData: unlockData)
+            _ = try kdbx.parse(unlockData: unlockData)
+            xmlDocument = kdbx.xmlDocument
             hasUnlockDataButNotCorrect = false
         } catch {
             xmlDocument = nil
@@ -129,13 +130,6 @@ struct App: ParsableCommand {
             print("")
 
             print(xmlDocument)
-
-            var databaseReader = DatabaseReader(xmlDocument: xmlDocument)
-            do {
-                try databaseReader.parse()
-            } catch {
-                print("Error, failed to parse XML document: \(error)")
-            }
         }
     }
 }

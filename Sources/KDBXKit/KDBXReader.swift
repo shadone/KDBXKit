@@ -49,6 +49,7 @@ public struct KDBXReader: Sendable {
     public private(set) var header: Header?
     public private(set) var innerHeader: InnerHeader?
 
+    public private(set) var xmlDocument: String?
     public private(set) var blockSizes: [Int32] = []
 
     public init(_ data: Data) {
@@ -79,7 +80,7 @@ public struct KDBXReader: Sendable {
 
     // MARK: Public API
 
-    public mutating func parse(unlockData: UnlockData?) throws(Error) -> String {
+    public mutating func parse(unlockData: UnlockData?) throws(Error) -> Database {
         let header: Header
         let headerLength: Int
 
@@ -238,8 +239,20 @@ public struct KDBXReader: Sendable {
         guard let xmlDocument = String(data: payload, encoding: .utf8) else {
             throw Error.corrupted(reason: "Failed to parse the XML document as a utf8 string")
         }
+        self.xmlDocument = xmlDocument
 
-        return xmlDocument
+        let database: Database
+        do {
+            let databaseReader = DatabaseReader(xmlDocument: xmlDocument)
+            database = try databaseReader.parse()
+        } catch {
+            switch error {
+            case let .corrupted(reason):
+                throw .corrupted(reason: "Database: \(reason)")
+            }
+        }
+
+        return database
     }
 
     // MARK: Decryption helpers
