@@ -7,6 +7,19 @@
 import Foundation
 import Nodal
 
+/// Overview of a KDBX file:
+///
+/// ```
+///                                      This class:
+/// 1. Header.
+/// 2. SHA-256 hash of the header.
+/// 3. HMAC-SHA-256 hash of the header.
+/// 4. In HMAC-protected block stream:
+///    a. Encrypted:
+///       i. Compressed (optional):
+///          - Inner header.
+///          - XML document.             <<- parses XML document
+/// ```
 public struct DatabaseReader {
     public enum Error: Swift.Error {
         case corrupted(reason: String)
@@ -19,7 +32,8 @@ public struct DatabaseReader {
 
     /// This is the .NET DateTime epoch.
     ///
-    /// KDBX documents stores dates as the number of seconds (Int64) elapsed since 0001-01-01 00:00:00 UTC encoded using Base64.
+    /// KDBX documents store dates as the number of seconds (Int64) elapsed since 0001-01-01 00:00:00 UTC encoded using Base64.
+    /// This comes from C#/.NET which has the same epoch.
     private static let dotNetEpoch = DateComponents(
         calendar: Calendar(identifier: .gregorian),
         timeZone: TimeZone(secondsFromGMT: 0),
@@ -34,6 +48,8 @@ public struct DatabaseReader {
     public init(xmlDocument: String) {
         document = try! Document(string: xmlDocument)
     }
+
+    // MARK: Parse <datatype> helpers
 
     private func parseDate(_ string: String, node: Node) throws(Error) -> Date {
         guard
@@ -107,6 +123,8 @@ public struct DatabaseReader {
         return numberOfTextNodes == 0 ? nil : result
     }
 
+    // MARK: Public API
+
     public mutating func parse() throws(Error) {
         guard let documentElement = document.documentElement else {
             return
@@ -118,6 +136,8 @@ public struct DatabaseReader {
 
         try parseKeepassFile(documentElement)
     }
+
+    // MARK: Parse <XML Tag> helpers
 
     mutating func parseKeepassFile(_ node: Node) throws(Error) {
         for child in node.children {

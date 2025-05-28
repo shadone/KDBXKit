@@ -6,6 +6,7 @@
 
 import Foundation
 
+/// The value type of the ``VariantDictionary``
 public enum VariantDictionaryValue: Sendable {
     case uint32(UInt32)
     case uint64(UInt64)
@@ -16,4 +17,5 @@ public enum VariantDictionaryValue: Sendable {
     case bytes(Data)
 }
 
+/// A name-value dictionary, where the name is a string and the type of the value depends on the item.
 public typealias VariantDictionary = [String: VariantDictionaryValue]

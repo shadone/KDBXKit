@@ -6,6 +6,19 @@
 
 import Foundation
 
+/// Overview of a KDBX file:
+///
+/// ```
+///                                      This class:
+/// 1. Header.                           <<- parses
+/// 2. SHA-256 hash of the header.       <<- validates
+/// 3. HMAC-SHA-256 hash of the header.  <<- validates
+/// 4. In HMAC-protected block stream:
+///    a. Encrypted:
+///       i. Compressed (optional):
+///          - Inner header.
+///          - XML document.             
+/// ```
 struct HeaderReader: Sendable {
     enum Error: Swift.Error {
         case invalidSignature
@@ -24,6 +37,8 @@ struct HeaderReader: Sendable {
         self.data = data
         pos = data.startIndex
     }
+
+    // MARK: Read <token> helpers
 
     private mutating func readUInt8() throws(Error) -> UInt8 {
         if pos + 1 > data.count {
@@ -55,6 +70,8 @@ struct HeaderReader: Sendable {
 
         return subdata
     }
+
+    // MARK: Public API
 
     mutating func parse() throws(Error) -> (header: Header, length: Int) {
         let signature1 = try readUInt32()

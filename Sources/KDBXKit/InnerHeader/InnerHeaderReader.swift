@@ -6,6 +6,21 @@
 
 import Foundation
 
+/// Overview of a KDBX file:
+///
+/// ```
+///                                      This class:
+/// 1. Header.
+/// 2. SHA-256 hash of the header.
+/// 3. HMAC-SHA-256 hash of the header.
+/// 4. In HMAC-protected block stream:
+///    a. Encrypted:
+///       i. Compressed (optional):
+///          - Inner header.             <<- parses & returns binary content
+///          - XML document.
+/// ```
+///
+/// https://keepass.info/help/kb/kdbx.html#iheader
 struct InnerHeaderReader {
     enum Error: Swift.Error {
         case corrupted(reason: String)
@@ -19,6 +34,8 @@ struct InnerHeaderReader {
         self.data = data
         pos = data.startIndex
     }
+
+    // MARK: Read <token> helpers
 
     private mutating func readUInt8() throws(Error) -> UInt8 {
         if pos + 1 > data.count {
@@ -50,6 +67,8 @@ struct InnerHeaderReader {
 
         return subdata
     }
+
+    // MARK: Public API
 
     mutating func parse() throws(Error) -> (header: InnerHeader, length: Int) {
         var encryptionAlgorithm: InnerHeader.EncryptionAlgorithm?

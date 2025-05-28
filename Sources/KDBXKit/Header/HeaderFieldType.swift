@@ -14,20 +14,22 @@ enum HeaderFieldType: UInt8 {
     ///
     /// Value type: `Byte[4]`
     ///
-    /// The value should be the byte array (0x0D, 0x0A, 0x0D, 0x0A).
+    /// The value should be the byte array `0x0D, 0x0A, 0x0D, 0x0A`.
     case endOfHeader = 0
 
+    /// The encryption algorithm for the inner content (inner header and the XML document).
+    ///
     /// The following encryption algorithms are supported by KeePass (built-in, without a plugin):
     ///
-    /// - 31C1F2E6BF714350BE5805216AFC5AFF: AES-256 (NIST FIPS 197, CBC mode, PKCS #7 padding).
-    /// - D6038A2B8B6F4CB5A524339A31DBB59A: ChaCha20 (RFC 8439).
+    /// - `31C1F2E6BF714350BE5805216AFC5AFF`: AES-256 (NIST FIPS 197, CBC mode, PKCS #7 padding).
+    /// - `D6038A2B8B6F4CB5A524339A31DBB59A`: ChaCha20 (RFC 8439).
     ///
     /// Plugins can provide more encryption algorithms.
     ///
     /// Value type: `UUID`
     case encryptionAlgorithm = 2
 
-    /// Compression
+    /// Specifies whether the inner content (inner header and the XML document) is compressed.
     ///
     /// 0 = no compression, 1 = GZip.
     ///

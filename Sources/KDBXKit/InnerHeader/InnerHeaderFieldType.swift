@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
-// https://keepass.info/help/kb/kdbx.html#iheader
+/// https://keepass.info/help/kb/kdbx.html#iheader
 enum InnerHeaderFieldType: UInt8, Sendable {
     /// Indicates the end of the header.
     ///

@@ -9,6 +9,25 @@ import CryptoKit
 import Foundation
 import SwiftGzip
 
+/// Parser for the `.kdbx` file format.
+///
+/// Overview of a KDBX file:
+///
+/// ```
+///                                      This class:
+/// 1. Header.                           <<- parses
+/// 2. SHA-256 hash of the header.       <<- validates
+/// 3. HMAC-SHA-256 hash of the header.  <<- validates
+/// 4. In HMAC-protected block stream:   <<- parses
+///    a. Encrypted:                     <<- decrypts
+///       i. Compressed (optional):      <<- decompresses
+///          - Inner header.             <<- parses & returns binary content
+///          - XML document.             <<- returns
+/// ```
+///
+/// This class
+///
+/// https://keepass.info/help/kb/kdbx.html
 public struct KDBXReader: Sendable {
     public enum Error: Swift.Error {
         /// The provided key data (e.g. master password) does not match.
@@ -37,6 +56,8 @@ public struct KDBXReader: Sendable {
         pos = data.startIndex
     }
 
+    // MARK: Read <token> helpers
+
     private mutating func readInt32() throws(Error) -> Int32 {
         try readData(length: 4).asInt32LE()! // safe to force unwrap as we guaranteed to read enough bytes
     }
@@ -55,6 +76,8 @@ public struct KDBXReader: Sendable {
 
         return subdata
     }
+
+    // MARK: Public API
 
     public mutating func parse(unlockData: UnlockData?) throws(Error) -> String {
         let header: Header
@@ -105,10 +128,9 @@ public struct KDBXReader: Sendable {
         }
 
         // calculate HMAC-SHA256 of the header
-        let unlockKey = computeUnlockKey(
+        let unlockKey = unlockData.computeUnlockKey(
             salt: header.masterSalt,
             kdfParameters: header.kdfParameters,
-            unlockData: unlockData
         )
 
         let headerKey = keyForHeader(masterSalt: header.masterSalt, unlockKey: unlockKey)
@@ -173,8 +195,7 @@ public struct KDBXReader: Sendable {
 
         switch header.encryptionAlgorithm {
         case .AES256CBC:
-            let decrypted = AES256CBC.decrypt(iv: header.encryptionNonce, cipherText: payload, mainDecryptKey)
-            payload = decrypted
+            payload = AES256CBC.decrypt(iv: header.encryptionNonce, cipherText: payload, mainDecryptKey)
 
         case .ChaCha20:
             fatalError("ChaCha20 is unsupported")
@@ -221,6 +242,8 @@ public struct KDBXReader: Sendable {
         return xmlDocument
     }
 
+    // MARK: Decryption helpers
+
     func keyForBlock(at index: UInt64, masterSalt: Data, unlockKey: Data) -> Data {
         // The key for the HMAC-SHA-256 hash of the i-th block (zero-based index, type UInt64)
         // of the HMAC-protected block stream is:
@@ -233,53 +256,5 @@ public struct KDBXReader: Sendable {
         // SHA-512(0xFFFFFFFFFFFFFFFF ‖ SHA-512(S ‖ T ‖ 0x01)).
         let lastIndex: UInt64 = 0xFFFFFFFFFFFFFFFF
         return keyForBlock(at: lastIndex, masterSalt: masterSalt, unlockKey: unlockKey)
-    }
-
-    func makeKeyData(
-        unlockData: UnlockData
-    ) -> Data {
-        // Let R be the SHA-256 hash of the concatenation of the components of the master key
-        // that the user has provided (each optional, in the following order):
-        var r = SHA256()
-
-        // 1. SHA-256 hash of the master password (encoded using UTF-8).
-        if let masterPassword = unlockData.masterPassword {
-            let utf8 = masterPassword.data(using: .utf8)! // Swift.String -> utf8 cannot fail
-            r.update(data: utf8.sha256())
-        }
-
-        // 2. Key stored in a key file.
-        if let keyFile = unlockData.keyFile {
-            r.update(data: keyFile)
-        }
-
-        // 3. Key provided by a key provider plugin.
-        // 4. Key protected using the Windows user account (DPAPI).
-
-        return Data(r.finalize())
-    }
-
-    func computeUnlockKey(
-        salt _: Data,
-        kdfParameters: KDFParameters,
-        unlockData: UnlockData
-    ) -> Data {
-        let keydata = makeKeyData(unlockData: unlockData)
-
-        // Let T be the result of transforming R using a key derivation function. The function and
-        // parameters for it are stored in the header.
-        switch kdfParameters {
-        case .aes(let params, additional: _):
-            return AESKDF.derive(salt: params.salt, rounds: params.rounds, keydata)
-
-        case .argon2d(let params, additional: _):
-            return Argon2KDF.argon2d(password: keydata, params: params)
-
-        case .argon2id(let params, additional: _):
-            return Argon2KDF.argon2id(password: keydata, params: params)
-
-        case .unknown:
-            fatalError("Internal error: unknown KDF")
-        }
     }
 }

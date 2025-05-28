@@ -6,6 +6,7 @@
 
 import Foundation
 
+/// https://keepass.info/help/kb/kdbx.html#vardict
 class VariantDictionaryReader {
     enum Error: Swift.Error {
         case unsupportedFormatVersion(major: UInt8, minor: UInt8)
@@ -28,6 +29,8 @@ class VariantDictionaryReader {
         self.data = data
         pos = data.startIndex
     }
+
+    // MARK: Read <token> helpers
 
     private func readUInt8() throws(Error) -> UInt8 {
         if pos + 1 > data.count {
@@ -63,6 +66,8 @@ class VariantDictionaryReader {
 
         return subdata
     }
+
+    // MARK: Public API
 
     func parse() throws(Error) -> VariantDictionary {
         // https://keepass.info/help/kb/kdbx.html#vardict
