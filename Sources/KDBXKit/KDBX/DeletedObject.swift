@@ -7,8 +7,8 @@
 import Foundation
 
 extension KDBX {
-    struct DeletedObject: Sendable {
-        let uuid: UUID
-        let deletionTime: Date
+    public struct DeletedObject: Sendable {
+        public let uuid: UUID
+        public let deletionTime: Date
     }
 }

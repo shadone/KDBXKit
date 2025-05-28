@@ -8,8 +8,8 @@ import Foundation
 
 extension KDBX {
     /// Custom data item (key/value pair) for plugins/ports. The key should be unique, e.g. `PluginName_ItemName`.
-    struct CustomDataItem: Sendable {
-        let key: String
-        let value: String
+    public struct CustomDataItem: Sendable {
+        public var key: String
+        public var value: String
     }
 }

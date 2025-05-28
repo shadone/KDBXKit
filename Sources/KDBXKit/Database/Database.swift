@@ -5,6 +5,6 @@
 //
 
 public struct Database: Sendable {
-    var meta: KDBX.Meta
-    var root: KDBX.Root
+    public var meta: KDBX.Meta
+    public var root: KDBX.Root
 }

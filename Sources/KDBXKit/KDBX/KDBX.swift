@@ -4,4 +4,4 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
-enum KDBX { }
+public enum KDBX { }

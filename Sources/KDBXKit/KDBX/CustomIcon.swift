@@ -7,10 +7,10 @@
 import Foundation
 
 extension KDBX {
-    struct CustomIcon: Sendable {
-        let uuid: UUID
-        let data: Data
-        let name: String?
-        let lastModificationTime: Date?
+    public struct CustomIcon: Sendable {
+        public let uuid: UUID
+        public let data: Data
+        public let name: String?
+        public let lastModificationTime: Date?
     }
 }

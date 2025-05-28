@@ -7,8 +7,8 @@
 import Foundation
 
 extension KDBX {
-    struct ProtectedString {
-        enum Value: Sendable {
+    public struct ProtectedString: Sendable {
+        public enum Value: Sendable {
             /// Plaintext string.
             case regular(String)
 
@@ -19,7 +19,7 @@ extension KDBX {
             case protectedInMemory(String)
         }
 
-        let key: String
-        let value: Value
+        public let key: String
+        public let value: Value
     }
 }

@@ -7,12 +7,12 @@
 import Foundation
 
 extension KDBX {
-    struct ProtectedBinary: Sendable {
-        let key: String
+    public struct ProtectedBinary: Sendable {
+        public let key: String
 
-        // let value: ??? TODO: I dont understand the schema
+        // public let value: ??? TODO: I dont understand the schema
 
         /// Reference to a binary content stored in the inner header (KDBX file) or in the Meta/Binaries element (unencrypted XML file).
-        let ref: UInt32
+        public let ref: UInt32
     }
 }

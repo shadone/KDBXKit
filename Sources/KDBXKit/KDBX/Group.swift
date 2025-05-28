@@ -8,42 +8,42 @@ import Foundation
 
 extension KDBX {
     //  This is actually unordered except for the Entry and Group child elements, where the order matters.
-    struct Group: Sendable {
-        var uuid: UUID
+    public struct Group: Sendable {
+        public var uuid: UUID
 
-        var name: String?
+        public var name: String?
 
-        var notes: String?
+        public var notes: String?
 
         /// See the folder "Ext/Images_Client_HighRes" in the KeePass source code package.
-        var iconID: UInt32
+        public var iconID: UInt32
 
         /// Reference to a custom icon stored in the KeePassFile/Meta/CustomIcons element. If non-zero, it overrides IconID.
-        var customIconUUID: UUID?
+        public var customIconUUID: UUID?
 
-        var times: Times?
+        public var times: Times?
 
         /// Specifies whether the group is displayed as expanded in the user interface.
-        var isExpanded: Bool?
+        public var isExpanded: Bool?
 
-        var defaultAutoTypeSequence: String?
+        public var defaultAutoTypeSequence: String?
 
-        var enableAutoType: NullableBoolEx?
+        public var enableAutoType: NullableBoolEx?
 
-        var enableSearching: NullableBoolEx?
+        public var enableSearching: NullableBoolEx?
 
-        var lastTopVisibleEntry: UUID?
+        public var lastTopVisibleEntry: UUID?
 
         /// UUID of the group in which the current group was stored previously. This information can for instance be used by a recycle bin restoration command.
-        var previousParentGroup: UUID?
+        public var previousParentGroup: UUID?
 
         /// Tags associated with the group, separated using ';'. https://keepass.info/help/v2/entry.html#tags
-        var tags: [String]?
+        public var tags: [String]?
 
-        var customData: [CustomDataItem]?
+        public var customData: [CustomDataItem]?
 
-        var entries: [Entry]?
+        public var entries: [Entry]?
 
-        var groups: [Group]?
+        public var groups: [Group]?
     }
 }

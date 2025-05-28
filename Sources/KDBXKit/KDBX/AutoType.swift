@@ -8,12 +8,12 @@ import Foundation
 
 extension KDBX {
     /// https://keepass.info/help/base/autotype.html
-    struct AutoType: Sendable {
+    public struct AutoType: Sendable {
         //  This is actually unordered except for the Association child elements, where the order matters.
 
-        var enabled: Bool?
+        public var enabled: Bool?
 
-        enum DataTransferObfuscation: Int32, Sendable {
+        public enum DataTransferObfuscation: Int32, Sendable {
             /// No obfuscation.
             case noObfuscation = 0
 
@@ -21,15 +21,15 @@ extension KDBX {
             case twoChannelObfuscation = 1
         }
 
-        var dataTransferObfuscation: DataTransferObfuscation?
+        public var dataTransferObfuscation: DataTransferObfuscation?
 
-        var defaultSequence: String?
+        public var defaultSequence: String?
 
-        struct Association: Sendable {
-            var window: String
-            var keystrokeSequence: String
+        public struct Association: Sendable {
+            public var window: String
+            public var keystrokeSequence: String
         }
 
-        var association: [Association]?
+        public var association: [Association]?
     }
 }

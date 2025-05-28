@@ -7,9 +7,9 @@
 import Foundation
 
 extension KDBX {
-    struct CustomDataWithTimes: Sendable {
-        var key: String
-        var value: String
-        var lastModificationTime: Date?
+    public struct CustomDataWithTimes: Sendable {
+        public var key: String
+        public var value: String
+        public var lastModificationTime: Date?
     }
 }

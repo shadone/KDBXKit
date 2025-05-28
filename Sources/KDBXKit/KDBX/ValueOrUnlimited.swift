@@ -5,7 +5,7 @@
 //
 
 extension KDBX {
-    enum ValueOrUnlimited<T: Sendable>: Sendable {
+    public enum ValueOrUnlimited<T: Sendable>: Sendable {
         case value(T)
         case unlimited
     }
