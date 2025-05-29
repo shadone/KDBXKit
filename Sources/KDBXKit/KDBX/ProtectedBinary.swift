@@ -7,7 +7,7 @@
 import Foundation
 
 extension KDBX {
-    public struct ProtectedBinary: Sendable {
+    public struct ProtectedBinary: Sendable, Equatable {
         public let key: String
 
         // public let value: ??? TODO: I dont understand the schema

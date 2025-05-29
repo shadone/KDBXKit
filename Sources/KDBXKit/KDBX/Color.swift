@@ -8,7 +8,7 @@ extension KDBX {
     /// A hexadecimal CSS color of the form "#RRGGBB". For example, "#FFFF00" is yellow.
     /// An empty string means to use the default value (chosen by the application, suitable
     /// for the current UI).
-    public enum Color: Sendable, CustomStringConvertible {
+    public enum Color: Sendable, CustomStringConvertible, Equatable {
         case color(red: UInt8, green: UInt8, blue: UInt8)
         case `default`
 

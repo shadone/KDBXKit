@@ -7,7 +7,7 @@
 import Foundation
 
 extension KDBX {
-    public struct Meta: Sendable {
+    public struct Meta: Sendable, Equatable {
         /// Name of the application that has generated the XML document.
         public var generator: String?
 

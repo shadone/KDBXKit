@@ -7,7 +7,7 @@
 import Foundation
 
 extension KDBX {
-    public struct Root: Sendable {
+    public struct Root: Sendable, Equatable {
         public var group: Group
 
         /// When the user deletes an object (group, entry, ...), an item is created in this list. When synchronizing/merging database files, this information can be used to decide whether an object has been deleted.

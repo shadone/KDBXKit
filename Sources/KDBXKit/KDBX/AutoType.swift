@@ -8,12 +8,10 @@ import Foundation
 
 extension KDBX {
     /// https://keepass.info/help/base/autotype.html
-    public struct AutoType: Sendable {
-        //  This is actually unordered except for the Association child elements, where the order matters.
-
+    public struct AutoType: Sendable, Equatable {
         public var enabled: Bool?
 
-        public enum DataTransferObfuscation: Int32, Sendable {
+        public enum DataTransferObfuscation: Int32, Sendable, Equatable {
             /// No obfuscation.
             case noObfuscation = 0
 
@@ -25,7 +23,7 @@ extension KDBX {
 
         public var defaultSequence: String?
 
-        public struct Association: Sendable {
+        public struct Association: Sendable, Equatable {
             public var window: String
             public var keystrokeSequence: String
         }

@@ -7,8 +7,7 @@
 import Foundation
 
 extension KDBX {
-    // This is actually unordered except for the String, Binary and History child elements, where the order matters.
-    public struct Entry: Sendable {
+    public struct Entry: Sendable, Equatable {
         public var uuid: UUID
 
         /// See the folder "Ext/Images_Client_HighRes" in the KeePass source code package.

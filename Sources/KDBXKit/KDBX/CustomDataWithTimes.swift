@@ -7,7 +7,7 @@
 import Foundation
 
 extension KDBX {
-    public struct CustomDataWithTimes: Sendable {
+    public struct CustomDataWithTimes: Sendable, Equatable {
         public var key: String
         public var value: String
         public var lastModificationTime: Date?

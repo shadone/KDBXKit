@@ -6,7 +6,7 @@
 
 extension KDBX {
     /// Process memory protection settings, describing which standard fields should be protected. KeePass resets these settings to their default values after opening a database.
-    public struct MemoryProtectionConfig: Sendable {
+    public struct MemoryProtectionConfig: Sendable, Equatable {
         public var protectTitle: Bool?
         public var protectUserName: Bool?
         public var protectPassword: Bool?

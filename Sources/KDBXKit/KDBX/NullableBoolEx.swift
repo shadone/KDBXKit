@@ -13,7 +13,7 @@ extension KDBX {
     /// - false
     /// - True
     /// - true
-    public enum NullableBoolEx: Sendable {
+    public enum NullableBoolEx: Sendable, Equatable {
         case value(Bool)
         case null
     }

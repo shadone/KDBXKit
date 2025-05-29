@@ -5,7 +5,7 @@
 //
 
 extension KDBX {
-    public enum ValueOrNever<T: Sendable>: Sendable {
+    public enum ValueOrNever<T: Sendable & Equatable>: Sendable, Equatable {
         case value(T)
         case never
     }

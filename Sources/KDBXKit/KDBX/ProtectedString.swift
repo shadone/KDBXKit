@@ -7,8 +7,8 @@
 import Foundation
 
 extension KDBX {
-    public struct ProtectedString: Sendable {
-        public enum Value: Sendable {
+    public struct ProtectedString: Sendable, Equatable {
+        public enum Value: Sendable, Equatable {
             /// Plaintext string.
             case regular(String)
 

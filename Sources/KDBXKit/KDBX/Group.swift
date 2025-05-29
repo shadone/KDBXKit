@@ -7,8 +7,7 @@
 import Foundation
 
 extension KDBX {
-    //  This is actually unordered except for the Entry and Group child elements, where the order matters.
-    public struct Group: Sendable {
+    public struct Group: Sendable, Equatable {
         public var uuid: UUID
 
         public var name: String?
