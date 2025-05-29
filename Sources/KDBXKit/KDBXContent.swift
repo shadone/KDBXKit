@@ -19,8 +19,15 @@ extension KDBXContent {
         case corrupted(reason: String)
     }
 
-    struct ValuePath {
+    typealias GroupPath = [Int]
+
+    struct EntryPath {
+        let groupPath: GroupPath
         let entryIndex: Int
+    }
+
+    struct ProtectedStringPath {
+        let entryPath: EntryPath
         let stringIndex: Int
     }
 
@@ -30,22 +37,24 @@ extension KDBXContent {
         switch innerHeader.encryptionAlgorithm {
         case .ChaCha20:
             guard let key = innerHeader.chaCha20Key else {
-                fatalError("Missing ChaCha20 key")
+                // This should not be possible, we know it's a ChaCha20 so it must have correct
+                // the encryption key of the right size. It must be a developer mistake putting
+                // wrong key in the inner header.
+                fatalError("Missing ChaCha20 key (encryptionion key \(innerHeader.encryptionKey.count) bytes)")
             }
 
             do {
                 let chacha20 = try ChaCha20(key: key.key, iv: key.nonce)
                 decryptor = chacha20.makeDecryptor()
             } catch {
-                print("###", error)
-                return
+                throw .corrupted(reason: "Failed to initialize ChaCha20 decryptor: \(error)")
             }
 
         case .Salsa20:
             fatalError("Salsa20 is not implemented yet")
         }
 
-        func decrypt(data: [UInt8], at path: ValuePath, isLast: Bool) throws(DecryptError) {
+        func decrypt(data: [UInt8], at path: ProtectedStringPath, isLast: Bool) throws(DecryptError) -> String {
             let decryptedValue: Data
             do {
                 let bytes = try decryptor.update(withBytes: data, isLast: isLast)
@@ -58,39 +67,105 @@ extension KDBXContent {
                 throw DecryptError.corrupted(reason: "Failed to create utf8 string from decrypted value at \(path)")
             }
 
-            unprotectString(stringValue, at: path)
+            return stringValue
         }
 
-        var lastPath: ValuePath?
-        var lastEncryptedValue: Data?
+        // Decrypt the protected strings from the XML document.
+        // They are encrypted using a stream cipher so must be decrypted in order (breadth first).
+        //
+        // In addition the cipher needs to know if it's the last data block or not.
+        //
+        // So we store traverse the whole tree breadth first and store "previously visited node" here.
+        // Then when encountering a new node, we decrypt the previous one, and save the "new last"
+        // node.
+        // And after we are done we decrypt the last node.
+        var lastPath: ProtectedStringPath?
+        var lastProtectedStringKey: String?
+        var lastProtectedStringProtectedData: Data?
 
-        for entryIndex in 0..<database.root.group.entries.count {
-            let entry = database.root.group.entries[entryIndex]
-            for stringIndex in 0..<entry.strings.count {
-                switch entry.strings[stringIndex].value {
-                case .protected(let data):
-                    if let lastPath, let lastEncryptedValue {
-                        try decrypt(data: Array(lastEncryptedValue), at: lastPath, isLast: false)
+        do {
+            try visitEntries(in: database.root.group) { (entry, path) throws(DecryptError) in
+                for (stringIndex, protectedString) in entry.strings.enumerated() {
+                    switch protectedString.value {
+                    case .protected(let data):
+                        if let lastPath, let lastProtectedStringKey, let lastProtectedStringProtectedData {
+                            let unprotectedValue = try decrypt(data: Array(lastProtectedStringProtectedData), at: lastPath, isLast: false)
+                            database.root.group.updateProtectedString(
+                                to: .init(key: lastProtectedStringKey, value: .unprotected(unprotectedValue)),
+                                groupPath: lastPath.entryPath.groupPath,
+                                entryIndex: lastPath.entryPath.entryIndex,
+                                stringIndex: lastPath.stringIndex
+                            )
+                        }
+
+                        lastPath = .init(entryPath: path, stringIndex: stringIndex)
+                        lastProtectedStringKey = protectedString.key
+                        lastProtectedStringProtectedData = data
+
+                    case .regular, .unprotected, .protectedInMemory:
+                        break
                     }
-
-                    lastPath = .init(entryIndex: entryIndex, stringIndex: stringIndex)
-                    lastEncryptedValue = data
-
-                case .regular, .unprotected, .protectedInMemory:
-                    break
                 }
             }
+        } catch let error as DecryptError {
+            throw error
+        } catch {
+            // This should not be possible, only DecryptErrors are being thrown.
+            // It's a limitation of Swift 6 typed throws, the type information gets lost
+            // in the closure.
+            // https://forums.swift.org/t/closure-property-that-throws-typed-error-in-swift-6-result-in-compiling-error/72433/5
+            // https://forums.swift.org/t/closure-typed-throw/72730/4
+            preconditionFailure("Unexpected error: \(error)")
         }
 
-        if let lastPath, let lastEncryptedValue {
-            try decrypt(data: Array(lastEncryptedValue), at: lastPath, isLast: true)
+        // decrypt the last node.
+        if let lastPath, let lastProtectedStringKey, let lastProtectedStringProtectedData {
+            let unprotectedValue = try decrypt(data: Array(lastProtectedStringProtectedData), at: lastPath, isLast: true)
+            database.root.group.updateProtectedString(
+                to: .init(key: lastProtectedStringKey, value: .unprotected(unprotectedValue)),
+                groupPath: lastPath.entryPath.groupPath,
+                entryIndex: lastPath.entryPath.entryIndex,
+                stringIndex: lastPath.stringIndex
+            )
         }
     }
 
-    private mutating func unprotectString(
-        _ unprotectedValue: String,
-        at path: ValuePath
+    func visitEntries(
+        in group: KDBX.Group,
+        path groupPath: GroupPath = [],
+        _ visitor: (KDBX.Entry, EntryPath) throws(DecryptError) -> Void
+    ) rethrows {
+        for (entryIndex, entry) in group.entries.enumerated() {
+            try visitor(entry,  .init(groupPath: groupPath, entryIndex: entryIndex))
+        }
+
+        for (groupIndex, group) in group.groups.enumerated() {
+            try visitEntries(in: group, path: groupPath + [groupIndex], visitor)
+        }
+    }
+}
+
+extension KDBX.Group {
+    mutating func updateProtectedString(
+        to newValue: KDBX.ProtectedString,
+        groupPath: [Int],
+        entryIndex: Int,
+        stringIndex: Int
     ) {
-        database.root.group.entries[path.entryIndex].strings[path.stringIndex].value = .unprotected(unprotectedValue)
+        if groupPath.isEmpty {
+            assert(entryIndex < entries.count)
+            assert(stringIndex < entries[entryIndex].strings.count)
+            entries[entryIndex].strings[stringIndex] = newValue
+            return
+        }
+
+        var groupPath = groupPath
+        let groupIndex = groupPath.removeFirst()
+        groups[groupIndex].updateProtectedString(
+            to: newValue,
+            groupPath: groupPath,
+            entryIndex: entryIndex,
+            stringIndex: stringIndex
+        )
     }
 }
