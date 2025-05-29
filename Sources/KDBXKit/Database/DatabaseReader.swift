@@ -463,7 +463,9 @@ struct DatabaseReader {
                 case "Value":
                     value = child.value
                 case "LastModificationTime":
-                    lastModificationTime = try parseDate(child.value, node: child)
+                    if let stringValue = text(in: child) {
+                        lastModificationTime = try parseDate(stringValue, node: child)
+                    }
                 default:
                     print("Unexpected element \(child.fullyQualifiedName)")
                 }
