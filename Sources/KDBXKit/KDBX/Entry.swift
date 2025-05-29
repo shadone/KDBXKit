@@ -29,22 +29,22 @@ extension KDBX {
         public var qualityCheck: Bool?
 
         /// Tags associated with the entry, separated using ';'. https://keepass.info/help/v2/entry.html#tags
-        public var tags: [String]?
+        public var tags: [String]
 
         /// UUID of the group in which the current group was stored previously. This information can for instance be used by a recycle bin restoration command.
         public var previousParentGroup: UUID?
 
         public var times: Times?
 
-        public var strings: [ProtectedString]?
+        public var strings: [ProtectedString]
 
-        public var binaries: [ProtectedBinary]?
+        public var binaries: [ProtectedBinary]
 
         public var autoType: AutoType?
 
-        public var customData: [CustomDataItem]?
+        public var customData: [CustomDataItem]
 
         /// https://keepass.info/help/v2/entry.html#hst
-        public var history: [Entry]?
+        public var history: [Entry]
     }
 }

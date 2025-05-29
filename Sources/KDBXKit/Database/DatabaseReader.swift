@@ -316,7 +316,7 @@ struct DatabaseReader {
             throw .corrupted(reason: "Missing Group element in \(node.fullyQualifiedName)")
         }
 
-        return .init(group: group, deletedObjects: deletedObjects)
+        return .init(group: group, deletedObjects: deletedObjects ?? [])
     }
 
     func parseMemoryProtection(_ node: Node) throws(Error) -> KDBX.MemoryProtectionConfig {
@@ -481,7 +481,7 @@ struct DatabaseReader {
     }
 
     func parseGroup(_ node: Node) throws(Error) -> KDBX.Group {
-        var group = KDBX.Group(uuid: UUID(), iconID: 0)
+        var group = KDBX.Group(uuid: UUID(), iconID: 0, tags: [], customData: [], entries: [], groups: [])
 
         for child in node.children {
             switch child.name {
@@ -540,18 +540,12 @@ struct DatabaseReader {
                 group.customData = try parseCustomDataItemList(child)
 
             case "Entry":
-                if group.entries == nil {
-                    group.entries = []
-                }
                 let entry = try parseEntry(child)
-                group.entries?.append(entry)
+                group.entries.append(entry)
 
             case "Group":
-                if group.groups == nil {
-                    group.groups = []
-                }
                 let subGroup = try parseGroup(child)
-                group.groups?.append(subGroup)
+                group.groups.append(subGroup)
 
             default:
                 print("Unexpected element \(child.fullyQualifiedName)")
@@ -626,16 +620,16 @@ struct DatabaseReader {
         }
     }
 
-    func parseTags(_ node: Node) throws(Error) -> [String]? {
+    func parseTags(_ node: Node) throws(Error) -> [String] {
         guard let stringValue = text(in: node) else {
-            return nil
+            return []
         }
 
         return stringValue.components(separatedBy: ",")
     }
 
     func parseEntry(_ node: Node) throws(Error) -> KDBX.Entry {
-        var entry = KDBX.Entry(uuid: UUID(), iconID: 0)
+        var entry = KDBX.Entry(uuid: UUID(), iconID: 0, tags: [], strings: [], binaries: [], customData: [], history: [])
 
         for child in node.children {
             switch child.name {
@@ -684,11 +678,8 @@ struct DatabaseReader {
                 entry.times = try parseTimes(child)
 
             case "String":
-                if entry.strings == nil {
-                    entry.strings = []
-                }
                 let protectedString = try parseProtectedString(child)
-                entry.strings?.append(protectedString)
+                entry.strings.append(protectedString)
 
             case "Binary":
                 // TODO:

@@ -64,10 +64,10 @@ extension KDBXContent {
         var lastPath: ValuePath?
         var lastEncryptedValue: Data?
 
-        for entryIndex in 0..<(database.root.group.entries ?? []).count {
-            let entry = database.root.group.entries![entryIndex]
-            for stringIndex in 0..<(entry.strings ?? []).count {
-                switch entry.strings![stringIndex].value {
+        for entryIndex in 0..<database.root.group.entries.count {
+            let entry = database.root.group.entries[entryIndex]
+            for stringIndex in 0..<entry.strings.count {
+                switch entry.strings[stringIndex].value {
                 case .protected(let data):
                     if let lastPath, let lastEncryptedValue {
                         try decrypt(data: Array(lastEncryptedValue), at: lastPath, isLast: false)
@@ -91,6 +91,6 @@ extension KDBXContent {
         _ unprotectedValue: String,
         at path: ValuePath
     ) {
-        database.root.group.entries![path.entryIndex].strings![path.stringIndex].value = .unprotected(unprotectedValue)
+        database.root.group.entries[path.entryIndex].strings[path.stringIndex].value = .unprotected(unprotectedValue)
     }
 }

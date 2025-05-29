@@ -38,12 +38,12 @@ extension KDBX {
         public var previousParentGroup: UUID?
 
         /// Tags associated with the group, separated using ';'. https://keepass.info/help/v2/entry.html#tags
-        public var tags: [String]?
+        public var tags: [String]
 
-        public var customData: [CustomDataItem]?
+        public var customData: [CustomDataItem]
 
-        public var entries: [Entry]?
+        public var entries: [Entry]
 
-        public var groups: [Group]?
+        public var groups: [Group]
     }
 }

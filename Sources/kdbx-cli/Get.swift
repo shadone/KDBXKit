@@ -21,10 +21,10 @@ struct Get: ParsableCommand {
 
         try content.decrypt()
 
-        for entry in content.database.root.group.entries ?? [] {
+        for entry in content.database.root.group.entries {
             print("")
             print("Entry: \(entry.uuid)")
-            for string in entry.strings ?? [] {
+            for string in entry.strings {
                 let name = string.key
                 let value: String
 
