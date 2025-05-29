@@ -8,7 +8,7 @@ import CryptoSwift
 import Foundation
 
 /// The content of the `.kdbx` file.
-public struct KDBXContent {
+public struct KDBXContent: Equatable {
     public var database: Database
     public let header: Header
     public let innerHeader: InnerHeader

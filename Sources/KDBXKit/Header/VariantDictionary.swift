@@ -7,7 +7,7 @@
 import Foundation
 
 /// The value type of the ``VariantDictionary``
-public enum VariantDictionaryValue: Sendable {
+public enum VariantDictionaryValue: Sendable, Equatable {
     case uint32(UInt32)
     case uint64(UInt64)
     case boolean(Bool)

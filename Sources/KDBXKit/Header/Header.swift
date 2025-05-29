@@ -6,7 +6,7 @@
 
 import Foundation
 
-public struct Header: Sendable {
+public struct Header: Sendable, Equatable {
     public struct FormatVersion: CustomStringConvertible, Equatable, Sendable {
         public let major: UInt16
         public let minor: UInt16
@@ -26,7 +26,7 @@ public struct Header: Sendable {
     ///   ignoring any unknown items. Certain data may be lost in this case, thus showing a confirmation/warning is recommended.
     public let formatVersion: FormatVersion
 
-    public enum EncryptionAlgorithm: Sendable {
+    public enum EncryptionAlgorithm: Sendable, Equatable {
         /// AES-256 (NIST FIPS 197, CBC mode, PKCS #7 padding).
         case AES256CBC
 
@@ -36,7 +36,7 @@ public struct Header: Sendable {
 
     public let encryptionAlgorithm: EncryptionAlgorithm
 
-    public enum CompressionAlgorithm: CustomStringConvertible, Sendable {
+    public enum CompressionAlgorithm: CustomStringConvertible, Sendable, Equatable {
         case gzip
 
         public var description: String {

@@ -6,7 +6,7 @@
 
 import Foundation
 
-public struct InnerHeader: Sendable {
+public struct InnerHeader: Sendable, Equatable {
     /// Most XML parsers work with regular strings, which may be difficult to erase from the process memory.
     /// So, if sensitive data would be stored unencryptedly in the XML document, a process memory protection could not be realized
     /// properly.
@@ -24,7 +24,7 @@ public struct InnerHeader: Sendable {
     /// suitable for the current operating system (e.g. DPAPI on Windows).
     ///
     /// https://keepass.info/help/kb/kdbx.html#ienc
-    public enum EncryptionAlgorithm: Sendable {
+    public enum EncryptionAlgorithm: Sendable, Equatable {
         /// Salsa20.
         ///
         /// `K` should consist of 32 bytes. The key for Salsa20 is `SHA-256(K)`, and the nonce is `0xE8, 0x30, 0x09, 0x4B, 0x97, 0x20, 0x5D, 0x2A`.
@@ -47,7 +47,7 @@ public struct InnerHeader: Sendable {
     /// The encryption key that was used for encrypting protected strings in the XML document. See ``EncryptionAlgorithm-swift.enum``
     public let encryptionKey: Data
 
-    public struct BinaryContent: Sendable {
+    public struct BinaryContent: Sendable, Equatable {
         /// The flag indicates that the binary content should be protected in the process memory.
         public let shouldBeProtected: Bool
         public let data: Data

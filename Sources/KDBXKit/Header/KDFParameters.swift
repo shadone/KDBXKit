@@ -6,8 +6,8 @@
 
 import Foundation
 
-public enum KDFParameters: Sendable {
-    public struct AES: Sendable {
+public enum KDFParameters: Sendable, Equatable {
+    public struct AES: Sendable, Equatable {
         /// Salt/seed (⟳).
         ///
         /// Value: `Byte[32]`
@@ -17,7 +17,7 @@ public enum KDFParameters: Sendable {
         public let rounds: UInt64
     }
 
-    public struct Argon2: Sendable {
+    public struct Argon2: Sendable, Equatable {
         public enum Version: UInt32, CustomStringConvertible, Sendable {
             case v1_0 = 0x10
             case v1_3 = 0x13
