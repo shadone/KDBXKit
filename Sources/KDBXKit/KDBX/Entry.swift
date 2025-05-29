@@ -46,5 +46,39 @@ extension KDBX {
 
         /// https://keepass.info/help/v2/entry.html#hst
         public var history: [Entry]
+
+        public init(
+            uuid: UUID,
+            iconID: UInt32 = 0,
+            customIconUUID: UUID? = nil,
+            foregroundColor: Color? = nil,
+            backgroundColor: Color? = nil,
+            overrideURL: String? = nil,
+            qualityCheck: Bool? = nil,
+            tags: [String] = [],
+            previousParentGroup: UUID? = nil,
+            times: Times? = nil,
+            strings: [ProtectedString] = [],
+            binaries: [ProtectedBinary] = [],
+            autoType: AutoType? = nil,
+            customData: [CustomDataItem] = [],
+            history: [Entry] = []
+        ) {
+            self.uuid = uuid
+            self.iconID = iconID
+            self.customIconUUID = customIconUUID
+            self.foregroundColor = foregroundColor
+            self.backgroundColor = backgroundColor
+            self.overrideURL = overrideURL
+            self.qualityCheck = qualityCheck
+            self.tags = tags
+            self.previousParentGroup = previousParentGroup
+            self.times = times
+            self.strings = strings
+            self.binaries = binaries
+            self.autoType = autoType
+            self.customData = customData
+            self.history = history
+        }
     }
 }

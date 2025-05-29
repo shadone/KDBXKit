@@ -45,5 +45,41 @@ extension KDBX {
         public var entries: [Entry]
 
         public var groups: [Group]
+
+        public init(
+            uuid: UUID,
+            name: String? = nil,
+            notes: String? = nil,
+            iconID: UInt32 = 0,
+            customIconUUID: UUID? = nil,
+            times: Times? = nil,
+            isExpanded: Bool? = nil,
+            defaultAutoTypeSequence: String? = nil,
+            enableAutoType: NullableBoolEx? = nil,
+            enableSearching: NullableBoolEx? = nil,
+            lastTopVisibleEntry: UUID? = nil,
+            previousParentGroup: UUID? = nil,
+            tags: [String] = [],
+            customData: [CustomDataItem] = [],
+            entries: [Entry] = [],
+            groups: [Group] = []
+        ) {
+            self.uuid = uuid
+            self.name = name
+            self.notes = notes
+            self.iconID = iconID
+            self.customIconUUID = customIconUUID
+            self.times = times
+            self.isExpanded = isExpanded
+            self.defaultAutoTypeSequence = defaultAutoTypeSequence
+            self.enableAutoType = enableAutoType
+            self.enableSearching = enableSearching
+            self.lastTopVisibleEntry = lastTopVisibleEntry
+            self.previousParentGroup = previousParentGroup
+            self.tags = tags
+            self.customData = customData
+            self.entries = entries
+            self.groups = groups
+        }
     }
 }
