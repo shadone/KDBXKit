@@ -25,8 +25,6 @@ import SwiftGzip
 ///          - XML document.             <<- returns
 /// ```
 ///
-/// This class
-///
 /// https://keepass.info/help/kb/kdbx.html
 public struct KDBXReader: Sendable {
     public enum Error: Swift.Error {
@@ -46,10 +44,24 @@ public struct KDBXReader: Sendable {
     let data: Data
     var pos: Data.Index
 
+    /// The header of the `.kdbx` file.
+    ///
+    /// - note: This is for debug purposes, for accessing the value even if the parsing failed due to e.g. invalid master password.
     public private(set) var header: Header?
+
+    /// The inner header of the `.kdbx` file.
+    ///
+    /// - note: This is for debug purposes, for accessing the value even if the parsing failed due to e.g. corrupted content.
     public private(set) var innerHeader: InnerHeader?
 
+    /// The raw XML document but before decryption of the string content (i.e. no inner decryption applied)
+    ///
+    /// - note: This is for debug purposes, for accessing the value even if the parsing failed due to e.g. corrupted content.
     public private(set) var xmlDocument: String?
+
+    /// The size of the each blocks of the HMAC-protected block stream.
+    ///
+    /// - note: This is for debug purposes.
     public private(set) var blockSizes: [Int32] = []
 
     public init(_ data: Data) {
@@ -80,14 +92,15 @@ public struct KDBXReader: Sendable {
 
     // MARK: Public API
 
-    public mutating func parse(unlockData: UnlockData?) throws(Error) -> Database {
+    public mutating func parse(unlockData: UnlockData?) throws(Error) -> KDBXContent {
         let header: Header
         let headerLength: Int
+
+        // MARK: 1. Header
 
         do {
             var reader = HeaderReader(data: data)
             (header, headerLength) = try reader.parse()
-            self.header = header
         } catch {
             switch error {
             case .invalidSignature:
@@ -105,7 +118,10 @@ public struct KDBXReader: Sendable {
             }
         }
 
+        // Move past the header to the next token
         pos = pos.advanced(by: headerLength)
+
+        // MARK: 2. SHA-256 of the header
 
         // calculate SHA256 of the header
         let headerData = Data(data[..<headerLength])
@@ -128,6 +144,8 @@ public struct KDBXReader: Sendable {
             throw .invalidUnlockData
         }
 
+        // MARK: 3. HMAC-SHA256 of the header
+
         // calculate HMAC-SHA256 of the header
         let unlockKey = unlockData.computeUnlockKey(
             salt: header.masterSalt,
@@ -144,7 +162,8 @@ public struct KDBXReader: Sendable {
             throw Error.invalidUnlockData
         }
 
-        // Parse HMAC-protected block stream
+        // MARK: 4. Parse HMAC-protected block stream
+
         var blockIndex: UInt64 = 0
         var payload = Data(capacity: data.count)
         while true {
@@ -185,7 +204,7 @@ public struct KDBXReader: Sendable {
             blockIndex += 1
         }
 
-        // Decrypt payload
+        // MARK: 4.a Decrypt payload
 
         // If the encryption algorithm needs a 256-bit key (such as AES-256 and ChaCha20),
         // the key is:
@@ -202,7 +221,7 @@ public struct KDBXReader: Sendable {
             fatalError("ChaCha20 is unsupported")
         }
 
-        // Decompress payload if needed
+        // MARK: 4.a.i Decompress payload if needed
 
         switch header.compressionAlgorithm {
         case .none:
@@ -218,13 +237,13 @@ public struct KDBXReader: Sendable {
             }
         }
 
-        // Parse Inner Header
+        // MARK: 4.a.i.1 Parse Inner Header
 
+        let innerHeader: InnerHeader
+        let innerHeaderLength: Int
         do {
             var innerHeaderReader = InnerHeaderReader(data: payload)
-            let (innerHeader, innerHeaderLength) = try innerHeaderReader.parse()
-            self.innerHeader = innerHeader
-            payload.removeFirst(innerHeaderLength)
+            (innerHeader, innerHeaderLength) = try innerHeaderReader.parse()
         } catch {
             switch error {
             case let .corrupted(reason):
@@ -234,8 +253,12 @@ public struct KDBXReader: Sendable {
             }
         }
 
-        // The remaining payload is the XML document
+        // Remvove the inner header leaving only the XML document in the payload.
+        payload.removeFirst(innerHeaderLength)
 
+        // MARK: 4.a.i.2 XML Document
+
+        // The remaining payload is the XML document
         guard let xmlDocument = String(data: payload, encoding: .utf8) else {
             throw Error.corrupted(reason: "Failed to parse the XML document as a utf8 string")
         }
@@ -252,7 +275,7 @@ public struct KDBXReader: Sendable {
             }
         }
 
-        return database
+        return .init(database: database, header: header, innerHeader: innerHeader)
     }
 
     // MARK: Decryption helpers

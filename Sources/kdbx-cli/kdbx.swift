@@ -14,7 +14,7 @@ enum ReadError: Error {
 }
 
 enum ReadResult {
-    case success(Database, KDBXReader)
+    case success(KDBXContent, KDBXReader)
     /// The master password was given but doesn't match the password used for encryption
     case invalidUnlockData(KDBXReader)
 }
@@ -25,8 +25,8 @@ func read(from filepath: String, unlockData: UnlockData?) throws(ReadError) -> R
     var kdbxReader = KDBXReader(data)
 
     do {
-        let database = try kdbxReader.parse(unlockData: unlockData)
-        return .success(database, kdbxReader)
+        let content = try kdbxReader.parse(unlockData: unlockData)
+        return .success(content, kdbxReader)
     } catch {
         switch error {
         case .invalidUnlockData:
