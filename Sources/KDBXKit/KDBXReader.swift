@@ -101,6 +101,7 @@ public struct KDBXReader: Sendable {
         do {
             var reader = HeaderReader(data: data)
             (header, headerLength) = try reader.parse()
+            self.header = header
         } catch {
             switch error {
             case .invalidSignature:
@@ -244,6 +245,7 @@ public struct KDBXReader: Sendable {
         do {
             var innerHeaderReader = InnerHeaderReader(data: payload)
             (innerHeader, innerHeaderLength) = try innerHeaderReader.parse()
+            self.innerHeader = innerHeader
         } catch {
             switch error {
             case let .corrupted(reason):
