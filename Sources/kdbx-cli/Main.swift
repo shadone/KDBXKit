@@ -16,6 +16,7 @@ struct App: ParsableCommand {
       subcommands: [
         Info.self,
         XML.self,
+        Get.self,
       ],
       // A default subcommand, when provided, is automatically selected if a
       // subcommand is not given on the command line.

@@ -12,14 +12,19 @@ extension KDBX {
             /// Plaintext string.
             case regular(String)
 
-            /// Used in a KDBX file.
+            /// Protected value, encrypted using Inner Encryption.
+            ///
+            /// - note: This type is used in KDBX file.
             case protected(Data)
 
-            /// Used in an unencrypted XML file.
+            /// The protected value that was decrypted
+            case unprotected(String)
+
+            /// - note: This type is only used in an unencrypted XML file.
             case protectedInMemory(String)
         }
 
-        public let key: String
-        public let value: Value
+        public var key: String
+        public var value: Value
     }
 }
