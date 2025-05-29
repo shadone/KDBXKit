@@ -26,9 +26,14 @@ extension KDBXContent {
         let entryIndex: Int
     }
 
-    struct ProtectedStringPath {
+    struct ProtectedStringPath: CustomDebugStringConvertible {
         let entryPath: EntryPath
+        let historyIndex: Int?
         let stringIndex: Int
+
+        var debugDescription: String {
+            "ProtectedStringPath(groupPath: \(entryPath.groupPath), entryIndex: \(entryPath.entryIndex), historyIndex: \(historyIndex.map({ String($0)}) ?? "nil"), stringIndex: \(stringIndex))"
+        }
     }
 
     public mutating func decrypt() throws(DecryptError) {
@@ -64,6 +69,7 @@ extension KDBXContent {
             }
 
             guard let stringValue = String(data: decryptedValue, encoding: .utf8) else {
+                // This is likely a developer mistake, something is wrong with our stream cipher.
                 throw DecryptError.corrupted(reason: "Failed to create utf8 string from decrypted value at \(path)")
             }
 
@@ -94,16 +100,42 @@ extension KDBXContent {
                                 to: .init(key: lastProtectedStringKey, value: .unprotected(unprotectedValue)),
                                 groupPath: lastPath.entryPath.groupPath,
                                 entryIndex: lastPath.entryPath.entryIndex,
+                                historyIndex: lastPath.historyIndex,
                                 stringIndex: lastPath.stringIndex
                             )
                         }
 
-                        lastPath = .init(entryPath: path, stringIndex: stringIndex)
+                        lastPath = .init(entryPath: path, historyIndex: nil, stringIndex: stringIndex)
                         lastProtectedStringKey = protectedString.key
                         lastProtectedStringProtectedData = data
 
                     case .regular, .unprotected, .protectedInMemory:
                         break
+                    }
+                }
+
+                for (historyIndex, historicalEntry) in entry.history.enumerated() {
+                    for (stringIndex, protectedString) in historicalEntry.strings.enumerated() {
+                        switch protectedString.value {
+                        case .protected(let data):
+                            if let lastPath, let lastProtectedStringKey, let lastProtectedStringProtectedData {
+                                let unprotectedValue = try decrypt(data: Array(lastProtectedStringProtectedData), at: lastPath, isLast: false)
+                                database.root.group.updateProtectedString(
+                                    to: .init(key: lastProtectedStringKey, value: .unprotected(unprotectedValue)),
+                                    groupPath: lastPath.entryPath.groupPath,
+                                    entryIndex: lastPath.entryPath.entryIndex,
+                                    historyIndex: lastPath.historyIndex,
+                                    stringIndex: lastPath.stringIndex
+                                )
+                            }
+
+                            lastPath = .init(entryPath: path, historyIndex: historyIndex, stringIndex: stringIndex)
+                            lastProtectedStringKey = protectedString.key
+                            lastProtectedStringProtectedData = data
+
+                        case .regular, .unprotected, .protectedInMemory:
+                            break
+                        }
                     }
                 }
             }
@@ -125,6 +157,7 @@ extension KDBXContent {
                 to: .init(key: lastProtectedStringKey, value: .unprotected(unprotectedValue)),
                 groupPath: lastPath.entryPath.groupPath,
                 entryIndex: lastPath.entryPath.entryIndex,
+                historyIndex: lastPath.historyIndex,
                 stringIndex: lastPath.stringIndex
             )
         }
@@ -150,12 +183,19 @@ extension KDBX.Group {
         to newValue: KDBX.ProtectedString,
         groupPath: [Int],
         entryIndex: Int,
+        historyIndex: Int?,
         stringIndex: Int
     ) {
         if groupPath.isEmpty {
             assert(entryIndex < entries.count)
             assert(stringIndex < entries[entryIndex].strings.count)
-            entries[entryIndex].strings[stringIndex] = newValue
+
+            if let historyIndex {
+                assert(historyIndex < entries[entryIndex].history.count)
+                entries[entryIndex].history[historyIndex].strings[stringIndex] = newValue
+            } else {
+                entries[entryIndex].strings[stringIndex] = newValue
+            }
             return
         }
 
@@ -165,6 +205,7 @@ extension KDBX.Group {
             to: newValue,
             groupPath: groupPath,
             entryIndex: entryIndex,
+            historyIndex: historyIndex,
             stringIndex: stringIndex
         )
     }
