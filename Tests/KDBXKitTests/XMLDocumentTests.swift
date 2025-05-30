@@ -112,8 +112,7 @@ struct XMLDocumentTests {
         try writer.write(reference)
 
         let data = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
-        let xmlDocument = String(data: data, encoding: .utf8)!
-        print(xmlDocument)
+        let xmlDocument = String(validating: data, as: UTF8.self)!
 
         let reader = XMLDocumentReader(xmlDocument: xmlDocument)
         let parsed = try reader.parse()

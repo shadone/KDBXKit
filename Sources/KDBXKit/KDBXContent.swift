@@ -68,7 +68,7 @@ extension KDBXContent {
                 throw .corrupted(reason: "Failed to decrypt value at \(path): \(error)")
             }
 
-            guard let stringValue = String(data: decryptedValue, encoding: .utf8) else {
+            guard let stringValue = String(validating: decryptedValue, as: UTF8.self) else {
                 // This is likely a developer mistake, something is wrong with our stream cipher.
                 throw DecryptError.corrupted(reason: "Failed to create utf8 string from decrypted value at \(path)")
             }

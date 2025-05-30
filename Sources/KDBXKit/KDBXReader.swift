@@ -261,7 +261,7 @@ public struct KDBXReader: Sendable {
         // MARK: 4.a.i.2 XML Document
 
         // The remaining payload is the XML document
-        guard let xmlDocument = String(data: payload, encoding: .utf8) else {
+        guard let xmlDocument = String(validating: payload, as: UTF8.self) else {
             throw Error.corrupted(reason: "Failed to parse the XML document as a utf8 string")
         }
         self.xmlDocument = xmlDocument
