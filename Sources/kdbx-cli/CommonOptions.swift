@@ -22,4 +22,3 @@ struct CommonOptions: ParsableCommand {
         return nil
     }
 }
-

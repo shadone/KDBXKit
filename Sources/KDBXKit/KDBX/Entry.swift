@@ -6,8 +6,8 @@
 
 import Foundation
 
-extension KDBX {
-    public struct Entry: Sendable, Equatable {
+public extension KDBX {
+    struct Entry: Sendable, Equatable {
         public var uuid: UUID
 
         /// See the folder "Ext/Images_Client_HighRes" in the KeePass source code package.

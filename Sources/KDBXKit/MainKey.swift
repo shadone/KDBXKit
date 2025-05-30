@@ -28,6 +28,6 @@ enum MainKey {
         // SHA-256(S ‖ T).
         // If the encryption algorithm needs a key smaller than 256 bits, the key consists of
         // the first bytes of SHA-256(S ‖ T).
-        return (masterSalt + unlockKey).sha256()
+        (masterSalt + unlockKey).sha256()
     }
 }

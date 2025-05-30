@@ -4,8 +4,8 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
-extension KDBX {
-    public enum ValueOrNever<T: Sendable & Equatable>: Sendable, Equatable {
+public extension KDBX {
+    enum ValueOrNever<T: Sendable & Equatable>: Sendable, Equatable {
         case value(T)
         case never
     }

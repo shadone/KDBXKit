@@ -25,7 +25,7 @@ struct XMLDocumentTests {
 
     @Test
     func writeThenRead() throws {
-        let mockDate = Date(secondsSinceDotNetEpoch: 63884389441)
+        let mockDate = Date(secondsSinceDotNetEpoch: 63_884_389_441)
 
         let reference = KDBX(
             meta: .init(
@@ -53,7 +53,7 @@ struct XMLDocumentTests {
                 customIcons: [
                     .init(
                         uuid: UUID(),
-                        data: Data([1,2,3]),
+                        data: Data([1, 2, 3]),
                         name: "Test Icon",
                         lastModificationTime: mockDate,
                     ),
@@ -84,7 +84,7 @@ struct XMLDocumentTests {
                         lastAccessTime: mockDate,
                         expiryTime: mockDate,
                         expires: false,
-                        usageCount: 123456,
+                        usageCount: 123_456,
                         locationChanged: mockDate,
                     ),
                     isExpanded: true,

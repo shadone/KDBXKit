@@ -17,7 +17,7 @@ import Foundation
 ///    a. Encrypted:
 ///       i. Compressed (optional):
 ///          - Inner header.
-///          - XML document.             
+///          - XML document.
 /// ```
 struct HeaderReader: Sendable {
     enum Error: Swift.Error {

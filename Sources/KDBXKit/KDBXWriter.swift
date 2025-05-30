@@ -44,7 +44,7 @@ public struct KDBXWriter {
             try outputStream.write(data: data)
         } catch {
             switch error {
-            case .streamError(let error):
+            case let .streamError(error):
                 let description = error?.localizedDescription ?? "nil"
                 throw .unknown(reason: "Write failed: \(description)")
 
@@ -64,7 +64,7 @@ public struct KDBXWriter {
             switch error {
             case .unexpectedEOF:
                 throw .unexpectedEOF
-            case .unknown(let reason):
+            case let .unknown(reason):
                 throw .unknown(reason: "Failed to write header: \(reason)")
             }
         }
@@ -86,7 +86,7 @@ public struct KDBXWriter {
             switch error {
             case .unexpectedEOF:
                 throw .unexpectedEOF
-            case .unknown(let reason):
+            case let .unknown(reason):
                 throw .unknown(reason: "Failed to write inner header: \(reason)")
             }
         }
@@ -108,7 +108,7 @@ public struct KDBXWriter {
             switch error {
             case .unexpectedEOF:
                 throw .unexpectedEOF
-            case .unknown(let reason):
+            case let .unknown(reason):
                 throw .unknown(reason: "Failed to write header: \(reason)")
             }
         }
@@ -213,7 +213,7 @@ public struct KDBXWriter {
                     blockMode: CBC(iv: Array(content.header.encryptionNonce)),
                     padding: .pkcs7
                 )
-                payload = Data(try AES256CBC.encrypt(Array(payload)))
+                payload = try Data(AES256CBC.encrypt(Array(payload)))
             } catch {
                 throw .unknown(reason: "Failed to encrypt main payload: \(error)")
             }
@@ -234,7 +234,7 @@ public struct KDBXWriter {
         //
         // When saving a KDBX file, KeePass currently uses 1048576 (i.e. 1 MB) as size for every
         // input block except the last one (which may be smaller).
-        let blockSize: Int = 1048576
+        let blockSize = 1_048_576
 
         var blockIndex: UInt64 = 0
         for start in stride(from: 0, to: payload.count, by: blockSize) {

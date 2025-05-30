@@ -9,8 +9,8 @@ public struct KDBX: Sendable, Equatable {
     public var root: Root
 }
 
-extension KDBX {
-    public func visitEntries(
+public extension KDBX {
+    func visitEntries(
         in group: KDBX.Group,
         _ visitor: (KDBX.Entry) -> Void
     ) {

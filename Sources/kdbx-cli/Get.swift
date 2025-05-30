@@ -30,13 +30,13 @@ struct Get: ParsableCommand {
                 let value: String
 
                 switch string.value {
-                case .unprotected(let v):
+                case let .unprotected(v):
                     value = v
 
-                case .regular(let v):
+                case let .regular(v):
                     value = v
 
-                case .protectedInMemory(let v):
+                case let .protectedInMemory(v):
                     value = v
 
                 case .protected:
@@ -51,9 +51,9 @@ struct Get: ParsableCommand {
                 for binary in entry.binaries {
                     let name = binary.key
                     switch binary.value {
-                    case .inline(let data):
+                    case let .inline(data):
                         print("\t\t\(name): \(data.count) bytes")
-                    case .ref(let ref):
+                    case let .ref(ref):
                         let data = content.innerHeader.binaryContent[Int(ref)].data
                         print("\t\t\(name): ref=\(ref): \(data.count) bytes")
                     }

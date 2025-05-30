@@ -34,7 +34,7 @@ struct InnerHeaderWriter {
         self.outputStream = outputStream
     }
 
-    private func write<T: FixedWidthInteger>(_ value: T) throws(Error) {
+    private func write(_ value: some FixedWidthInteger) throws(Error) {
         try write(value.toDataLittleEndian())
     }
 
@@ -43,7 +43,7 @@ struct InnerHeaderWriter {
             try outputStream.write(data: data)
         } catch {
             switch error {
-            case .streamError(let error):
+            case let .streamError(error):
                 let description = error?.localizedDescription ?? "nil"
                 throw .unknown(reason: "Write failed: \(description)")
 

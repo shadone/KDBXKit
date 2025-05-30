@@ -17,11 +17,11 @@ struct Info: ParsableCommand {
         let hasUnlockDataButNotCorrect: Bool
 
         switch try read(from: commonOptions.filepath, unlockData: commonOptions.unlockData) {
-        case .invalidUnlockData(let kdxReader):
+        case let .invalidUnlockData(kdxReader):
             kdbx = kdxReader
             hasUnlockDataButNotCorrect = true
 
-        case .success(_, let kdbxReader):
+        case let .success(_, kdbxReader):
             kdbx = kdbxReader
             hasUnlockDataButNotCorrect = false
         }

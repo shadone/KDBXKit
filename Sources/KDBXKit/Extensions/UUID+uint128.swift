@@ -10,7 +10,7 @@ extension UUID {
     /// Initializes a `UUID` from raw 128-bit number. interpreting the raw bytes in **big-endian** order.
     init(uint128: UInt128) {
         var bytes = [UInt8]()
-        withUnsafeBytes(of: uint128.bigEndian)  { bytes.append(contentsOf: $0) }
+        withUnsafeBytes(of: uint128.bigEndian) { bytes.append(contentsOf: $0) }
 
         self = UUID(uuid: (
             bytes[0], bytes[1], bytes[2], bytes[3],

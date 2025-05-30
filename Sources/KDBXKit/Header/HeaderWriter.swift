@@ -4,8 +4,8 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
-import Foundation
 import CryptoSwift
+import Foundation
 
 /// Overview of a KDBX file:
 ///
@@ -35,7 +35,7 @@ struct HeaderWriter {
         self.outputStream = outputStream
     }
 
-    private func write<T: FixedWidthInteger>(_ value: T) throws(Error) {
+    private func write(_ value: some FixedWidthInteger) throws(Error) {
         try write(value.toDataLittleEndian())
     }
 
@@ -44,7 +44,7 @@ struct HeaderWriter {
             try outputStream.write(data: data)
         } catch {
             switch error {
-            case .streamError(let error):
+            case let .streamError(error):
                 let description = error?.localizedDescription ?? "nil"
                 throw .unknown(reason: "Write failed: \(description)")
 
@@ -75,7 +75,7 @@ struct HeaderWriter {
             switch error {
             case .unexpectedEOF:
                 throw .unexpectedEOF
-            case .unknown(let reason):
+            case let .unknown(reason):
                 throw .unknown(reason: "Failed to write Variant Dictionary: \(reason)")
             }
         }
@@ -93,8 +93,8 @@ struct HeaderWriter {
         try writeField(.compressionAlgorithm, value: header.compressionAlgorithm.rawValue.toDataLittleEndian())
         try writeField(.masterSalt, value: header.masterSalt)
         try writeField(.encryptionNonce, value: header.encryptionNonce)
-        try writeField(.kdfParameters, value: try write(header.kdfParameters.toVariantDictionary()))
-        try writeField(.publicCustomData, value: try write(header.publicCustomData))
+        try writeField(.kdfParameters, value: write(header.kdfParameters.toVariantDictionary()))
+        try writeField(.publicCustomData, value: write(header.publicCustomData))
         try writeField(.endOfHeader, value: HeaderFieldType.endOfHeaderValue)
     }
 }

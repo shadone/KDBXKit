@@ -20,7 +20,7 @@ struct VariantDictionaryWriter {
         self.outputStream = outputStream
     }
 
-    private func write<T: FixedWidthInteger>(_ value: T) throws(Error) {
+    private func write(_ value: some FixedWidthInteger) throws(Error) {
         try write(value.toDataLittleEndian())
     }
 
@@ -29,7 +29,7 @@ struct VariantDictionaryWriter {
             try outputStream.write(data: data)
         } catch {
             switch error {
-            case .streamError(let error):
+            case let .streamError(error):
                 let description = error?.localizedDescription ?? "nil"
                 throw .unknown(reason: "Write failed: \(description)")
 
@@ -61,32 +61,32 @@ struct VariantDictionaryWriter {
             let valueData: Data
 
             switch value {
-            case .uint32(let value):
+            case let .uint32(value):
                 valueType = .uint32
                 valueData = value.toDataLittleEndian()
 
-            case .uint64(let value):
+            case let .uint64(value):
                 valueType = .uint64
                 valueData = value.toDataLittleEndian()
 
-            case .boolean(let b):
+            case let .boolean(b):
                 valueType = .boolean
                 let value: UInt8 = b ? 1 : 0
                 valueData = value.toDataLittleEndian()
 
-            case .int32(let value):
+            case let .int32(value):
                 valueType = .int32
                 valueData = value.toDataLittleEndian()
 
-            case .int64(let value):
+            case let .int64(value):
                 valueType = .int64
                 valueData = value.toDataLittleEndian()
 
-            case .string(let value):
+            case let .string(value):
                 valueType = .string
                 valueData = Data(value.utf8)
 
-            case .bytes(let value):
+            case let .bytes(value):
                 valueType = .bytes
                 valueData = value
             }

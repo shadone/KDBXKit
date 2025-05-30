@@ -32,7 +32,7 @@ extension KDBXContent {
         let stringIndex: Int
 
         var debugDescription: String {
-            "ProtectedStringPath(groupPath: \(entryPath.groupPath), entryIndex: \(entryPath.entryIndex), historyIndex: \(historyIndex.map({ String($0)}) ?? "nil"), stringIndex: \(stringIndex))"
+            "ProtectedStringPath(groupPath: \(entryPath.groupPath), entryIndex: \(entryPath.entryIndex), historyIndex: \(historyIndex.map { String($0) } ?? "nil"), stringIndex: \(stringIndex))"
         }
     }
 
@@ -90,10 +90,10 @@ extension KDBXContent {
         var lastProtectedStringProtectedData: Data?
 
         do {
-            try visitEntries(in: database.root.group) { (entry, path) throws(DecryptError) in
+            try visitEntries(in: database.root.group) { entry, path throws(DecryptError) in
                 for (stringIndex, protectedString) in entry.strings.enumerated() {
                     switch protectedString.value {
-                    case .protected(let data):
+                    case let .protected(data):
                         if let lastPath, let lastProtectedStringKey, let lastProtectedStringProtectedData {
                             let unprotectedValue = try decrypt(data: Array(lastProtectedStringProtectedData), at: lastPath, isLast: false)
                             database.root.group.updateProtectedString(
@@ -117,7 +117,7 @@ extension KDBXContent {
                 for (historyIndex, historicalEntry) in entry.history.enumerated() {
                     for (stringIndex, protectedString) in historicalEntry.strings.enumerated() {
                         switch protectedString.value {
-                        case .protected(let data):
+                        case let .protected(data):
                             if let lastPath, let lastProtectedStringKey, let lastProtectedStringProtectedData {
                                 let unprotectedValue = try decrypt(data: Array(lastProtectedStringProtectedData), at: lastPath, isLast: false)
                                 database.root.group.updateProtectedString(
@@ -169,7 +169,7 @@ extension KDBXContent {
         _ visitor: (KDBX.Entry, EntryPath) throws(DecryptError) -> Void
     ) rethrows {
         for (entryIndex, entry) in group.entries.enumerated() {
-            try visitor(entry,  .init(groupPath: groupPath, entryIndex: entryIndex))
+            try visitor(entry, .init(groupPath: groupPath, entryIndex: entryIndex))
         }
 
         for (groupIndex, group) in group.groups.enumerated() {

@@ -4,8 +4,8 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
-import Foundation
 import CryptoKit
+import Foundation
 
 /// Container for the key data needed for unlocking the `.kdbx` content.
 ///

@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
-extension KDBX {
+public extension KDBX {
     /// Allowed values in XML:
     ///
     /// - Null
@@ -13,7 +13,7 @@ extension KDBX {
     /// - false
     /// - True
     /// - true
-    public enum NullableBoolEx: Sendable, Equatable {
+    enum NullableBoolEx: Sendable, Equatable {
         case value(Bool)
         case null
     }

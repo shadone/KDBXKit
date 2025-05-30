@@ -169,14 +169,14 @@ extension KDFParameters {
         var result: VariantDictionary = [:]
 
         switch self {
-        case .aes(let aes, let additional):
+        case let .aes(aes, additional):
             result = additional
 
             result["$UUID"] = .bytes(KDF.AES.toUInt128().toDataLittleEndian())
             result["S"] = .bytes(aes.salt)
             result["R"] = .uint64(aes.rounds)
 
-        case .argon2d(let params, let additional):
+        case let .argon2d(params, additional):
             result = additional
 
             result["$UUID"] = .bytes(KDF.Argon2d.toUInt128().toDataLittleEndian())
@@ -186,7 +186,7 @@ extension KDFParameters {
             result["M"] = .uint64(params.memory)
             result["P"] = .uint32(params.parallelism)
 
-        case .argon2id(let params, let additional):
+        case let .argon2id(params, additional):
             result = additional
 
             result["$UUID"] = .bytes(KDF.Argon2id.toUInt128().toDataLittleEndian())
@@ -196,7 +196,7 @@ extension KDFParameters {
             result["M"] = .uint64(params.memory)
             result["P"] = .uint32(params.parallelism)
 
-        case .unknown(let uuid):
+        case let .unknown(uuid):
             fatalError("Writing unsupported KDF Parameters is not implemented: \(uuid.uuidString)")
         }
 

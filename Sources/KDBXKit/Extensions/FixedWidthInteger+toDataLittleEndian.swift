@@ -9,7 +9,7 @@ import Foundation
 extension FixedWidthInteger {
     /// Converts the integer to `Data` in little-endian byte order.
     func toDataLittleEndian() -> Data {
-        var value = self.littleEndian
+        var value = littleEndian
         return withUnsafeBytes(of: &value) { Data($0) }
     }
 }

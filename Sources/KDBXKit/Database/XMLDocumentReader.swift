@@ -810,9 +810,8 @@ struct XMLDocumentReader {
         }
 
         guard rawValue != nil || ref != nil else {
-            throw .corrupted(reason: "Failed to parse ProtectedBinary, missing value or ref in \(node.fullyQualifiedName). Value=\(rawValue ?? "<nil>"); Ref=\(ref.map({String($0)}) ?? "<nil>")")
+            throw .corrupted(reason: "Failed to parse ProtectedBinary, missing value or ref in \(node.fullyQualifiedName). Value=\(rawValue ?? "<nil>"); Ref=\(ref.map { String($0) } ?? "<nil>")")
         }
-
 
         let value: KDBX.ProtectedBinary.Value
         if let ref {

@@ -6,8 +6,8 @@
 
 import Foundation
 
-extension KDBX {
-    public struct CustomIcon: Sendable, Equatable {
+public extension KDBX {
+    struct CustomIcon: Sendable, Equatable {
         public let uuid: UUID
         public let data: Data
         public let name: String?

@@ -10,7 +10,7 @@ public struct Header: Sendable, Equatable {
     static let signature1: UInt32 = 0x9AA2D903
     static let signature2: UInt32 = 0xB54BFB67
 
-    public struct FormatVersion: CustomStringConvertible,  Equatable, Sendable {
+    public struct FormatVersion: CustomStringConvertible, Equatable, Sendable {
         public let major: UInt16
         public let minor: UInt16
 

@@ -6,8 +6,8 @@
 
 import Foundation
 
-extension KDBX {
-    public struct Group: Sendable, Equatable {
+public extension KDBX {
+    struct Group: Sendable, Equatable {
         public var uuid: UUID
 
         public var name: String?

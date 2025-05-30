@@ -4,8 +4,8 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
-import Testing
 import Foundation
+import Testing
 
 @testable import KDBXKit
 
@@ -50,9 +50,9 @@ struct HeaderTests {
                 .init(
                     version: .v1_3,
                     salt: Data([4, 5, 6]),
-                    iterations: 1234567,
-                    memory: 987654321,
-                    parallelism: 424242
+                    iterations: 1_234_567,
+                    memory: 987_654_321,
+                    parallelism: 424_242
                 ),
                 additional: [
                     "Foo": .string("Bar"),

@@ -31,7 +31,7 @@ func groupUpdateProtectedString() {
                         ],
                     ),
                 ],
-            )
+            ),
         ]
     )
 

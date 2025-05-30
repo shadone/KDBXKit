@@ -33,7 +33,7 @@ struct XMLDocumentWriter {
         self.outputStream = outputStream
     }
 
-    private func write<T: FixedWidthInteger>(_ value: T) throws(Error) {
+    private func write(_ value: some FixedWidthInteger) throws(Error) {
         try write(value.toDataLittleEndian())
     }
 
@@ -42,7 +42,7 @@ struct XMLDocumentWriter {
             try outputStream.write(data: data)
         } catch {
             switch error {
-            case .streamError(let error):
+            case let .streamError(error):
                 let description = error?.localizedDescription ?? "nil"
                 throw .unknown(reason: "Write failed: \(description)")
 
@@ -58,7 +58,7 @@ struct XMLDocumentWriter {
             .base64EncodedString()
     }
 
-    private func encode<T: FixedWidthInteger>(_ value: T) -> String {
+    private func encode(_ value: some FixedWidthInteger) -> String {
         String(value)
     }
 
@@ -80,20 +80,20 @@ struct XMLDocumentWriter {
         value.base64EncodedString()
     }
 
-    private func encode<T: FixedWidthInteger>(_ value: KDBX.ValueOrNever<T>) -> String {
+    private func encode(_ value: KDBX.ValueOrNever<some FixedWidthInteger>) -> String {
         switch value {
         case .never:
             return "-1"
-        case .value(let value):
+        case let .value(value):
             return String(value)
         }
     }
 
-    private func encode<T: FixedWidthInteger>(_ value: KDBX.ValueOrUnlimited<T>) -> String {
+    private func encode(_ value: KDBX.ValueOrUnlimited<some FixedWidthInteger>) -> String {
         switch value {
         case .unlimited:
             return "-1"
-        case .value(let value):
+        case let .value(value):
             return String(value)
         }
     }
@@ -102,7 +102,7 @@ struct XMLDocumentWriter {
         switch value {
         case .null:
             return "Null"
-        case .value(let b):
+        case let .value(b):
             return b ? "True" : "False"
         }
     }
@@ -315,22 +315,22 @@ struct XMLDocumentWriter {
 
         let valueNode = node.addElement("Value")
         switch protectedString.value {
-        case .regular(let value):
+        case let .regular(value):
             valueNode.addText(value)
 
-        case .protected(let protectedValue):
+        case let .protected(protectedValue):
             valueNode.addText(encode(protectedValue))
             valueNode.attributes = [
-                (name: "Protected", value: "True")
+                (name: "Protected", value: "True"),
             ]
 
         case .unprotected:
             fatalError("Trying to write unprotected data")
 
-        case .protectedInMemory(let value):
+        case let .protectedInMemory(value):
             valueNode.addText(value)
             valueNode.attributes = [
-                (name: "ProtectInMemory", value: "True")
+                (name: "ProtectInMemory", value: "True"),
             ]
         }
     }
@@ -340,12 +340,12 @@ struct XMLDocumentWriter {
 
         let valueNode = node.addElement("Value")
         switch protectedBinary.value {
-        case .ref(let ref):
+        case let .ref(ref):
             valueNode.attributes = [
                 (name: "Ref", value: String(ref)),
             ]
 
-        case .inline(let data):
+        case let .inline(data):
             valueNode.addText(encode(data))
         }
     }

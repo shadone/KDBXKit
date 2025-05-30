@@ -6,9 +6,9 @@
 
 import Foundation
 
-extension KDBX {
+public extension KDBX {
     /// https://keepass.info/help/base/autotype.html
-    public struct AutoType: Sendable, Equatable {
+    struct AutoType: Sendable, Equatable {
         public var enabled: Bool?
 
         public enum DataTransferObfuscation: Int32, Sendable, Equatable {

@@ -6,8 +6,8 @@
 
 import Foundation
 
-extension KDBX {
-    public struct ProtectedBinary: Sendable, Equatable {
+public extension KDBX {
+    struct ProtectedBinary: Sendable, Equatable {
         public enum Value: Sendable, Equatable {
             /// Inline binary data
             case inline(Data)

@@ -4,8 +4,8 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
-import Testing
 import Foundation
+import Testing
 
 @testable import KDBXKit
 
@@ -24,10 +24,10 @@ struct VariantDictionaryTests {
         var vardict = VariantDictionary()
         vardict["A"] = .boolean(true)
         vardict["B"] = .boolean(false)
-        vardict["C"] = .int32(-424242)
+        vardict["C"] = .int32(-424_242)
         vardict["D"] = .uint32(4242)
-        vardict["E"] = .int64(-4242424242)
-        vardict["F"] = .uint64(42424242)
+        vardict["E"] = .int64(-4_242_424_242)
+        vardict["F"] = .uint64(42_424_242)
         vardict["G"] = .string("Hello world")
         vardict["H"] = .bytes(Data([1, 2, 3, 4]))
 
