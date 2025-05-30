@@ -128,14 +128,8 @@ public struct KDBXReader: Sendable {
         let headerData = Data(data[..<headerLength])
         let headerSHA256 = headerData.sha256()
 
-        print("### got header length", headerLength)
-        print("### got header", header)
-
         let headerSHA256FromFile = try readData(length: 32)
         if headerSHA256 != headerSHA256FromFile {
-            print("### header", header)
-            print("### header sha256 (ours)", headerSHA256.hexString)
-            print("### header sha256 (file)", headerSHA256FromFile.hexString)
             throw Error.corrupted(reason: "Invalid header SHA256 digest")
         }
 
@@ -158,8 +152,6 @@ public struct KDBXReader: Sendable {
         let headerHMACSHA256 = headerData.hmacSha256(key: headerKey)
         let headerHMACSHA256FromFile = try readData(length: 32)
         if headerHMACSHA256 != headerHMACSHA256FromFile {
-            print("### headerHMACSHA256 (ours)", headerHMACSHA256.hexString)
-            print("### headerHMACSHA256 (file)", headerHMACSHA256FromFile.hexString)
             throw Error.invalidUnlockData
         }
 
@@ -228,8 +220,7 @@ public struct KDBXReader: Sendable {
                 let decompressor = GzipDecompressor()
                 payload = try decompressor.unzip(data: payload)
             } catch {
-                print("### Failed to decompress", error)
-                throw Error.corrupted(reason: "failed to decompress")
+                throw Error.corrupted(reason: "Failed to decompress: \(error)")
             }
         }
 
