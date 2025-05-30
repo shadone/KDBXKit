@@ -32,7 +32,7 @@ struct Info: ParsableCommand {
 
         print("Format version: \(header.formatVersion)")
         print("Encryption algorithm: \(header.encryptionAlgorithm)")
-        print("Compression algorithm: \(header.compressionAlgorithm?.description ?? "none")")
+        print("Compression algorithm: \(header.compressionAlgorithm.description)")
         print("Master salt/seed: \(header.masterSalt.hexString)")
         print("Encryption nonce/iv: \(header.encryptionNonce.hexString)")
 

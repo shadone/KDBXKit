@@ -7,12 +7,33 @@
 import Foundation
 
 public struct Header: Sendable, Equatable {
-    public struct FormatVersion: CustomStringConvertible, Equatable, Sendable {
+    static let signature1: UInt32 = 0x9AA2D903
+    static let signature2: UInt32 = 0xB54BFB67
+
+    public struct FormatVersion: CustomStringConvertible,  Equatable, Sendable {
         public let major: UInt16
         public let minor: UInt16
 
         public var description: String {
             "\(major).\(minor)"
+        }
+
+        /// The value is in **little endian**.
+        var rawValue: UInt32 {
+            (UInt32(major) << 16) | UInt32(minor)
+        }
+
+        init(major: UInt16, minor: UInt16) {
+            self.major = major
+            self.minor = minor
+        }
+
+        /// - parameter rawValue: the value should be in **little endian**
+        init(rawValue: UInt32) {
+            // The high word is the major version
+            major = UInt16(rawValue >> 16)
+            // The low word is the minor version.
+            minor = UInt16(rawValue & 0xFFFF)
         }
 
         public static let v4_0: FormatVersion = .init(major: 4, minor: 0)
@@ -26,28 +47,30 @@ public struct Header: Sendable, Equatable {
     ///   ignoring any unknown items. Certain data may be lost in this case, thus showing a confirmation/warning is recommended.
     public let formatVersion: FormatVersion
 
-    public enum EncryptionAlgorithm: Sendable, Equatable {
+    public enum EncryptionAlgorithm: UInt128, Sendable, Equatable {
         /// AES-256 (NIST FIPS 197, CBC mode, PKCS #7 padding).
-        case AES256CBC
+        case AES256CBC = 0xFF5AFC6A210558BE504371BFE6F2C131
 
         /// ChaCha20 (RFC 8439).
-        case ChaCha20
+        case ChaCha20 = 0x9AB5DB319A3324A5B54C6F8B2B8A03D6
     }
 
     public let encryptionAlgorithm: EncryptionAlgorithm
 
-    public enum CompressionAlgorithm: CustomStringConvertible, Sendable, Equatable {
-        case gzip
+    public enum CompressionAlgorithm: UInt32, CustomStringConvertible, Sendable, Equatable {
+        case none = 0
+        case gzip = 1
 
         public var description: String {
             switch self {
+            case .none: return "none"
             case .gzip: return "gzip"
             }
         }
     }
 
     /// Whether compression is applied.
-    public let compressionAlgorithm: CompressionAlgorithm?
+    public let compressionAlgorithm: CompressionAlgorithm
 
     /// Master salt/seed (⟳)
     ///

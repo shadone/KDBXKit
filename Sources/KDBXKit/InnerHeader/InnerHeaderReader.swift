@@ -110,9 +110,14 @@ struct InnerHeaderReader {
 
             case .binaryContent:
                 let flags = valueData[valueData.startIndex]
-                let start = valueData.startIndex
-                let end = valueData.endIndex
-                let binaryData = valueData.subdata(in: start..<end)
+                let binaryData: Data
+                if valueData.count > 1 {
+                    let start = valueData.startIndex + 1
+                    let end = valueData.endIndex
+                    binaryData = valueData.subdata(in: start..<end)
+                } else {
+                    binaryData = Data()
+                }
                 binaryContent.append(.init(shouldBeProtected: flags == 0x01, data: binaryData))
             }
         }

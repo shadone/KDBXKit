@@ -22,7 +22,7 @@ func KDBXReaderSimple_Argon2d_AES256() async throws {
     #expect(reader.header != nil)
     #expect(reader.header == content.header)
 
-    #expect(content.header.formatVersion == .v4_0)
+    #expect(content.header.formatVersion == .v4_1)
     #expect(content.header.encryptionAlgorithm == .AES256CBC)
     #expect(content.header.compressionAlgorithm == .gzip)
     #expect(content.header.masterSalt.hexString == "57c789c9a7df70a5bb7d10bdae09180a40e35556b8a8064196779219628ddfd4")

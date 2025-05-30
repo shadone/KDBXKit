@@ -86,6 +86,14 @@ public enum KDFParameters: Sendable, Equatable {
         guard case let .unknown(uuid) = self else { return nil }
         return uuid
     }
+}
+
+extension KDFParameters {
+    enum KDF {
+        static let AES = UUID(uuid: (0xEA, 0x4F, 0x8A, 0xC1, 0x08, 0x0D, 0x74, 0xBF, 0x60, 0x44, 0x8A, 0x62, 0x9A, 0xF3, 0xD9, 0xC9))
+        static let Argon2d = UUID(uuid: (0x0C, 0x0A, 0xE3, 0x03, 0xA4, 0xA9, 0xF7, 0x91, 0x4B, 0x44, 0x29, 0x8C, 0xDF, 0x6D, 0x63, 0xEF))
+        static let Argon2id = UUID(uuid: (0xE6, 0xA1, 0xF0, 0xC6, 0x3E, 0xFC, 0x3D, 0xB2, 0x73, 0x47, 0xDB, 0x56, 0x19, 0x8B, 0x29, 0x9E))
+    }
 
     init?(from params: VariantDictionary) {
         guard case let .bytes(uuidData) = params["$UUID"] else {
@@ -95,12 +103,6 @@ public enum KDFParameters: Sendable, Equatable {
         guard let uuid = uuidData.asUUIDLE() else {
             print("KDF Parameters: Invalid '$UUID' key length (expected 16, got \(uuidData.count): \(uuidData.hexString)")
             return nil
-        }
-
-        enum KDF {
-            static let AES = UUID(uuid: (0xEA, 0x4F, 0x8A, 0xC1, 0x08, 0x0D, 0x74, 0xBF, 0x60, 0x44, 0x8A, 0x62, 0x9A, 0xF3, 0xD9, 0xC9))
-            static let Argon2d = UUID(uuid: (0x0C, 0x0A, 0xE3, 0x03, 0xA4, 0xA9, 0xF7, 0x91, 0x4B, 0x44, 0x29, 0x8C, 0xDF, 0x6D, 0x63, 0xEF))
-            static let Argon2id = UUID(uuid: (0xE6, 0xA1, 0xF0, 0xC6, 0x3E, 0xFC, 0x3D, 0xB2, 0x73, 0x47, 0xDB, 0x56, 0x19, 0x8B, 0x29, 0x9E))
         }
 
         if uuid == KDF.AES {
@@ -161,5 +163,43 @@ public enum KDFParameters: Sendable, Equatable {
         } else {
             self = .unknown(uuid: uuid)
         }
+    }
+
+    func toVariantDictionary() -> VariantDictionary {
+        var result: VariantDictionary = [:]
+
+        switch self {
+        case .aes(let aes, let additional):
+            result = additional
+
+            result["$UUID"] = .bytes(KDF.AES.toUInt128().toDataLittleEndian())
+            result["S"] = .bytes(aes.salt)
+            result["R"] = .uint64(aes.rounds)
+
+        case .argon2d(let params, let additional):
+            result = additional
+
+            result["$UUID"] = .bytes(KDF.Argon2d.toUInt128().toDataLittleEndian())
+            result["V"] = .uint32(params.version.rawValue)
+            result["S"] = .bytes(params.salt)
+            result["I"] = .uint64(params.iterations)
+            result["M"] = .uint64(params.memory)
+            result["P"] = .uint32(params.parallelism)
+
+        case .argon2id(let params, let additional):
+            result = additional
+
+            result["$UUID"] = .bytes(KDF.Argon2id.toUInt128().toDataLittleEndian())
+            result["V"] = .uint32(params.version.rawValue)
+            result["S"] = .bytes(params.salt)
+            result["I"] = .uint64(params.iterations)
+            result["M"] = .uint64(params.memory)
+            result["P"] = .uint32(params.parallelism)
+
+        case .unknown(let uuid):
+            fatalError("Writing unsupported KDF Parameters is not implemented: \(uuid.uuidString)")
+        }
+
+        return result
     }
 }

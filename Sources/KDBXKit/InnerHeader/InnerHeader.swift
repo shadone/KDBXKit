@@ -42,18 +42,18 @@ public struct InnerHeader: Sendable, Equatable {
     }
 
     /// The algorithm used for encrypting protected strings in the XML document.
-    public let encryptionAlgorithm: EncryptionAlgorithm
+    public var encryptionAlgorithm: EncryptionAlgorithm
 
     /// The encryption key that was used for encrypting protected strings in the XML document. See ``EncryptionAlgorithm-swift.enum``
-    public let encryptionKey: Data
+    public var encryptionKey: Data
 
     public struct BinaryContent: Sendable, Equatable {
         /// The flag indicates that the binary content should be protected in the process memory.
-        public let shouldBeProtected: Bool
-        public let data: Data
+        public var shouldBeProtected: Bool
+        public var data: Data
     }
 
     /// A binary content is referenced in the XML document by its index in the inner header (the first binary content has
     /// index 0, the second one has index 1, etc.).
-    public let binaryContent: [BinaryContent]
+    public var binaryContent: [BinaryContent]
 }

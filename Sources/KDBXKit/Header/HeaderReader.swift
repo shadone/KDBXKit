@@ -76,20 +76,18 @@ struct HeaderReader: Sendable {
     mutating func parse() throws(Error) -> (header: Header, length: Int) {
         let signature1 = try readUInt32()
         let signature2 = try readUInt32()
-        if signature1 != 0x9AA2D903 || signature2 != 0xB54BFB67 {
+        if signature1 != Header.signature1 || signature2 != Header.signature2 {
             throw Error.invalidSignature
         }
 
         let formatVersionValue = try readUInt32()
-        let majorVersion = UInt16(formatVersionValue >> 16)
-        let minorVersion = UInt16(formatVersionValue & 0xFFFF) >> 8
-        let formatVersion = Header.FormatVersion(major: majorVersion, minor: minorVersion)
+        let formatVersion = Header.FormatVersion(rawValue: formatVersionValue)
         let supportedFormatVersions: [Header.FormatVersion] = [
             .v4_0,
             .v4_1,
         ]
         if !supportedFormatVersions.contains(formatVersion) {
-            throw Error.unsupportedFormatVersion(major: majorVersion, minor: minorVersion)
+            throw Error.unsupportedFormatVersion(major: formatVersion.major, minor: formatVersion.minor)
         }
 
         var encryptionAlgorithm: Header.EncryptionAlgorithm?
@@ -115,43 +113,28 @@ struct HeaderReader: Sendable {
 
             switch fieldType {
             case .endOfHeader:
-                if valueData != Data([0x0D, 0x0A, 0x0D, 0x0A]) {
+                if valueData != HeaderFieldType.endOfHeaderValue {
                     throw Error.corrupted(reason: "Invalid end-of-header value. Length: \(valueData.count); bytes: \(valueData.hexString)")
                 }
                 done = true
 
             case .compressionAlgorithm:
-                if let compression = valueData.asUInt32LE() {
-                    if compression == 0 {
-                        compressionAlgorithm = .none
-                    } else if compression == 1 {
-                        compressionAlgorithm = .gzip
-                    } else {
-                        print("Invalid compression algorithm: \(compression)")
-                        throw Error.unsupportedCompression(compression)
-                    }
-                } else {
-                    print("Invalid compression algorithm value: \(valueData)")
+                guard let compressionRawValue = valueData.asUInt32LE() else {
                     throw Error.corrupted(reason: "Invalid compression algorithm. Length: \(valueData.count); bytes: \(valueData.hexString)")
                 }
+                guard let compression = Header.CompressionAlgorithm(rawValue: compressionRawValue) else {
+                    throw Error.unsupportedCompression(compressionRawValue)
+                }
+                compressionAlgorithm = compression
 
             case .encryptionAlgorithm:
-                /// - 31C1F2E6BF714350BE5805216AFC5AFF: AES-256 (NIST FIPS 197, CBC mode, PKCS #7 padding).
-                let aes256 = UUID(uuid: (0xFF, 0x5A, 0xFC, 0x6A, 0x21, 0x05, 0x58, 0xBE, 0x50, 0x43, 0x71, 0xBF, 0xE6, 0xF2, 0xC1, 0x31))
-                /// - D6038A2B8B6F4CB5A524339A31DBB59A: ChaCha20 (RFC 8439).
-                let chacha20 = UUID(uuid: (0x9A, 0xB5, 0xDB, 0x31, 0x9A, 0x33, 0x24, 0xA5, 0xB5, 0x4C, 0x6F, 0x8B, 0x2B, 0x8A, 0x03, 0xD6))
-
-                if let uuid = valueData.asUUIDLE() {
-                    if uuid == aes256 {
-                        encryptionAlgorithm = .AES256CBC
-                    } else if uuid == chacha20 {
-                        encryptionAlgorithm = .ChaCha20
-                    } else {
-                        throw Error.unsupportedEncryption(uuid)
-                    }
-                } else {
+                guard let uuidValue = UInt128(littleEndianData: valueData) else {
                     throw Error.corrupted(reason: "Encryption algorithm value is not a valid UUID. Length: \(valueData.count); bytes: \(valueData.hexString)")
                 }
+                guard let algorithm = Header.EncryptionAlgorithm(rawValue: uuidValue) else {
+                    throw Error.unsupportedEncryption(UUID(uint128: uuidValue))
+                }
+                encryptionAlgorithm = algorithm
 
             case .masterSalt:
                 if valueData.count != 32 {
@@ -163,7 +146,6 @@ struct HeaderReader: Sendable {
                 encryptionNonce = valueData
 
             case .kdfParameters:
-                print("Parsing KDF parameters...")
                 let reader = VariantDictionaryReader(data: valueData)
                 do {
                     allKdfParameters = try reader.parse()
@@ -179,7 +161,6 @@ struct HeaderReader: Sendable {
                 }
 
             case .publicCustomData:
-                print("Parsing Public Custom Data...")
                 let reader = VariantDictionaryReader(data: valueData)
                 do {
                     publicCustomData = try reader.parse()
@@ -232,7 +213,7 @@ struct HeaderReader: Sendable {
         let header = Header(
             formatVersion: formatVersion,
             encryptionAlgorithm: encryptionAlgorithm,
-            compressionAlgorithm: compressionAlgorithm,
+            compressionAlgorithm: compressionAlgorithm ?? .none,
             masterSalt: masterSalt,
             encryptionNonce: encryptionNonce,
             kdfParameters: kdfParameters,

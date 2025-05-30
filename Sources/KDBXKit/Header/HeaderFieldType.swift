@@ -4,6 +4,8 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
+import Foundation
+
 /// Header fields supported by KDBX4 file format.
 ///
 /// The raw value is the `ID t (byte)`.
@@ -16,6 +18,9 @@ enum HeaderFieldType: UInt8 {
     ///
     /// The value should be the byte array `0x0D, 0x0A, 0x0D, 0x0A`.
     case endOfHeader = 0
+
+    /// The value of the TLV field for `endOfHeader` field.
+    static let endOfHeaderValue = Data([0x0D, 0x0A, 0x0D, 0x0A])
 
     /// The encryption algorithm for the inner content (inner header and the XML document).
     ///

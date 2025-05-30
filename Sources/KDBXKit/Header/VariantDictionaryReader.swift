@@ -15,13 +15,6 @@ class VariantDictionaryReader {
         case unexpectedEOF
     }
 
-    struct FormatVersion: Equatable {
-        let major: UInt8
-        let minor: UInt8
-
-        static let v1_0: FormatVersion = .init(major: 1, minor: 0)
-    }
-
     let data: Data
     var pos: Data.Index
 
@@ -73,20 +66,12 @@ class VariantDictionaryReader {
         // https://keepass.info/help/kb/kdbx.html#vardict
 
         // Format version, as UInt16
-        let version = try readUInt16()
+        let versionRawValue = try readUInt16()
+        let formatVersion = VariantDictionary.FormatVersion(rawValue: versionRawValue)
 
-        // The high byte is the major version. It is critical, i.e. an application must refuse to
-        // load the file if the major version is unsupported.
-        let majorVersion = UInt8(version >> 8)
-
-        // The low byte is the minor version. It can be ignored, but when encountering an unsupported
-        // value type, a confirmation/warning should be displayed or loading should fail.
-        let minorVersion = UInt8(version & 0xFF)
-
-        let formatVersion = FormatVersion(major: majorVersion, minor: minorVersion)
         // The current version is 1.0, i.e. 0x0100.
         if formatVersion != .v1_0 {
-            throw Error.unsupportedFormatVersion(major: majorVersion, minor: minorVersion)
+            throw Error.unsupportedFormatVersion(major: formatVersion.major, minor: formatVersion.minor)
         }
 
         var result: VariantDictionary = [:]

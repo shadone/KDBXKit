@@ -34,11 +34,11 @@ struct InnerHeaderWriter {
         self.outputStream = outputStream
     }
 
-    func write<T: FixedWidthInteger>(_ value: T) throws(Error) {
+    private func write<T: FixedWidthInteger>(_ value: T) throws(Error) {
         try write(value.toDataLittleEndian())
     }
 
-    func write(_ data: Data) throws(Error) {
+    private func write(_ data: Data) throws(Error) {
         do {
             try outputStream.write(data: data)
         } catch {
@@ -53,7 +53,7 @@ struct InnerHeaderWriter {
         }
     }
 
-    func writeField(_ type: InnerHeaderFieldType, value: Data) throws(Error) {
+    private func writeField(_ type: InnerHeaderFieldType, value: Data) throws(Error) {
         // Inner header format is TLV content:
         // <ID type (UInt8)> || <Length (Int32)> || <Value>
         try write(type.rawValue)
@@ -61,7 +61,11 @@ struct InnerHeaderWriter {
         try write(value)
     }
 
-    func write(innerHeader: InnerHeader) throws(Error) {
+    func write(_ innerHeader: InnerHeader) throws(Error) {
+        guard outputStream.streamStatus == .open else {
+            throw .unknown(reason: "Stream is not ready for writing")
+        }
+
         try writeField(.encryptionAlgorithm, value: innerHeader.encryptionAlgorithm.rawValue.toDataLittleEndian())
         try writeField(.encryptionKey, value: innerHeader.encryptionKey)
 
