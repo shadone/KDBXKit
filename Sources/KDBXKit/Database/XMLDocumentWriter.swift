@@ -20,7 +20,7 @@ import Nodal
 ///          - Inner header.
 ///          - XML document.             <<- writes XML document
 /// ```
-struct DatabaseWriter {
+struct XMLDocumentWriter {
     enum Error: Swift.Error {
         case unknown(reason: String)
         /// When writing to a fixed length stream, there is no place to write.

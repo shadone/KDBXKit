@@ -8,13 +8,13 @@ import Foundation
 import Testing
 @testable import KDBXKit
 
-struct DatabaseTests {
+struct XMLDocumentTests {
     @Test
-    func DatabaseReader_empty() async throws {
+    func XMLDocumentReader_empty() async throws {
         let xmlFilepath = Bundle.module.path(forResource: "Resources/database-encrypted-empty", ofType: "xml")!
         let xmlDocument = try String(contentsOfFile: xmlFilepath, encoding: .utf8)
 
-        let reader = DatabaseReader(xmlDocument: xmlDocument)
+        let reader = XMLDocumentReader(xmlDocument: xmlDocument)
         let database = try reader.parse()
 
         #expect(database.meta.generator == "KeePassXC")
@@ -108,14 +108,14 @@ struct DatabaseTests {
 
         let outputStream = OutputStream(toMemory: ())
         outputStream.open()
-        let writer = DatabaseWriter(to: outputStream)
+        let writer = XMLDocumentWriter(to: outputStream)
         try writer.write(reference)
 
         let data = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
         let xmlDocument = String(data: data, encoding: .utf8)!
         print(xmlDocument)
 
-        let reader = DatabaseReader(xmlDocument: xmlDocument)
+        let reader = XMLDocumentReader(xmlDocument: xmlDocument)
         let parsed = try reader.parse()
 
         #expect(parsed == reference)

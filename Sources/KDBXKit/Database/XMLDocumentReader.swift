@@ -20,7 +20,7 @@ import Nodal
 ///          - Inner header.
 ///          - XML document.             <<- parses XML document
 /// ```
-struct DatabaseReader {
+struct XMLDocumentReader {
     enum Error: Swift.Error {
         case corrupted(reason: String)
     }
