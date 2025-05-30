@@ -27,7 +27,7 @@ struct XMLDocumentTests {
     func writeThenRead() throws {
         let mockDate = Date(secondsSinceDotNetEpoch: 63884389441)
 
-        let reference = Database(
+        let reference = KDBX(
             meta: .init(
                 generator: "KDBXKit",
                 settingsChanged: mockDate,

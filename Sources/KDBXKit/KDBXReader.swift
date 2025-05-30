@@ -266,7 +266,7 @@ public struct KDBXReader: Sendable {
         }
         self.xmlDocument = xmlDocument
 
-        let database: Database
+        let database: KDBX
         do {
             let xmlDocumentReader = XMLDocumentReader(xmlDocument: xmlDocument)
             database = try xmlDocumentReader.parse()

@@ -9,7 +9,7 @@ import Foundation
 
 /// The content of the `.kdbx` file.
 public struct KDBXContent: Equatable {
-    public var database: Database
+    public var database: KDBX
     public let header: Header
     public let innerHeader: InnerHeader
 }

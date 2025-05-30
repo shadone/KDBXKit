@@ -110,7 +110,7 @@ struct XMLDocumentReader {
 
     // MARK: Public API
 
-    func parse() throws(Error) -> Database {
+    func parse() throws(Error) -> KDBX {
         guard let documentElement = document.documentElement else {
             throw .corrupted(reason: "Missig root element")
         }

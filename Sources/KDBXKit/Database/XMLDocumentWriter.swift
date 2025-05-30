@@ -400,7 +400,7 @@ struct XMLDocumentWriter {
         node.addElement("DeletionTime").addText(encode(deletedObject.deletionTime))
     }
 
-    func write(_ database: Database) throws(Error) {
+    func write(_ database: KDBX) throws(Error) {
         let document = Document()
         let rootDocumentNode = document.makeDocumentElement(name: "KeePassFile")
         guard let xmlDeclaration = document.node.addChild(ofKind: .declaration, at: .first) else {
