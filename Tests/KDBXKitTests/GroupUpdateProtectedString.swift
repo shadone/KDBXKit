@@ -39,6 +39,7 @@ func groupUpdateProtectedString() {
         to: .init(key: "new-root", value: .regular("new-root-value")),
         groupPath: [],
         entryIndex: 0,
+        historyIndex: nil,
         stringIndex: 0
     )
     #expect(root.entries[0].strings[0].key == "new-root")
@@ -48,6 +49,7 @@ func groupUpdateProtectedString() {
         to: .init(key: "new-child1", value: .regular("new-child1-value")),
         groupPath: [0],
         entryIndex: 0,
+        historyIndex: nil,
         stringIndex: 0
     )
     #expect(root.groups[0].entries[0].strings[0].key == "new-child1")
