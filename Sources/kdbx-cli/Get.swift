@@ -21,9 +21,10 @@ struct Get: ParsableCommand {
 
         try content.decrypt()
 
-        for entry in content.database.root.group.entries {
+        content.database.visitEntries(in: content.database.root.group) { entry in
             print("")
             print("Entry: \(entry.uuid)")
+
             for string in entry.strings {
                 let name = string.key
                 let value: String
@@ -43,6 +44,20 @@ struct Get: ParsableCommand {
                 }
 
                 print("\t\(name): \(value)")
+            }
+
+            if !entry.binaries.isEmpty {
+                print("\tBinaries:")
+                for binary in entry.binaries {
+                    let name = binary.key
+                    switch binary.value {
+                    case .inline(let data):
+                        print("\t\t\(name): \(data.count) bytes")
+                    case .ref(let ref):
+                        let data = content.innerHeader.binaryContent[Int(ref)].data
+                        print("\t\t\(name): ref=\(ref): \(data.count) bytes")
+                    }
+                }
             }
         }
     }
