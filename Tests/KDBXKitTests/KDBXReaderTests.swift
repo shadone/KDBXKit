@@ -127,3 +127,25 @@ func KDBXReaderSimple_AES256_AES256() async throws {
     let referenceXmlDocument = try String(contentsOfFile: xmlFilepath, encoding: .utf8)
     #expect(xmlDocument == referenceXmlDocument)
 }
+
+struct KDBXTests {
+    @Test
+    func readThenWriteThenReadAgain() async throws {
+        let kdbxFilepath = Bundle.module.path(forResource: "Resources/simple-aes256-aes256", ofType: "kdbx")!
+        let referenceKDBXData = try Data(contentsOf: URL(filePath: kdbxFilepath))
+
+        let unlockData = UnlockData(masterPassword: "123")
+        var reader = KDBXReader(referenceKDBXData)
+        let reference = try reader.parse(unlockData: unlockData)
+
+        let outputStream = OutputStream(toMemory: ())
+        outputStream.open()
+        try KDBXWriter(to: outputStream).write(reference, unlockData: unlockData)
+        let writtenKDBXData = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
+
+        var reader2 = KDBXReader(writtenKDBXData)
+        let readAgain = try reader2.parse(unlockData: unlockData)
+
+        #expect(readAgain == reference)
+    }
+}

@@ -68,7 +68,7 @@ struct HeaderWriter {
             varDictOutputStream.open()
             try VariantDictionaryWriter(to: varDictOutputStream).write(vardict)
             guard let data = varDictOutputStream.property(forKey: .dataWrittenToMemoryStreamKey) as? Data else {
-                fatalError("Failed to get output stream data for Public Custom Data")
+                fatalError("Failed to get output stream data for writing Variant Dictionary")
             }
             return data
         } catch {
@@ -76,7 +76,7 @@ struct HeaderWriter {
             case .unexpectedEOF:
                 throw .unexpectedEOF
             case .unknown(let reason):
-                throw .unknown(reason: "Failed to write Public Custom Data: \(reason)")
+                throw .unknown(reason: "Failed to write Variant Dictionary: \(reason)")
             }
         }
     }

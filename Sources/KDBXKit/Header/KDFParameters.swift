@@ -118,7 +118,7 @@ extension KDFParameters {
             additionalParams.removeValue(forKey: "S")
             additionalParams.removeValue(forKey: "R")
 
-            self = .aes(.init(salt: salt, rounds: rounds), additional: params)
+            self = .aes(.init(salt: salt, rounds: rounds), additional: additionalParams)
         } else if uuid == KDF.Argon2d || uuid == KDF.Argon2id {
             guard
                 case let .uint32(versionRawValue) = params["V"],

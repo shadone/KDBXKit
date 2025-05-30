@@ -153,7 +153,7 @@ public struct KDBXReader: Sendable {
             kdfParameters: header.kdfParameters,
         )
 
-        let headerKey = keyForHeader(masterSalt: header.masterSalt, unlockKey: unlockKey)
+        let headerKey = HMACProtectedBlockStream.keyForHeader(masterSalt: header.masterSalt, unlockKey: unlockKey)
 
         let headerHMACSHA256 = headerData.hmacSha256(key: headerKey)
         let headerHMACSHA256FromFile = try readData(length: 32)
@@ -183,7 +183,7 @@ public struct KDBXReader: Sendable {
                 break
             }
 
-            let blockKey = keyForBlock(
+            let blockKey = HMACProtectedBlockStream.keyForBlock(
                 at: blockIndex,
                 masterSalt: header.masterSalt,
                 unlockKey: unlockKey
@@ -207,12 +207,7 @@ public struct KDBXReader: Sendable {
 
         // MARK: 4.a Decrypt payload
 
-        // If the encryption algorithm needs a 256-bit key (such as AES-256 and ChaCha20),
-        // the key is:
-        // SHA-256(S ‖ T).
-        // If the encryption algorithm needs a key smaller than 256 bits, the key consists of
-        // the first bytes of SHA-256(S ‖ T).
-        let mainDecryptKey = (header.masterSalt + unlockKey).sha256()
+        let mainDecryptKey = MainKey.make(masterSalt: header.masterSalt, unlockKey: unlockKey)
 
         switch header.encryptionAlgorithm {
         case .AES256CBC:
@@ -278,21 +273,5 @@ public struct KDBXReader: Sendable {
         }
 
         return .init(database: database, header: header, innerHeader: innerHeader)
-    }
-
-    // MARK: Decryption helpers
-
-    func keyForBlock(at index: UInt64, masterSalt: Data, unlockKey: Data) -> Data {
-        // The key for the HMAC-SHA-256 hash of the i-th block (zero-based index, type UInt64)
-        // of the HMAC-protected block stream is:
-        // SHA-512(i ‖ SHA-512(S ‖ T ‖ 0x01)).
-        (index.dataLE + (masterSalt + unlockKey + Data([0x01])).sha512()).sha512()
-    }
-
-    func keyForHeader(masterSalt: Data, unlockKey: Data) -> Data {
-        // The key for the HMAC-SHA-256 hash of the header is:
-        // SHA-512(0xFFFFFFFFFFFFFFFF ‖ SHA-512(S ‖ T ‖ 0x01)).
-        let lastIndex: UInt64 = 0xFFFFFFFFFFFFFFFF
-        return keyForBlock(at: lastIndex, masterSalt: masterSalt, unlockKey: unlockKey)
     }
 }
