@@ -669,8 +669,8 @@ struct XMLDocumentReader {
                 entry.strings.append(protectedString)
 
             case "Binary":
-                // TODO:
-                print("Binary not implemented")
+                let protectedBinary = try parseProtectedBinary(child)
+                entry.binaries.append(protectedBinary)
 
             case "AutoType":
                 entry.autoType = try parseAutoType(child)
@@ -770,6 +770,60 @@ struct XMLDocumentReader {
             value = .protectedInMemory(rawValue ?? "")
         } else {
             value = .regular(rawValue ?? "")
+        }
+
+        return .init(key: key, value: value)
+    }
+
+    func parseProtectedBinary(_ node: Node) throws(Error) -> KDBX.ProtectedBinary {
+        var key: String?
+        var rawValue: String?
+        var ref: UInt32?
+
+        for child in node.children {
+            switch child.name {
+            case "Key":
+                key = text(in: child)
+
+            case "Value":
+                rawValue = text(in: child)
+                for (name, value) in child.attributes {
+                    switch name {
+                    case "Ref":
+                        guard let refValue = UInt32(value) else {
+                            throw .corrupted(reason: "Failed to parse Ref attribute: '\(value)'")
+                        }
+                        ref = refValue
+
+                    default:
+                        print("Unexpected attribute '\(name)' in Binary in \(child.fullyQualifiedName)")
+                    }
+                }
+
+            default:
+                print("Unexpected element \(child.fullyQualifiedName)")
+            }
+        }
+
+        guard let key else {
+            throw .corrupted(reason: "Failed to parse ProtectedBinary, missing key in \(node.fullyQualifiedName)")
+        }
+
+        guard rawValue != nil || ref != nil else {
+            throw .corrupted(reason: "Failed to parse ProtectedBinary, missing value or ref in \(node.fullyQualifiedName). Value=\(rawValue ?? "<nil>"); Ref=\(ref.map({String($0)}) ?? "<nil>")")
+        }
+
+
+        let value: KDBX.ProtectedBinary.Value
+        if let ref {
+            value = .ref(ref)
+        } else if let rawValue {
+            guard let data = rawValue.data(using: .utf8) else {
+                throw .corrupted(reason: "Failed to parse base64 inline data in ProtectedBinary in \(node.fullyQualifiedName)")
+            }
+            value = .inline(data)
+        } else {
+            preconditionFailure()
         }
 
         return .init(key: key, value: value)

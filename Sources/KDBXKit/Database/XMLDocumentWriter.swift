@@ -302,6 +302,12 @@ struct XMLDocumentWriter {
                 write(protectedString, to: stringNode)
             }
         }
+        if !entry.binaries.isEmpty {
+            for protectedBinary in entry.binaries {
+                let binaryNode = node.addElement("Binary")
+                write(protectedBinary, to: binaryNode)
+            }
+        }
     }
 
     private func write(_ protectedString: KDBX.ProtectedString, to node: Node) {
@@ -326,6 +332,21 @@ struct XMLDocumentWriter {
             valueNode.attributes = [
                 (name: "ProtectInMemory", value: "True")
             ]
+        }
+    }
+
+    private func write(_ protectedBinary: KDBX.ProtectedBinary, to node: Node) {
+        node.addElement("Key").addText(protectedBinary.key)
+
+        let valueNode = node.addElement("Value")
+        switch protectedBinary.value {
+        case .ref(let ref):
+            valueNode.attributes = [
+                (name: "Ref", value: String(ref)),
+            ]
+
+        case .inline(let data):
+            valueNode.addText(encode(data))
         }
     }
 
