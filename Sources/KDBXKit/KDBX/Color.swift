@@ -16,7 +16,19 @@ extension KDBX {
             if stringValue.isEmpty {
                 self = .default
             } else {
-                fatalError("unimplemented")
+                guard stringValue.hasPrefix("#"), stringValue.count == 7 else {
+                    assertionFailure("Invalid color input: \(stringValue)")
+                    return nil
+                }
+                let hexString = String(stringValue.dropFirst())
+                if let hexValue = UInt32(hexString, radix: 16) {
+                    let red = UInt8((hexValue >> 16) & 0xFF)
+                    let green = UInt8((hexValue >> 8) & 0xFF)
+                    let blue = UInt8(hexValue & 0xFF)
+                    self = .color(red: red, green: green, blue: blue)
+                } else {
+                    return nil
+                }
             }
         }
 

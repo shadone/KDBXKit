@@ -1,0 +1,427 @@
+//
+// Copyright (c) 2025, Denis Dzyubenko <denis@ddenis.info>
+//
+// SPDX-License-Identifier: BSD-2-Clause
+//
+
+import Foundation
+import Nodal
+
+/// Overview of a KDBX file:
+///
+/// ```
+///                                      This class:
+/// 1. Header.
+/// 2. SHA-256 hash of the header.
+/// 3. HMAC-SHA-256 hash of the header.
+/// 4. In HMAC-protected block stream:
+///    a. Encrypted:
+///       i. Compressed (optional):
+///          - Inner header.
+///          - XML document.             <<- writes XML document
+/// ```
+struct DatabaseWriter {
+    enum Error: Swift.Error {
+        case unknown(reason: String)
+        /// When writing to a fixed length stream, there is no place to write.
+        case unexpectedEOF
+    }
+
+    let outputStream: OutputStream
+
+    init(to outputStream: OutputStream) {
+        self.outputStream = outputStream
+    }
+
+    private func write<T: FixedWidthInteger>(_ value: T) throws(Error) {
+        try write(value.toDataLittleEndian())
+    }
+
+    private func write(_ data: Data) throws(Error) {
+        do {
+            try outputStream.write(data: data)
+        } catch {
+            switch error {
+            case .streamError(let error):
+                let description = error?.localizedDescription ?? "nil"
+                throw .unknown(reason: "Write failed: \(description)")
+
+            case .unexpectedEOF:
+                throw .unexpectedEOF
+            }
+        }
+    }
+
+    private func encode(_ value: Date) -> String {
+        value.secondsSinceDotNetEpoch
+            .toDataLittleEndian()
+            .base64EncodedString()
+    }
+
+    private func encode<T: FixedWidthInteger>(_ value: T) -> String {
+        String(value)
+    }
+
+    private func encode(_ value: KDBX.Color) -> String {
+        value.description
+    }
+
+    private func encode(_ value: Bool) -> String {
+        value ? "True" : "False"
+    }
+
+    private func encode(_ value: UUID) -> String {
+        value.toUInt128()
+            .toDataLittleEndian()
+            .base64EncodedString()
+    }
+
+    private func encode(_ value: Data) -> String {
+        value.base64EncodedString()
+    }
+
+    private func encode<T: FixedWidthInteger>(_ value: KDBX.ValueOrNever<T>) -> String {
+        switch value {
+        case .never:
+            return "-1"
+        case .value(let value):
+            return String(value)
+        }
+    }
+
+    private func encode<T: FixedWidthInteger>(_ value: KDBX.ValueOrUnlimited<T>) -> String {
+        switch value {
+        case .unlimited:
+            return "-1"
+        case .value(let value):
+            return String(value)
+        }
+    }
+
+    private func encode(_ value: KDBX.NullableBoolEx) -> String {
+        switch value {
+        case .null:
+            return "Null"
+        case .value(let b):
+            return b ? "True" : "False"
+        }
+    }
+
+    private func write(_ meta: KDBX.Meta, to node: Node) {
+        if let generator = meta.generator {
+            node.addElement("Generator").addText(generator)
+        }
+        if let settingsChanged = meta.settingsChanged {
+            node.addElement("SettingsChanged").addText(encode(settingsChanged))
+        }
+        if let databaseName = meta.databaseName {
+            node.addElement("DatabaseName").addText(databaseName)
+        }
+        if let databaseNameChanged = meta.databaseNameChanged {
+            node.addElement("DatabaseNameChanged").addText(encode(databaseNameChanged))
+        }
+        if let databaseDescription = meta.databaseDescription {
+            node.addElement("DatabaseDescription").addText(databaseDescription)
+        }
+        if let databaseDescriptionChanged = meta.databaseDescriptionChanged {
+            node.addElement("DatabaseDescriptionChanged").addText(encode(databaseDescriptionChanged))
+        }
+        if let defaultUserName = meta.defaultUserName {
+            node.addElement("DefaultUserName").addText(defaultUserName)
+        }
+        if let defaultUserNameChanged = meta.defaultUserNameChanged {
+            node.addElement("DefaultUserNameChanged").addText(encode(defaultUserNameChanged))
+        }
+        if let maintenanceHistoryDays = meta.maintenanceHistoryDays {
+            node.addElement("MaintenanceHistoryDays").addText(encode(maintenanceHistoryDays))
+        }
+        if let color = meta.color {
+            node.addElement("Color").addText(encode(color))
+        }
+        if let masterKeyChanged = meta.masterKeyChanged {
+            node.addElement("MasterKeyChanged").addText(encode(masterKeyChanged))
+        }
+        if let masterKeyChangeRec = meta.masterKeyChangeRec {
+            node.addElement("MasterKeyChangeRec").addText(encode(masterKeyChangeRec))
+        }
+        if let masterKeyChangeForce = meta.masterKeyChangeForce {
+            node.addElement("MasterKeyChangeForce").addText(encode(masterKeyChangeForce))
+        }
+        if let masterKeyChangeForceOnce = meta.masterKeyChangeForceOnce {
+            node.addElement("MasterKeyChangeForceOnce").addText(encode(masterKeyChangeForceOnce))
+        }
+        if let memoryProtection = meta.memoryProtection {
+            let memoryProtectionNode = node.addElement("MemoryProtection")
+            write(memoryProtection, to: memoryProtectionNode)
+        }
+        if !meta.customIcons.isEmpty {
+            let customIconNode = node.addElement("CustomIcons")
+            for customIcon in meta.customIcons {
+                let iconNode = customIconNode.addElement("Icon")
+                write(customIcon, to: iconNode)
+            }
+        }
+        if let recycleBinEnabled = meta.recycleBinEnabled {
+            node.addElement("RecycleBinEnabled").addText(encode(recycleBinEnabled))
+        }
+        if let recycleBinUUID = meta.recycleBinUUID {
+            node.addElement("RecycleBinUUID").addText(encode(recycleBinUUID))
+        }
+        if let recycleBinChanged = meta.recycleBinChanged {
+            node.addElement("RecycleBinChanged").addText(encode(recycleBinChanged))
+        }
+        if let entryTemplatesGroup = meta.entryTemplatesGroup {
+            node.addElement("EntryTemplatesGroup").addText(encode(entryTemplatesGroup))
+        }
+        if let entryTemplatesGroupChanged = meta.entryTemplatesGroupChanged {
+            node.addElement("EntryTemplatesGroupChanged").addText(encode(entryTemplatesGroupChanged))
+        }
+        if let historyMaxItems = meta.historyMaxItems {
+            node.addElement("HistoryMaxItems").addText(encode(historyMaxItems))
+        }
+        if let historyMaxSize = meta.historyMaxSize {
+            node.addElement("HistoryMaxSize").addText(encode(historyMaxSize))
+        }
+        if let lastSelectedGroup = meta.lastSelectedGroup {
+            node.addElement("LastSelectedGroup").addText(encode(lastSelectedGroup))
+        }
+        if let lastTopVisibleGroup = meta.lastTopVisibleGroup {
+            node.addElement("LastTopVisibleGroup").addText(encode(lastTopVisibleGroup))
+        }
+        if !meta.customData.isEmpty {
+            let customDataNode = node.addElement("CustomData")
+            for customData in meta.customData {
+                let itemNode = customDataNode.addElement("Item")
+                write(customData, to: itemNode)
+            }
+        }
+    }
+
+    private func write(_ root: KDBX.Root, to node: Node) {
+        let groupNode = node.addElement("Group")
+        write(root.group, to: groupNode)
+
+        if !root.deletedObjects.isEmpty {
+            let deletedObjectsNode = node.addElement("DeletedObjects")
+            for deletedObject in root.deletedObjects {
+                let itemNode = deletedObjectsNode.addElement("DeletedObject")
+                write(deletedObject, to: itemNode)
+            }
+        }
+    }
+
+    private func write(_ group: KDBX.Group, to node: Node) {
+        node.addElement("UUID").addText(encode(group.uuid))
+        if let name = group.name {
+            node.addElement("Name").addText(name)
+        }
+        if let notes = group.notes {
+            node.addElement("Notes").addText(notes)
+        }
+        node.addElement("IconID").addText(encode(group.iconID))
+        if let customIconUUID = group.customIconUUID {
+            node.addElement("CustomIconUUID").addText(encode(customIconUUID))
+        }
+        if let times = group.times {
+            let timesNode = node.addElement("Times")
+            write(times, to: timesNode)
+        }
+        if let isExpanded = group.isExpanded {
+            node.addElement("IsExpanded").addText(encode(isExpanded))
+        }
+        if let defaultAutoTypeSequence = group.defaultAutoTypeSequence {
+            node.addElement("DefaultAutoTypeSequence").addText(defaultAutoTypeSequence)
+        }
+        if let enableAutoType = group.enableAutoType {
+            node.addElement("EnableAutoType").addText(encode(enableAutoType))
+        }
+        if let enableSearching = group.enableSearching {
+            node.addElement("EnableSearching").addText(encode(enableSearching))
+        }
+        if let lastTopVisibleEntry = group.lastTopVisibleEntry {
+            node.addElement("LastTopVisibleEntry").addText(encode(lastTopVisibleEntry))
+        }
+        if let previousParentGroup = group.previousParentGroup {
+            node.addElement("PreviousParentGroup").addText(encode(previousParentGroup))
+        }
+        if !group.tags.isEmpty {
+            node.addElement("Tags").addText(group.tags.joined(separator: ";"))
+        }
+        if !group.customData.isEmpty {
+            let customDataNode = node.addElement("CustomData")
+            for customData in group.customData {
+                let itemNode = customDataNode.addElement("Item")
+                write(customData, to: itemNode)
+            }
+        }
+        if !group.entries.isEmpty {
+            for entry in group.entries {
+                let entryNode = node.addElement("Entry")
+                write(entry, to: entryNode)
+            }
+        }
+        if !group.groups.isEmpty {
+            for subgroup in group.groups {
+                let subgroupNode = node.addElement("Group")
+                write(subgroup, to: subgroupNode)
+            }
+        }
+    }
+
+    private func write(_ entry: KDBX.Entry, to node: Node) {
+        node.addElement("UUID").addText(encode(entry.uuid))
+        node.addElement("IconID").addText(encode(entry.iconID))
+        if let customIconUUID = entry.customIconUUID {
+            node.addElement("CustomIconUUID").addText(encode(customIconUUID))
+        }
+        if let foregroundColor = entry.foregroundColor {
+            node.addElement("ForegroundColor").addText(encode(foregroundColor))
+        }
+        if let backgroundColor = entry.backgroundColor {
+            node.addElement("BackgroundColor").addText(encode(backgroundColor))
+        }
+        if let overrideURL = entry.overrideURL {
+            node.addElement("OverrideURL").addText(overrideURL)
+        }
+        if let qualityCheck = entry.qualityCheck {
+            node.addElement("QualityCheck").addText(encode(qualityCheck))
+        }
+        if !entry.tags.isEmpty {
+            node.addElement("Tags").addText(entry.tags.joined(separator: ";"))
+        }
+        if let previousParentGroup = entry.previousParentGroup {
+            node.addElement("PreviousParentGroup").addText(encode(previousParentGroup))
+        }
+        if let times = entry.times {
+            let timesNode = node.addElement("Times")
+            write(times, to: timesNode)
+        }
+        if !entry.strings.isEmpty {
+            for protectedString in entry.strings {
+                let stringNode = node.addElement("String")
+                write(protectedString, to: stringNode)
+            }
+        }
+    }
+
+    private func write(_ protectedString: KDBX.ProtectedString, to node: Node) {
+        node.addElement("Key").addText(protectedString.key)
+
+        let valueNode = node.addElement("Value")
+        switch protectedString.value {
+        case .regular(let value):
+            valueNode.addText(value)
+
+        case .protected(let protectedValue):
+            valueNode.addText(encode(protectedValue))
+            valueNode.attributes = [
+                (name: "Protected", value: "True")
+            ]
+
+        case .unprotected:
+            fatalError("Trying to write unprotected data")
+
+        case .protectedInMemory(let value):
+            valueNode.addText(value)
+            valueNode.attributes = [
+                (name: "ProtectInMemory", value: "True")
+            ]
+        }
+    }
+
+    private func write(_ times: KDBX.Times, to node: Node) {
+        if let creationTime = times.creationTime {
+            node.addElement("CreationTime").addText(encode(creationTime))
+        }
+        if let lastModificationTime = times.lastModificationTime {
+            node.addElement("LastModificationTime").addText(encode(lastModificationTime))
+        }
+        if let lastAccessTime = times.lastAccessTime {
+            node.addElement("LastAccessTime").addText(encode(lastAccessTime))
+        }
+        if let expiryTime = times.expiryTime {
+            node.addElement("ExpiryTime").addText(encode(expiryTime))
+        }
+        if let expires = times.expires {
+            node.addElement("Expires").addText(encode(expires))
+        }
+        if let usageCount = times.usageCount {
+            node.addElement("UsageCount").addText(encode(usageCount))
+        }
+        if let locationChanged = times.locationChanged {
+            node.addElement("LocationChanged").addText(encode(locationChanged))
+        }
+    }
+
+    private func write(_ memoryProtection: KDBX.MemoryProtectionConfig, to node: Node) {
+        if let protectTitle = memoryProtection.protectTitle {
+            node.addElement("ProtectTitle").addText(encode(protectTitle))
+        }
+        if let protectUserName = memoryProtection.protectUserName {
+            node.addElement("ProtectUserName").addText(encode(protectUserName))
+        }
+        if let protectPassword = memoryProtection.protectPassword {
+            node.addElement("ProtectPassword").addText(encode(protectPassword))
+        }
+        if let protectURL = memoryProtection.protectURL {
+            node.addElement("ProtectURL").addText(encode(protectURL))
+        }
+        if let protectNotes = memoryProtection.protectNotes {
+            node.addElement("ProtectNotes").addText(encode(protectNotes))
+        }
+    }
+
+    private func write(_ customIcon: KDBX.CustomIcon, to node: Node) {
+        node.addElement("UUID").addText(encode(customIcon.uuid))
+        node.addElement("Data").addText(encode(customIcon.data))
+        if let name = customIcon.name {
+            node.addElement("Name").addText(name)
+        }
+        if let lastModificationTime = customIcon.lastModificationTime {
+            node.addElement("LastModificationTime").addText(encode(lastModificationTime))
+        }
+    }
+
+    private func write(_ customData: KDBX.CustomDataWithTimes, to node: Node) {
+        node.addElement("Key").addText(customData.key)
+        node.addElement("Value").addText(customData.value)
+        if let lastModificationTime = customData.lastModificationTime {
+            node.addElement("LastModificationTime").addText(encode(lastModificationTime))
+        }
+    }
+
+    private func write(_ customData: KDBX.CustomDataItem, to node: Node) {
+        node.addElement("Key").addText(customData.key)
+        node.addElement("Value").addText(customData.value)
+    }
+
+    private func write(_ deletedObject: KDBX.DeletedObject, to node: Node) {
+        node.addElement("UUID").addText(encode(deletedObject.uuid))
+        node.addElement("DeletionTime").addText(encode(deletedObject.deletionTime))
+    }
+
+    func write(_ database: Database) throws(Error) {
+        let document = Document()
+        let rootDocumentNode = document.makeDocumentElement(name: "KeePassFile")
+        guard let xmlDeclaration = document.node.addChild(ofKind: .declaration, at: .first) else {
+            fatalError("Failed to add XML declaration")
+        }
+        xmlDeclaration.attributes = [
+            (name: "encoding", value: "UTF-8"),
+            (name: "standalone", value: "yes"),
+        ]
+
+        let metaNode = rootDocumentNode.addElement("Meta")
+        write(database.meta, to: metaNode)
+        let rootNode = rootDocumentNode.addElement("Root")
+        write(database.root, to: rootNode)
+
+        let data: Data
+        do {
+            data = try document.xmlData(encoding: .utf8, indentation: "\t")
+        } catch {
+            throw .unknown(reason: "Failed to write XML document: \(error)")
+        }
+        try write(data)
+    }
+}

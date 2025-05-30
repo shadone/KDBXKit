@@ -30,21 +30,6 @@ struct DatabaseReader {
     var meta = KDBX.Meta()
     var root: KDBX.Root?
 
-    /// This is the .NET DateTime epoch.
-    ///
-    /// KDBX documents store dates as the number of seconds (Int64) elapsed since 0001-01-01 00:00:00 UTC encoded using Base64.
-    /// This comes from C#/.NET which has the same epoch.
-    private static let dotNetEpoch = DateComponents(
-        calendar: Calendar(identifier: .gregorian),
-        timeZone: TimeZone(secondsFromGMT: 0),
-        year: 1,
-        month: 1,
-        day: 1,
-        hour: 0,
-        minute: 0,
-        second: 0
-    ).date!
-
     init(xmlDocument: String) {
         document = try! Document(string: xmlDocument)
     }
@@ -58,7 +43,7 @@ struct DatabaseReader {
             throw .corrupted(reason: "Failed to parse date '\(string)' from \(node.fullyQualifiedName)")
         }
 
-        return Self.dotNetEpoch.addingTimeInterval(TimeInterval(secondsSinceDotnetEpoch))
+        return Date(secondsSinceDotNetEpoch: secondsSinceDotnetEpoch)
     }
 
     private func parseNumber<T: FixedWidthInteger>(_ string: String, node: Node) throws(Error) -> T {
@@ -424,9 +409,9 @@ struct DatabaseReader {
             for child in itemNode.children {
                 switch child.name {
                 case "Key":
-                    key = child.value
+                    key = text(in: child)
                 case "Value":
-                    value = child.value
+                    value = text(in: child)
                 default:
                     print("Unexpected element \(child.fullyQualifiedName)")
                 }
@@ -459,9 +444,9 @@ struct DatabaseReader {
             for child in itemNode.children {
                 switch child.name {
                 case "Key":
-                    key = child.value
+                    key = text(in: child)
                 case "Value":
-                    value = child.value
+                    value = text(in: child)
                 case "LastModificationTime":
                     if let stringValue = text(in: child) {
                         lastModificationTime = try parseDate(stringValue, node: child)
@@ -627,7 +612,7 @@ struct DatabaseReader {
             return []
         }
 
-        return stringValue.components(separatedBy: ",")
+        return stringValue.components(separatedBy: ";")
     }
 
     func parseEntry(_ node: Node) throws(Error) -> KDBX.Entry {

@@ -51,7 +51,7 @@ extension KDBX {
 
         public var memoryProtection: MemoryProtectionConfig?
 
-        public var customIcons: [CustomIcon]?
+        public var customIcons: [CustomIcon]
 
         public var recycleBinEnabled: Bool?
 
@@ -77,6 +77,64 @@ extension KDBX {
         /// In this element, the content of each binary is stored. Used only in unencrypted XML files and in KDBX files prior to version 4. In KDBX ≥ 4, binaries are stored in the inner header (encrypted) instead.
         // public var binaries: [TProtectedBinaryDef]?
 
-        public var customData: [CustomDataWithTimes]?
+        public var customData: [CustomDataWithTimes]
+
+        public init(
+            generator: String? = nil,
+            headerHash: String? = nil,
+            settingsChanged: Date? = nil,
+            databaseName: String? = nil,
+            databaseNameChanged: Date? = nil,
+            databaseDescription: String? = nil,
+            databaseDescriptionChanged: Date? = nil,
+            defaultUserName: String? = nil,
+            defaultUserNameChanged: Date? = nil,
+            maintenanceHistoryDays: UInt32? = nil,
+            color: Color? = nil,
+            masterKeyChanged: Date? = nil,
+            masterKeyChangeRec: ValueOrNever<UInt64>? = nil,
+            masterKeyChangeForce: ValueOrNever<UInt64>? = nil,
+            masterKeyChangeForceOnce: Bool? = nil,
+            memoryProtection: MemoryProtectionConfig? = nil,
+            customIcons: [CustomIcon] = [],
+            recycleBinEnabled: Bool? = nil,
+            recycleBinUUID: UUID? = nil,
+            recycleBinChanged: Date? = nil,
+            entryTemplatesGroup: UUID? = nil,
+            entryTemplatesGroupChanged: Date? = nil,
+            historyMaxItems: ValueOrUnlimited<UInt32>? = nil,
+            historyMaxSize: ValueOrUnlimited<UInt64>? = nil,
+            lastSelectedGroup: UUID? = nil,
+            lastTopVisibleGroup: UUID? = nil,
+            customData: [CustomDataWithTimes] = []
+        ) {
+            self.generator = generator
+            self.headerHash = headerHash
+            self.settingsChanged = settingsChanged
+            self.databaseName = databaseName
+            self.databaseNameChanged = databaseNameChanged
+            self.databaseDescription = databaseDescription
+            self.databaseDescriptionChanged = databaseDescriptionChanged
+            self.defaultUserName = defaultUserName
+            self.defaultUserNameChanged = defaultUserNameChanged
+            self.maintenanceHistoryDays = maintenanceHistoryDays
+            self.color = color
+            self.masterKeyChanged = masterKeyChanged
+            self.masterKeyChangeRec = masterKeyChangeRec
+            self.masterKeyChangeForce = masterKeyChangeForce
+            self.masterKeyChangeForceOnce = masterKeyChangeForceOnce
+            self.memoryProtection = memoryProtection
+            self.customIcons = customIcons
+            self.recycleBinEnabled = recycleBinEnabled
+            self.recycleBinUUID = recycleBinUUID
+            self.recycleBinChanged = recycleBinChanged
+            self.entryTemplatesGroup = entryTemplatesGroup
+            self.entryTemplatesGroupChanged = entryTemplatesGroupChanged
+            self.historyMaxItems = historyMaxItems
+            self.historyMaxSize = historyMaxSize
+            self.lastSelectedGroup = lastSelectedGroup
+            self.lastTopVisibleGroup = lastTopVisibleGroup
+            self.customData = customData
+        }
     }
 }
