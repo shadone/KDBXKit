@@ -97,14 +97,13 @@ struct InnerHeaderReader {
                 done = true
 
             case .encryptionAlgorithm:
-                let algorithm = valueData.asInt32LE()
-                if algorithm == 2 {
-                    encryptionAlgorithm = .Salsa20
-                } else if algorithm == 3 {
-                    encryptionAlgorithm = .ChaCha20
-                } else {
+                guard
+                    let algorithmValue = valueData.asInt32LE(),
+                    let algorithm = InnerHeader.EncryptionAlgorithm(rawValue: algorithmValue)
+                else {
                     throw Error.corrupted(reason: "Invalid inner header encryption algorithm. bytes: \(valueData.hexString)")
                 }
+                encryptionAlgorithm = algorithm
 
             case .encryptionKey:
                 encryptionKey = valueData

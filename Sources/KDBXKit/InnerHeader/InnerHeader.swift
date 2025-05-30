@@ -24,13 +24,13 @@ public struct InnerHeader: Sendable, Equatable {
     /// suitable for the current operating system (e.g. DPAPI on Windows).
     ///
     /// https://keepass.info/help/kb/kdbx.html#ienc
-    public enum EncryptionAlgorithm: Sendable, Equatable {
+    public enum EncryptionAlgorithm: Int32, Sendable, Equatable {
         /// Salsa20.
         ///
         /// `K` should consist of 32 bytes. The key for Salsa20 is `SHA-256(K)`, and the nonce is `0xE8, 0x30, 0x09, 0x4B, 0x97, 0x20, 0x5D, 0x2A`.
         ///
         /// Where `K` is the inner encryption key stored in the inner header.
-        case Salsa20
+        case Salsa20 = 2
 
         /// ChaCha20 (default, recommended)
         ///
@@ -38,7 +38,7 @@ public struct InnerHeader: Sendable, Equatable {
         /// and the nonce is `H[32], ..., H[43]`.
         ///
         /// Where `K` is the inner encryption key stored in the inner header.
-        case ChaCha20
+        case ChaCha20 = 3
     }
 
     /// The algorithm used for encrypting protected strings in the XML document.
