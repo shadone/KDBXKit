@@ -77,30 +77,32 @@ public final class ChaCha20 {
         var output = [UInt8]()
         output.reserveCapacity(input.count)
 
-        var remaining = input[...]
+        var processed = 0
+        let total = input.count
 
-        while !remaining.isEmpty {
-            // Generate keystream block
+        while processed < total {
+            // Construct counter block: 4 bytes counter + 12 bytes nonce
             let counterBlock = blockCounter.bigEndian.bytes() + nonce
             var keystream = [UInt8](repeating: 0, count: Self.blockSize)
             core(block: &keystream, counter: counterBlock, key: key)
 
-            let keystreamStart = offsetInBlock
-            let chunkSize = min(Self.blockSize - keystreamStart, remaining.count)
+            let offset = offsetInBlock
+            let available = Self.blockSize - offset
+            let bytesToProcess = min(available, total - processed)
 
-            for i in 0..<chunkSize {
-                let byte = remaining[remaining.startIndex + i] ^ keystream[keystreamStart + i]
-                output.append(byte)
+            for i in 0..<bytesToProcess {
+                output.append(input[processed + i] ^ keystream[offset + i])
             }
 
-            remaining = remaining.dropFirst(chunkSize)
-            offsetInBlock += chunkSize
+            processed += bytesToProcess
+            offsetInBlock += bytesToProcess
 
             if offsetInBlock == Self.blockSize {
                 blockCounter += 1
                 offsetInBlock = 0
             }
         }
+
         return output
     }
 
