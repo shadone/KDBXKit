@@ -12,6 +12,7 @@ struct MockCryptor: Encryptable, Decryptable {
     func encrypt(_ input: any DataProtocol) -> any DataProtocol {
         input
     }
+
     func decrypt(_ input: any DataProtocol) -> any DataProtocol {
         input
     }
@@ -166,7 +167,7 @@ let reference = KDBX(
                             ],
                         ),
                     ],
-                )
+                ),
             ],
             groups: [
             ],
