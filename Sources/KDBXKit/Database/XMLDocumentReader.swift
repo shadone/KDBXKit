@@ -194,9 +194,9 @@ struct XMLDocumentReader {
                 }
 
             case "Color":
-                if let stringValue = text(in: child) {
-                    meta.color = try parseColor(stringValue, node: child)
-                }
+                // Empty string is allowed as a special "default" color
+                let stringValue = text(in: child) ?? ""
+                meta.color = try parseColor(stringValue, node: child)
 
             case "MasterKeyChanged":
                 if let stringValue = text(in: child) {
@@ -636,14 +636,14 @@ struct XMLDocumentReader {
                 }
 
             case "ForegroundColor":
-                if let stringValue = text(in: child) {
-                    entry.foregroundColor = try parseColor(stringValue, node: child)
-                }
+                // Empty string is allowed as a special "default" color
+                let stringValue = text(in: child) ?? ""
+                entry.foregroundColor = try parseColor(stringValue, node: child)
 
             case "BackgroundColor":
-                if let stringValue = text(in: child) {
-                    entry.backgroundColor = try parseColor(stringValue, node: child)
-                }
+                // Empty string is allowed as a special "default" color
+                let stringValue = text(in: child) ?? ""
+                entry.backgroundColor = try parseColor(stringValue, node: child)
 
             case "OverrideURL":
                 entry.overrideURL = text(in: child)
