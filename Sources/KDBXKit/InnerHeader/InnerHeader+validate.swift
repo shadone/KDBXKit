@@ -4,22 +4,26 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
-extension InnerHeader {
-    enum ValidationError: Error {
-        case invalidEncryptionKeyLength(reason: String)
-    }
+public extension InnerHeader {
+    func validate() -> [ValidationFailure] {
+        var results: [ValidationFailure] = []
 
-    func validate() throws(ValidationError) {
         switch encryptionAlgorithm {
-        case .Salsa20:
-            guard encryptionKey.count == 32 else {
-                throw .invalidEncryptionKeyLength(reason: "Salsa20 key should be 32 bytes long")
+        case .ChaCha20:
+            if encryptionKey.count != 64 {
+                results.append(.error("Invalid encryption key length: \(encryptionKey.count). expected 64 bytes."))
             }
 
-        case .ChaCha20:
-            guard encryptionKey.count == 64 else {
-                throw .invalidEncryptionKeyLength(reason: "ChaCha20 key should be 64 bytes long")
+        case .Salsa20:
+            fatalError()
+        }
+
+        for (index, binaryContent) in binaryContent.enumerated() {
+            if binaryContent.data.isEmpty {
+                results.append(.warning("Binary content at index \(index) is empty."))
             }
         }
+
+        return results
     }
 }

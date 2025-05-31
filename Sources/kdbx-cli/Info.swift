@@ -14,15 +14,18 @@ struct Info: ParsableCommand {
 
     mutating func run() throws {
         let kdbx: KDBXReader
+        let content: KDBXContent?
         let hasUnlockDataButNotCorrect: Bool
 
         switch try read(from: commonOptions.filepath, unlockData: commonOptions.unlockData) {
         case let .invalidUnlockData(kdxReader):
             kdbx = kdxReader
+            content = nil
             hasUnlockDataButNotCorrect = true
 
-        case let .success(_, kdbxReader):
+        case let .success(kdbxContent, kdbxReader):
             kdbx = kdbxReader
+            content = kdbxContent
             hasUnlockDataButNotCorrect = false
         }
 
@@ -91,6 +94,15 @@ struct Info: ParsableCommand {
             print("\tBinary Content: \(innerHeader.binaryContent.count) elements")
             for (index, element) in innerHeader.binaryContent.enumerated() {
                 print("\t\t\(index): \(element.data.count) bytes" + (element.shouldBeProtected ? " [protected]" : ""))
+            }
+        }
+
+        let issues = content?.validate() ?? []
+        if !issues.isEmpty {
+            print("")
+            print("Validation issues:")
+            for issue in issues {
+                print("\t \(issue.level.description): \(issue.message)")
             }
         }
     }

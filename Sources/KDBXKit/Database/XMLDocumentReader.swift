@@ -782,7 +782,7 @@ struct XMLDocumentReader {
             value = .regular(rawValue ?? "")
         }
 
-        return .init(key: key ?? "", value: value)
+        return .init(key: key, value: value)
     }
 
     func parseProtectedBinary(_ node: Node) throws(Error) -> KDBX.ProtectedBinary {

@@ -22,4 +22,15 @@ public extension KDBX {
             visitEntries(in: group, visitor)
         }
     }
+
+    func visitGroups(
+        in group: KDBX.Group,
+        _ visitor: (KDBX.Group) -> Void
+    ) {
+        visitor(group)
+
+        for group in group.groups {
+            visitGroups(in: group, visitor)
+        }
+    }
 }
