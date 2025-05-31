@@ -104,8 +104,6 @@ struct HeaderReader: Sendable {
             let valueLength = try readUInt32()
             let valueData = try readData(length: Int(valueLength))
 
-            print("Got header field: type=\(type), length=\(valueLength); value=\(valueData.hexString)")
-
             guard let fieldType = HeaderFieldType(rawValue: type) else {
                 print("Unknown field type: \(type)")
                 continue

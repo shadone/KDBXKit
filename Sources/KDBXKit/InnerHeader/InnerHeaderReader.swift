@@ -85,8 +85,6 @@ struct InnerHeaderReader {
             let valueLength = try readInt32()
             let valueData = try readData(length: Int(valueLength))
 
-            print("Got inner header field: type=\(type), length=\(valueLength); value[<10]=\(valueData.prefix(10).hexString)")
-
             guard let fieldType = InnerHeaderFieldType(rawValue: type) else {
                 print("Unknown inner header field type: \(type)")
                 continue

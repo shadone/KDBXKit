@@ -100,8 +100,6 @@ class VariantDictionaryReader {
             }
             let valueData = try readData(length: Int(valueLength))
 
-            print("Got variant dictionary element: type=0x\(String(format: "%02hhx", type)); name=\(name); length=\(valueLength); value=\(valueData.hexString)")
-
             guard let valueType = VariantDictionaryValueType(rawValue: type) else {
                 print("Unknown variant dictionary value type: \(type)")
                 continue
