@@ -7,10 +7,23 @@
 import Foundation
 import KDBXKit
 
-enum ReadError: Error {
+enum ReadError: Error, CustomStringConvertible {
     case unsupported(String)
 
     case corrupted(String)
+
+    case canNotReadFile
+
+    var description: String {
+        switch self {
+        case .unsupported(let message):
+            return "The given file is not supported: \(message)"
+        case .corrupted(let message):
+            return "The given file is corrupted: \(message)"
+        case .canNotReadFile:
+            return "Can not read the file"
+        }
+    }
 }
 
 enum ReadResult {
@@ -20,7 +33,12 @@ enum ReadResult {
 }
 
 func read(from filepath: String, unlockData: UnlockData?) throws(ReadError) -> ReadResult {
-    let data = try! Data(contentsOf: URL(filePath: filepath))
+    let data: Data
+    do {
+        data = try Data(contentsOf: URL(filePath: filepath))
+    } catch {
+        throw .canNotReadFile
+    }
 
     var kdbxReader = KDBXReader(data)
 
