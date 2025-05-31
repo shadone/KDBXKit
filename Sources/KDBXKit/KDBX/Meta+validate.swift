@@ -52,7 +52,6 @@ public extension KDBX.Meta {
         if entryTemplatesGroup != nil {
             validateDateIsRecommended(entryTemplatesGroupChanged, in: "Meta.EntryTemplatesGroupChanged")
             validateDateIsInFuture(entryTemplatesGroupChanged, in: "Meta.EntryTemplatesGroupChanged")
-
         }
 
         return results

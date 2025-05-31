@@ -19,7 +19,7 @@ public extension KDBXContent {
         database.visitEntries(in: database.root.group) { entry in
             for binary in entry.binaries {
                 switch binary.value {
-                case .ref(let ref):
+                case let .ref(ref):
                     if ref >= numberOfBinaries {
                         results.append(.warning("Entry[\(entry.uuid)].Binaries Ref=\(ref) points to a non-existing Binary"))
                     }

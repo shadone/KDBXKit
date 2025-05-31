@@ -57,6 +57,7 @@ public extension KDBX {
         }
 
         // MARK: Check that RecycleBinUUID,etc exists
+
         validateGroupExists(meta.recycleBinUUID, nodePath: "Meta.RecycleBinUUID")
         validateGroupExists(meta.entryTemplatesGroup, nodePath: "Meta.EntryTemplatesGroup")
         validateGroupExists(meta.lastSelectedGroup, nodePath: "Meta.LastSelectedGroup")
@@ -66,18 +67,23 @@ public extension KDBX {
             results += group.validate()
 
             // MARK: Check that all Groups that valid Custom Icon
+
             if let customIconUUID = group.customIconUUID {
                 if !allCustomIcons.contains(customIconUUID) {
                     results.append(.warning("Group[\(group.uuid.uuidString)].CustomIconUUID references a non existing Custom Icon: \(customIconUUID.uuidString)"))
                 }
             }
+
             // MARK: Check that all Groups have valid LastTopVisibleEntry
+
             if let lastTopVisibleEntry = group.lastTopVisibleEntry {
                 if !allEntries.contains(lastTopVisibleEntry) {
                     results.append(.warning("Group[\(group.uuid.uuidString)].LastTopVisibleEntry references a non existing entry: \(lastTopVisibleEntry.uuidString)"))
                 }
             }
+
             // MARK: Check that all Groups have valid PreviousParentGroup
+
             if let previousParentGroup = group.previousParentGroup {
                 if !allGroups.contains(previousParentGroup) {
                     results.append(.warning("Group[\(group.uuid.uuidString)].PreviousParentGroup references a non existing group: \(previousParentGroup.uuidString)"))
@@ -89,12 +95,15 @@ public extension KDBX {
             results += entry.validate()
 
             // MARK: Check that all Entries that valid Custom Icon
+
             if let customIconUUID = entry.customIconUUID {
                 if !allCustomIcons.contains(customIconUUID) {
                     results.append(.warning("Entry[\(entry.uuid)].CustomIconUUID references a non existing Custom Icon: \(customIconUUID.uuidString)"))
                 }
             }
+
             // MARK: Check that all Entries have valid PreviousParentGroup
+
             if let previousParentGroup = entry.previousParentGroup {
                 if !allGroups.contains(previousParentGroup) {
                     results.append(.warning("Entry[\(entry.uuid.uuidString)].PreviousParentGroup references a non existing group: \(previousParentGroup.uuidString)"))
