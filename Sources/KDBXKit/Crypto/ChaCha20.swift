@@ -81,7 +81,7 @@ public final class ChaCha20 {
 
         while !remaining.isEmpty {
             // Generate keystream block
-            let counterBlock = blockCounter.littleEndian.bytes() + nonce
+            let counterBlock = blockCounter.bigEndian.bytes() + nonce
             var keystream = [UInt8](repeating: 0, count: Self.blockSize)
             core(block: &keystream, counter: counterBlock, key: key)
 
