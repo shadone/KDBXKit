@@ -130,6 +130,49 @@ struct KDBXTests {
     }
 
     @Test
+    func Format400_Argon2d_ChaCha20() async throws {
+        // KDF: argon2d
+        // Content encryption: ChaCha20
+        let kdbxFilepath = Bundle.module.path(forResource: "Resources/Format400", ofType: "kdbx")!
+        let xmlFilepath = Bundle.module.path(forResource: "Resources/Format400", ofType: "xml")!
+        let data = try Data(contentsOf: URL(filePath: kdbxFilepath))
+
+        var reader = KDBXReader(data)
+        let content = try reader.parse(unlockData: .init(masterPassword: "t"))
+
+        #expect(reader.header != nil)
+        #expect(reader.header == content.header)
+
+        #expect(content.header.formatVersion == .v4_0)
+        #expect(content.header.encryptionAlgorithm == .ChaCha20)
+        #expect(content.header.compressionAlgorithm == .gzip)
+        #expect(content.header.masterSalt.hexString == "3bfa79c0795325db317f99f475b559f195d73368da522c12a061a0c2b9efcb13")
+        #expect(content.header.encryptionNonce.hexString == "333f87509b6f72908d689430")
+
+        #expect(content.header.kdfParameters.argon2d != nil)
+        #expect(content.header.kdfParameters.argon2d?.params.version == .v1_3)
+        #expect(content.header.kdfParameters.argon2d?.params.iterations == 2)
+        #expect(content.header.kdfParameters.argon2d?.params.memory == 1_048_576)
+        #expect(content.header.kdfParameters.argon2d?.params.parallelism == 2)
+        #expect(content.header.kdfParameters.argon2d?.params.salt.hexString == "56ac066d2d862ab0c50c00f6143a349df441f2e6910b297da88f50c3c302d9a5")
+
+        #expect(reader.innerHeader != nil)
+        #expect(reader.innerHeader == content.innerHeader)
+
+        #expect(content.innerHeader.encryptionAlgorithm == .ChaCha20)
+        #expect(content.innerHeader.encryptionKey.hexString == "82e360f53b72fa95c82b32d5129ebe891dd1974f56aeca7221f3ce6ab7b92f4644d0a832501b6eeb05fa2d1bc5a57a532ac3d4954370da171bf558a041ed8c3e")
+        #expect(content.innerHeader.binaryContent.isEmpty == false)
+        #expect(content.innerHeader.binaryContent[0].shouldBeProtected == false)
+        #expect(content.innerHeader.binaryContent[0].data == Data(hexString: "466f726d61743430300a"))
+
+        let xmlDocument = reader.xmlDocument
+        #expect(xmlDocument != nil)
+
+        let referenceXmlDocument = try String(contentsOfFile: xmlFilepath, encoding: .utf8)
+        #expect(xmlDocument == referenceXmlDocument)
+    }
+
+    @Test
     func readThenWriteThenReadAgain() async throws {
         let kdbxFilepath = Bundle.module.path(forResource: "Resources/simple-aes256-aes256", ofType: "kdbx")!
         let referenceKDBXData = try Data(contentsOf: URL(filePath: kdbxFilepath))

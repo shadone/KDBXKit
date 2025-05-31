@@ -16,9 +16,9 @@ enum ReadError: Error, CustomStringConvertible {
 
     var description: String {
         switch self {
-        case .unsupported(let message):
+        case let .unsupported(message):
             return "The given file is not supported: \(message)"
-        case .corrupted(let message):
+        case let .corrupted(message):
             return "The given file is corrupted: \(message)"
         case .canNotReadFile:
             return "Can not read the file"

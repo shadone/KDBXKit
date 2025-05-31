@@ -206,7 +206,10 @@ public struct KDBXReader: Sendable {
             payload = AES256CBC.decrypt(iv: header.encryptionNonce, cipherText: payload, mainDecryptKey)
 
         case .ChaCha20:
-            fatalError("ChaCha20 is unsupported")
+            guard let chaCha20 = try? ChaCha20(key: mainDecryptKey, iv: header.encryptionNonce) else {
+                throw .corrupted(reason: "Failed to initialize ChaCha20, invalid decryption key or nonce")
+            }
+            payload = Data(chaCha20.decrypt(payload))
         }
 
         // MARK: 4.a.i Decompress payload if needed
