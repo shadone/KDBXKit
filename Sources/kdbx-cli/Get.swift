@@ -14,12 +14,10 @@ struct Get: ParsableCommand {
 
     mutating func run() throws {
         guard
-            case var .success(content, _) = try read(from: commonOptions.filepath, unlockData: commonOptions.unlockData)
+            case let .success(content, _) = try read(from: commonOptions.filepath, unlockData: commonOptions.unlockData)
         else {
             throw AppError.invalidUnlockData
         }
-
-        try content.decrypt()
 
         content.database.visitEntries(in: content.database.root.group) { entry in
             print("")
@@ -38,9 +36,6 @@ struct Get: ParsableCommand {
 
                 case let .protectedInMemory(v):
                     value = v
-
-                case .protected:
-                    preconditionFailure("The value should have been decrypted already")
                 }
 
                 print("\t\(name): \(value)")

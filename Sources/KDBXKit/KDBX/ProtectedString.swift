@@ -12,12 +12,10 @@ public extension KDBX {
             /// Plaintext string.
             case regular(String)
 
-            /// Protected value, encrypted using Inner Encryption.
+            /// The decrypted value of the protected string.
             ///
-            /// - note: This type is used in KDBX file.
-            case protected(Data)
-
-            /// The protected value that was decrypted
+            /// In the XML document the Protect String value is stored as a binary data encrypted using Inner Encryption.
+            /// While parsing the XML we decrypt the values and this is the result.
             case unprotected(String)
 
             /// - note: This type is only used in an unencrypted XML file.

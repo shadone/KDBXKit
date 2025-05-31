@@ -28,9 +28,11 @@ struct XMLDocumentWriter {
     }
 
     let outputStream: OutputStream
+    let encryptor: any Encryptable
 
-    init(to outputStream: OutputStream) {
+    init(to outputStream: OutputStream, encryptor: any Encryptable) {
         self.outputStream = outputStream
+        self.encryptor = encryptor
     }
 
     private func write(_ value: some FixedWidthInteger) throws(Error) {
@@ -336,14 +338,15 @@ struct XMLDocumentWriter {
         case let .regular(value):
             valueNode.addText(value)
 
-        case let .protected(protectedValue):
-            valueNode.addText(encode(protectedValue))
+        case let .unprotected(unprotectedValue):
+            guard let data = unprotectedValue.data(using: .utf8) else {
+                preconditionFailure("Failed to convert string to utf8 data")
+            }
+            let encrypted = Data(encryptor.encrypt(data))
+            valueNode.addText(encode(encrypted))
             valueNode.attributes = [
                 (name: "Protected", value: "True"),
             ]
-
-        case .unprotected:
-            fatalError("Trying to write unprotected data")
 
         case let .protectedInMemory(value):
             valueNode.addText(value)

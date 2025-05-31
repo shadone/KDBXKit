@@ -63,7 +63,7 @@ extension UInt32 {
     }
 }
 
-public final class ChaCha20 {
+public final class ChaCha20: Encryptable, Decryptable {
     public static let blockSize = 64 // 512 bits
     private let key: any DataProtocol
     private let nonce: any DataProtocol

@@ -8,76 +8,101 @@ import Foundation
 import Testing
 @testable import KDBXKit
 
-struct XMLDocumentTests {
-    @Test
-    func XMLDocumentReader_empty() async throws {
-        let xmlFilepath = Bundle.module.path(forResource: "Resources/database-encrypted-empty", ofType: "xml")!
-        let xmlDocument = try String(contentsOfFile: xmlFilepath, encoding: .utf8)
-
-        let reader = XMLDocumentReader(xmlDocument: xmlDocument)
-        let database = try reader.parse()
-
-        #expect(database.meta.generator == "KeePassXC")
-        #expect(database.meta.databaseName == "test3")
-        #expect(database.meta.databaseNameChanged == Date(timeIntervalSince1970: 1_747_996_682))
-        #expect(database.meta.maintenanceHistoryDays == 365)
+struct MockCryptor: Encryptable, Decryptable {
+    func encrypt(_ input: any DataProtocol) -> any DataProtocol {
+        input
     }
+    func decrypt(_ input: any DataProtocol) -> any DataProtocol {
+        input
+    }
+}
 
-    @Test
-    func writeThenRead() throws {
-        let mockDate = Date(secondsSinceDotNetEpoch: 63_884_389_441)
+// A random date for convenience.
+// XML document stores dates as number of full seconds since .NET epoch, so the dates we read
+// should not have any sub-second precision so that date comparison in unit tests succeeds.
+private let mockDate = Date(secondsSinceDotNetEpoch: 63_884_389_441)
 
-        let reference = KDBX(
-            meta: .init(
-                generator: "KDBXKit",
-                settingsChanged: mockDate,
-                databaseName: "Test Database",
-                databaseNameChanged: mockDate,
-                databaseDescription: "test database description",
-                databaseDescriptionChanged: mockDate,
-                defaultUserName: "hello",
-                defaultUserNameChanged: mockDate,
-                maintenanceHistoryDays: 123,
-                color: .color(red: 12, green: 23, blue: 45),
-                masterKeyChanged: mockDate,
-                masterKeyChangeRec: .never,
-                masterKeyChangeForce: .value(42),
-                masterKeyChangeForceOnce: false,
-                memoryProtection: .init(
-                    protectTitle: false,
-                    protectUserName: true,
-                    protectPassword: false,
-                    protectURL: true,
-                    protectNotes: false,
-                ),
-                customIcons: [
-                    .init(
-                        uuid: UUID(),
-                        data: Data([1, 2, 3]),
-                        name: "Test Icon",
-                        lastModificationTime: mockDate,
-                    ),
-                ],
-                recycleBinEnabled: true,
-                recycleBinUUID: UUID(),
-                recycleBinChanged: mockDate,
-                entryTemplatesGroup: UUID(),
-                entryTemplatesGroupChanged: mockDate,
-                historyMaxSize: .value(123),
-                lastSelectedGroup: UUID(),
-                lastTopVisibleGroup: UUID(),
-                customData: [
-                    .init(key: "Foo", value: "Bar"),
-                    .init(key: "Hello", value: "World", lastModificationTime: mockDate),
-                ],
+let reference = KDBX(
+    meta: .init(
+        generator: "KDBXKit",
+        settingsChanged: mockDate,
+        databaseName: "Test Database",
+        databaseNameChanged: mockDate,
+        databaseDescription: "test database description",
+        databaseDescriptionChanged: mockDate,
+        defaultUserName: "hello",
+        defaultUserNameChanged: mockDate,
+        maintenanceHistoryDays: 123,
+        color: .color(red: 12, green: 23, blue: 45),
+        masterKeyChanged: mockDate,
+        masterKeyChangeRec: .never,
+        masterKeyChangeForce: .value(42),
+        masterKeyChangeForceOnce: false,
+        memoryProtection: .init(
+            protectTitle: false,
+            protectUserName: true,
+            protectPassword: false,
+            protectURL: true,
+            protectNotes: false,
+        ),
+        customIcons: [
+            .init(
+                uuid: UUID(),
+                data: Data([1, 2, 3]),
+                name: "Test Icon",
+                lastModificationTime: mockDate,
             ),
-            root: .init(
-                group: .init(
+        ],
+        recycleBinEnabled: true,
+        recycleBinUUID: UUID(),
+        recycleBinChanged: mockDate,
+        entryTemplatesGroup: UUID(),
+        entryTemplatesGroupChanged: mockDate,
+        historyMaxSize: .value(123),
+        lastSelectedGroup: UUID(),
+        lastTopVisibleGroup: UUID(),
+        customData: [
+            .init(key: "Foo", value: "Bar"),
+            .init(key: "Hello", value: "World", lastModificationTime: mockDate),
+        ],
+    ),
+    root: .init(
+        group: .init(
+            uuid: UUID(),
+            name: "Root Group",
+            notes: "here goes notes",
+            iconID: 123,
+            customIconUUID: UUID(),
+            times: .init(
+                creationTime: mockDate,
+                lastModificationTime: mockDate,
+                lastAccessTime: mockDate,
+                expiryTime: mockDate,
+                expires: false,
+                usageCount: 123_456,
+                locationChanged: mockDate,
+            ),
+            isExpanded: true,
+            defaultAutoTypeSequence: "foo",
+            enableAutoType: .value(true),
+            enableSearching: .null,
+            lastTopVisibleEntry: UUID(),
+            previousParentGroup: UUID(),
+            tags: ["one", "two"],
+            customData: [
+                .init(key: "Hello", value: "World"),
+            ],
+            entries: [
+                .init(
                     uuid: UUID(),
-                    name: "Root Group",
-                    notes: "here goes notes",
-                    iconID: 123,
+                    iconID: 42,
                     customIconUUID: UUID(),
+                    foregroundColor: .color(red: 1, green: 2, blue: 3),
+                    backgroundColor: .default,
+                    overrideURL: "https://example.com",
+                    qualityCheck: nil,
+                    tags: ["a", "b"],
+                    previousParentGroup: UUID(),
                     times: .init(
                         creationTime: mockDate,
                         lastModificationTime: mockDate,
@@ -87,34 +112,124 @@ struct XMLDocumentTests {
                         usageCount: 123_456,
                         locationChanged: mockDate,
                     ),
-                    isExpanded: true,
-                    defaultAutoTypeSequence: "foo",
-                    enableAutoType: .value(true),
-                    enableSearching: .null,
-                    lastTopVisibleEntry: UUID(),
-                    previousParentGroup: UUID(),
-                    tags: ["one", "two"],
+                    strings: [
+                        .init(key: "Title", value: .regular("Hello World")),
+                        .init(key: "Password", value: .unprotected("god")),
+                    ],
+                    binaries: [],
+                    autoType: .init(
+                        enabled: true,
+                        dataTransferObfuscation: .twoChannelObfuscation,
+                        defaultSequence: "blah",
+                        association: [
+                            .init(window: "a-window", keystrokeSequence: "alt+f4"),
+                        ],
+                    ),
                     customData: [
-                        .init(key: "Hello", value: "World"),
+                        .init(key: "Foo", value: "Bar"),
                     ],
-                    entries: [
+                    history: [
+                        .init(
+                            uuid: UUID(),
+                            iconID: 42,
+                            customIconUUID: UUID(),
+                            foregroundColor: .color(red: 1, green: 2, blue: 3),
+                            backgroundColor: .default,
+                            overrideURL: "https://example.com",
+                            qualityCheck: nil,
+                            tags: ["a", "b"],
+                            previousParentGroup: UUID(),
+                            times: .init(
+                                creationTime: mockDate,
+                                lastModificationTime: mockDate,
+                                lastAccessTime: mockDate,
+                                expiryTime: mockDate,
+                                expires: false,
+                                usageCount: 123_456,
+                                locationChanged: mockDate,
+                            ),
+                            strings: [
+                                .init(key: "Title", value: .regular("Hello World")),
+                                .init(key: "Password", value: .unprotected("god")),
+                            ],
+                            binaries: [],
+                            autoType: .init(
+                                enabled: true,
+                                dataTransferObfuscation: .twoChannelObfuscation,
+                                defaultSequence: "blah",
+                                association: [
+                                    .init(window: "a-window", keystrokeSequence: "alt+f4"),
+                                ],
+                            ),
+                            customData: [
+                                .init(key: "Foo", value: "Bar"),
+                            ],
+                        ),
                     ],
-                    groups: [
-                    ],
-                ),
-                deletedObjects: [],
-            )
-        )
+                )
+            ],
+            groups: [
+            ],
+        ),
+        deletedObjects: [],
+    )
+)
 
+struct XMLDocumentTests {
+    @Test
+    func XMLDocumentReader_empty() async throws {
+        let xmlFilepath = Bundle.module.path(forResource: "Resources/database-encrypted-empty", ofType: "xml")!
+        let xmlDocument = try String(contentsOfFile: xmlFilepath, encoding: .utf8)
+
+        let reader = XMLDocumentReader(xmlDocument: xmlDocument, decryptor: MockCryptor())
+        let database = try reader.parse()
+
+        #expect(database.meta.generator == "KeePassXC")
+        #expect(database.meta.databaseName == "test3")
+        #expect(database.meta.databaseNameChanged == Date(timeIntervalSince1970: 1_747_996_682))
+        #expect(database.meta.maintenanceHistoryDays == 365)
+    }
+
+    @Test
+    func writeThenReadWithoutInnerEncryption() throws {
         let outputStream = OutputStream(toMemory: ())
         outputStream.open()
-        let writer = XMLDocumentWriter(to: outputStream)
+        let writer = XMLDocumentWriter(to: outputStream, encryptor: MockCryptor())
         try writer.write(reference)
 
         let data = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
         let xmlDocument = String(validating: data, as: UTF8.self)!
 
-        let reader = XMLDocumentReader(xmlDocument: xmlDocument)
+        let reader = XMLDocumentReader(xmlDocument: xmlDocument, decryptor: MockCryptor())
+        let parsed = try reader.parse()
+
+        #expect(parsed == reference)
+    }
+
+    @Test
+    func writeThenReadWithInnerEncryption() throws {
+        let innerHeader = InnerHeader(
+            encryptionAlgorithm: .ChaCha20,
+            encryptionKey: Data(hexString: "584f97811553076c32b4ca004c19b77421280b5e596dd0f735c8d30e3063556c76b8cc3e63aed982e6fba693c6bbf21371db2c5e0d569e61e0655f59694093d8")!,
+            binaryContent: []
+        )
+
+        let outputStream = OutputStream(toMemory: ())
+        outputStream.open()
+        let writer = XMLDocumentWriter(
+            to: outputStream,
+            encryptor: innerHeader.makeEncryptor()
+        )
+        try writer.write(reference)
+
+        let data = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
+        let xmlDocument = String(validating: data, as: UTF8.self)!
+        print(xmlDocument)
+
+        let reader = XMLDocumentReader(
+            xmlDocument: xmlDocument,
+            decryptor: innerHeader.makeDecryptor()
+        )
         let parsed = try reader.parse()
 
         #expect(parsed == reference)

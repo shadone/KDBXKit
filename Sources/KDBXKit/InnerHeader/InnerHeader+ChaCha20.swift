@@ -7,33 +7,35 @@
 import Foundation
 
 extension InnerHeader {
-    struct ChaCha20Key {
-        let key: [UInt8]
-        let nonce: [UInt8]
-
-        init?(key: [UInt8], nonce: [UInt8]) {
-            guard key.count == 32, nonce.count == 12 else { return nil }
-            self.key = key
-            self.nonce = nonce
-        }
-
-        init?(innerEncryptionKey: Data) {
+    private func makeCryptor() -> any Encryptable & Decryptable {
+        switch encryptionAlgorithm {
+        case .ChaCha20:
             /// `K` should consist of 64 bytes.
-            guard innerEncryptionKey.count == 64 else { return nil }
+            guard encryptionKey.count == 64 else {
+                fatalError("Invalid inner encryption key length: \(encryptionKey.count)")
+            }
 
             /// Compute `H := SHA-512(K)`.
-            let hash = innerEncryptionKey.sha512()
+            let hash = encryptionKey.sha512()
 
             /// The key for ChaCha20 is `H[0], ..., H[31]`
-            key = Array(hash.subdata(in: 0..<32))
+            let key = hash.subdata(in: 0..<32)
 
             /// and the nonce is `H[32], ..., H[43]`.
-            nonce = Array(hash.subdata(in: 32..<44))
+            let nonce = hash.subdata(in: 32..<44)
+
+            return try! ChaCha20(key: key, iv: nonce)
+
+        case .Salsa20:
+            fatalError("Salsa20 is not implemented yet")
         }
     }
 
-    var chaCha20Key: ChaCha20Key? {
-        guard case .ChaCha20 = encryptionAlgorithm else { return nil }
-        return .init(innerEncryptionKey: encryptionKey)
+    func makeDecryptor() -> any Decryptable {
+        makeCryptor()
+    }
+
+    func makeEncryptor() -> any Encryptable {
+        makeCryptor()
     }
 }

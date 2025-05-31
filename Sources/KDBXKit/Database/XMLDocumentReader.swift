@@ -30,8 +30,11 @@ struct XMLDocumentReader {
     var meta = KDBX.Meta()
     var root: KDBX.Root?
 
-    init(xmlDocument: String) {
+    let decryptor: any Decryptable
+
+    init(xmlDocument: String, decryptor: any Decryptable) {
         document = try! Document(string: xmlDocument)
+        self.decryptor = decryptor
     }
 
     // MARK: Parse <datatype> helpers
@@ -760,9 +763,13 @@ struct XMLDocumentReader {
                 guard let data = Data(base64Encoded: rawValue) else {
                     throw .corrupted(reason: "Failed to parse base64 ProtectedData in \(node.fullyQualifiedName)")
                 }
-                value = .protected(data)
+                let stringData = decryptor.decrypt(data)
+                guard let unprotectedString = String(validating: stringData, as: UTF8.self) else {
+                    throw .corrupted(reason: "Failed to create utf8 string from decrypted value at \(node.fullyQualifiedName)")
+                }
+                value = .unprotected(unprotectedString)
             } else {
-                value = .protected(Data())
+                value = .unprotected("")
             }
         } else if let shouldProtectInMemory, shouldProtectInMemory {
             // TODO: we are currently not protecting in memory

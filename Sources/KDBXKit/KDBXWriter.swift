@@ -98,12 +98,12 @@ public struct KDBXWriter {
         return data
     }
 
-    private func serialize(_ database: KDBX) throws(Error) -> Data {
+    private func serialize(_ database: KDBX, encryptor: any Encryptable) throws(Error) -> Data {
         let xmlDocumentOutputStream = OutputStream(toMemory: ())
         xmlDocumentOutputStream.open()
 
         do {
-            try XMLDocumentWriter(to: xmlDocumentOutputStream).write(database)
+            try XMLDocumentWriter(to: xmlDocumentOutputStream, encryptor: encryptor).write(database)
         } catch {
             switch error {
             case .unexpectedEOF:
@@ -185,7 +185,7 @@ public struct KDBXWriter {
 
         // MARK: 4.b Serialize XML Document
 
-        payload += try serialize(content.database)
+        payload += try serialize(content.database, encryptor: content.innerHeader.makeEncryptor())
 
         // MARK: 4.c Compress payload if needed
 
