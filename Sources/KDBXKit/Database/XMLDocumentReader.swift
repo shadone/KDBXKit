@@ -885,11 +885,8 @@ struct XMLDocumentReader {
                 autotype.defaultSequence = text(in: child)
 
             case "Association":
-                if autotype.association == nil {
-                    autotype.association = []
-                }
                 let association = try parseAutoTypeAssociation(child)
-                autotype.association?.append(association)
+                autotype.association.append(association)
 
             default:
                 print("Unexpected element \(child.fullyQualifiedName)")

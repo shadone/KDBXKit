@@ -28,6 +28,18 @@ public extension KDBX {
             public var keystrokeSequence: String
         }
 
-        public var association: [Association]?
+        public var association: [Association]
+
+        public init(
+            enabled: Bool? = nil,
+            dataTransferObfuscation: DataTransferObfuscation? = nil,
+            defaultSequence: String? = nil,
+            association: [Association] = []
+        ) {
+            self.enabled = enabled
+            self.dataTransferObfuscation = dataTransferObfuscation
+            self.defaultSequence = defaultSequence
+            self.association = association
+        }
     }
 }

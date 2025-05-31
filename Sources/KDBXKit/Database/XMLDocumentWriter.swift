@@ -308,6 +308,24 @@ struct XMLDocumentWriter {
                 write(protectedBinary, to: binaryNode)
             }
         }
+        if let autoType = entry.autoType {
+            let autoTypeNode = node.addElement("AutoType")
+            write(autoType, to: autoTypeNode)
+        }
+        if !entry.customData.isEmpty {
+            let customDataNode = node.addElement("CustomData")
+            for customData in entry.customData {
+                let itemNode = customDataNode.addElement("Item")
+                write(customData, to: itemNode)
+            }
+        }
+        if !entry.history.isEmpty {
+            let historyNode = node.addElement("History")
+            for historicalEntry in entry.history {
+                let entryNode = historyNode.addElement("Entry")
+                write(historicalEntry, to: entryNode)
+            }
+        }
     }
 
     private func write(_ protectedString: KDBX.ProtectedString, to node: Node) {
@@ -419,6 +437,32 @@ struct XMLDocumentWriter {
     private func write(_ deletedObject: KDBX.DeletedObject, to node: Node) {
         node.addElement("UUID").addText(encode(deletedObject.uuid))
         node.addElement("DeletionTime").addText(encode(deletedObject.deletionTime))
+    }
+
+    private func write(_ autoType: KDBX.AutoType, to node: Node) {
+        if let enabled = autoType.enabled {
+            node.addElement("Enabled").addText(encode(enabled))
+        }
+
+        if let dataTransferObfuscation = autoType.dataTransferObfuscation {
+            let dtoNode = node.addElement("DataTransferObfuscation")
+            switch dataTransferObfuscation {
+            case .noObfuscation:
+                dtoNode.addText("0")
+            case .twoChannelObfuscation:
+                dtoNode.addText("1")
+            }
+        }
+
+        if let defaultSequence = autoType.defaultSequence {
+            node.addElement("DefaultSequence").addText(defaultSequence)
+        }
+
+        for association in autoType.association {
+            let associationNode = node.addElement("Association")
+            associationNode.addElement("Window").addText(association.window)
+            associationNode.addElement("KeystrokeSequence").addText(association.keystrokeSequence)
+        }
     }
 
     func write(_ database: KDBX) throws(Error) {
