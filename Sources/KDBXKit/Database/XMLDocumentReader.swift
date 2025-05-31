@@ -375,6 +375,8 @@ struct XMLDocumentReader {
                         throw .corrupted(reason: "Failed to parse base64 data in \(child.fullyQualifiedName)")
                     }
                     data = decodedData
+                } else {
+                    data = Data()
                 }
 
             case "Name":
@@ -412,9 +414,9 @@ struct XMLDocumentReader {
             for child in itemNode.children {
                 switch child.name {
                 case "Key":
-                    key = text(in: child)
+                    key = text(in: child) ?? ""
                 case "Value":
-                    value = text(in: child)
+                    value = text(in: child) ?? ""
                 default:
                     print("Unexpected element \(child.fullyQualifiedName)")
                 }
@@ -447,9 +449,9 @@ struct XMLDocumentReader {
             for child in itemNode.children {
                 switch child.name {
                 case "Key":
-                    key = text(in: child)
+                    key = text(in: child) ?? ""
                 case "Value":
-                    value = text(in: child)
+                    value = text(in: child) ?? ""
                 case "LastModificationTime":
                     if let stringValue = text(in: child) {
                         lastModificationTime = try parseDate(stringValue, node: child)
@@ -717,7 +719,8 @@ struct XMLDocumentReader {
         for child in node.children {
             switch child.name {
             case "Key":
-                key = text(in: child)
+                // allow empty string, it happens in real documents
+                key = text(in: child) ?? ""
 
             case "Value":
                 rawValue = text(in: child)
@@ -779,7 +782,7 @@ struct XMLDocumentReader {
             value = .regular(rawValue ?? "")
         }
 
-        return .init(key: key, value: value)
+        return .init(key: key ?? "", value: value)
     }
 
     func parseProtectedBinary(_ node: Node) throws(Error) -> KDBX.ProtectedBinary {
