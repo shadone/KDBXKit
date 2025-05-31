@@ -26,19 +26,23 @@ struct Get: ParsableCommand {
             for string in entry.strings {
                 let name = string.key
                 let value: String
+                let valueType: String
 
                 switch string.value {
                 case let .unprotected(v):
                     value = v
+                    valueType = "[*]"
 
                 case let .regular(v):
                     value = v
+                    valueType = ""
 
                 case let .protectedInMemory(v):
                     value = v
+                    valueType = "[M]"
                 }
 
-                print("\t\(name): \(value)")
+                print("\t\(name)\(valueType): \(value)")
             }
 
             if !entry.binaries.isEmpty {
