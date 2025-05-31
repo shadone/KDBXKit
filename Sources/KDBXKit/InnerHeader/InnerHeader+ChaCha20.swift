@@ -12,7 +12,7 @@ extension InnerHeader {
         case .ChaCha20:
             /// `K` should consist of 64 bytes.
             guard encryptionKey.count == 64 else {
-                fatalError("Invalid inner encryption key length: \(encryptionKey.count)")
+                fatalError("Invalid inner encryption (ChaCha20) key length: \(encryptionKey.count)")
             }
 
             /// Compute `H := SHA-512(K)`.
@@ -27,7 +27,18 @@ extension InnerHeader {
             return try! ChaCha20(key: key, iv: nonce)
 
         case .Salsa20:
-            fatalError("Salsa20 is not implemented yet")
+            /// `K` should consist of 32 bytes.
+            guard encryptionKey.count == 32 else {
+                fatalError("Invalid inner encryption (Salsa20) key length: \(encryptionKey.count)")
+            }
+
+            /// The key for Salsa20 is SHA-256(K)
+            let key = encryptionKey.sha256()
+
+            /// and the nonce is `0xE8, 0x30, 0x09, 0x4B, 0x97, 0x20, 0x5D, 0x2A`
+            let nonce = Data([0xE8, 0x30, 0x09, 0x4B, 0x97, 0x20, 0x5D, 0x2A])
+
+            return try! Salsa20(key: key, iv: nonce)
         }
     }
 
