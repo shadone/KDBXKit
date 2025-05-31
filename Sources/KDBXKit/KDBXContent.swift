@@ -37,7 +37,7 @@ extension KDBXContent {
     }
 
     public mutating func decrypt() throws(DecryptError) {
-        var decryptor: Cryptor & Updatable
+        var decryptor: ChaCha20
 
         switch innerHeader.encryptionAlgorithm {
         case .ChaCha20:
@@ -49,8 +49,7 @@ extension KDBXContent {
             }
 
             do {
-                let chacha20 = try ChaCha20(key: key.key, iv: key.nonce)
-                decryptor = chacha20.makeDecryptor()
+                decryptor = try ChaCha20(key: key.key, iv: key.nonce)
             } catch {
                 throw .corrupted(reason: "Failed to initialize ChaCha20 decryptor: \(error)")
             }
@@ -60,13 +59,7 @@ extension KDBXContent {
         }
 
         func decrypt(data: [UInt8], at path: ProtectedStringPath, isLast: Bool) throws(DecryptError) -> String {
-            let decryptedValue: Data
-            do {
-                let bytes = try decryptor.update(withBytes: data, isLast: isLast)
-                decryptedValue = Data(bytes)
-            } catch {
-                throw .corrupted(reason: "Failed to decrypt value at \(path): \(error)")
-            }
+            let decryptedValue = Data(decryptor.decrypt(data))
 
             guard let stringValue = String(validating: decryptedValue, as: UTF8.self) else {
                 // This is likely a developer mistake, something is wrong with our stream cipher.
