@@ -20,15 +20,33 @@
 
 import Foundation
 
+fileprivate extension DataProtocol {
+    func slice(_ range: Range<Int>) -> SubSequence {
+        let start = index(startIndex, offsetBy: range.lowerBound)
+        let end = index(startIndex, offsetBy: range.upperBound)
+        return self[start..<end]
+    }
+
+    subscript(position: Int) -> Element {
+        self[index(startIndex, offsetBy: position)]
+    }
+}
+
+fileprivate extension MutableDataProtocol {
+    mutating func replaceSubrange<C>(_ subrange: Range<Int>, with newElements: C) where C : Collection, Element == C.Element {
+        let start = index(startIndex, offsetBy: subrange.lowerBound)
+        let end = index(startIndex, offsetBy: subrange.upperBound)
+        replaceSubrange(start..<end, with: newElements)
+    }
+}
+
 extension UInt32 {
-    @_specialize(where T == ArraySlice<UInt8>)
-    init<T: Collection>(bytes: T) where T.Element == UInt8, T.Index == Int {
+    init<T: DataProtocol>(bytes: T) {
         self = UInt32(bytes: bytes, fromIndex: bytes.startIndex)
     }
 
-    @_specialize(where T == ArraySlice<UInt8>)
     @inlinable
-    init<T: Collection>(bytes: T, fromIndex index: T.Index) where T.Element == UInt8, T.Index == Int {
+    init<T: DataProtocol>(bytes: T, fromIndex index: T.Index) {
       if bytes.isEmpty {
         self = 0
         return
@@ -36,10 +54,10 @@ extension UInt32 {
 
       let count = bytes.count
 
-      let val0 = count > 0 ? UInt32(bytes[index.advanced(by: 0)]) << 24 : 0
-      let val1 = count > 1 ? UInt32(bytes[index.advanced(by: 1)]) << 16 : 0
-      let val2 = count > 2 ? UInt32(bytes[index.advanced(by: 2)]) << 8 : 0
-      let val3 = count > 3 ? UInt32(bytes[index.advanced(by: 3)]) : 0
+      let val0 = count > 0 ? UInt32(bytes[bytes.index(index, offsetBy: 0)]) << 24 : 0
+      let val1 = count > 1 ? UInt32(bytes[bytes.index(index, offsetBy: 1)]) << 16 : 0
+      let val2 = count > 2 ? UInt32(bytes[bytes.index(index, offsetBy: 2)]) << 8 : 0
+      let val3 = count > 3 ? UInt32(bytes[bytes.index(index, offsetBy: 3)]) : 0
 
       self = val0 | val1 | val2 | val3
     }
@@ -47,12 +65,12 @@ extension UInt32 {
 
 public final class ChaCha20 {
     public static let blockSize = 64 // 512 bits
-    private let key: [UInt8]
-    private let nonce: [UInt8]
+    private let key: any DataProtocol
+    private let nonce: any DataProtocol
     private var blockCounter: UInt32
     private var offsetInBlock: Int = 0
 
-    public init(key: [UInt8], iv nonce: [UInt8], blockCounter: UInt32 = 0) throws {
+    public init(key: any DataProtocol, iv nonce: any DataProtocol, blockCounter: UInt32 = 0) throws {
         guard key.count == 32 else {
             throw NSError(domain: "ChaCha20", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid key length"])
         }
@@ -65,15 +83,15 @@ public final class ChaCha20 {
         self.blockCounter = blockCounter
     }
 
-    public func encrypt(_ input: [UInt8]) -> [UInt8] {
+    public func encrypt(_ input: any DataProtocol) -> any DataProtocol {
         return process(input: input)
     }
 
-    public func decrypt(_ input: [UInt8]) -> [UInt8] {
+    public func decrypt(_ input: any DataProtocol) -> any DataProtocol {
         return process(input: input)
     }
 
-    private func process(input: [UInt8]) -> [UInt8] {
+    private func process(input: any DataProtocol) -> any DataProtocol {
         var output = [UInt8]()
         output.reserveCapacity(input.count)
 
@@ -83,7 +101,7 @@ public final class ChaCha20 {
         while processed < total {
             // Construct counter block: 4 bytes counter + 12 bytes nonce
             let counterBlock = blockCounter.bigEndian.bytes() + nonce
-            var keystream = [UInt8](repeating: 0, count: Self.blockSize)
+            var keystream: any MutableDataProtocol = [UInt8](repeating: 0, count: Self.blockSize)
             core(block: &keystream, counter: counterBlock, key: key)
 
             let offset = offsetInBlock
@@ -107,7 +125,7 @@ public final class ChaCha20 {
     }
 
     /// https://tools.ietf.org/html/rfc7539#section-2.3.
-    fileprivate func core(block: inout Array<UInt8>, counter: Array<UInt8>, key: Array<UInt8>) {
+    fileprivate func core(block: inout any MutableDataProtocol, counter: any DataProtocol, key: any DataProtocol) {
       precondition(block.count == ChaCha20.blockSize)
       precondition(counter.count == 16)
       precondition(key.count == 32)
@@ -116,18 +134,19 @@ public final class ChaCha20 {
       let j1: UInt32 = 0x3320646e // 0x3620646e sigma/tau
       let j2: UInt32 = 0x79622d32
       let j3: UInt32 = 0x6b206574
-      let j4: UInt32 = UInt32(bytes: key[0..<4]).bigEndian
-      let j5: UInt32 = UInt32(bytes: key[4..<8]).bigEndian
-      let j6: UInt32 = UInt32(bytes: key[8..<12]).bigEndian
-      let j7: UInt32 = UInt32(bytes: key[12..<16]).bigEndian
-      let j8: UInt32 = UInt32(bytes: key[16..<20]).bigEndian
-      let j9: UInt32 = UInt32(bytes: key[20..<24]).bigEndian
-      let j10: UInt32 = UInt32(bytes: key[24..<28]).bigEndian
-      let j11: UInt32 = UInt32(bytes: key[28..<32]).bigEndian
-      let j12: UInt32 = UInt32(bytes: counter[0..<4]).bigEndian
-      let j13: UInt32 = UInt32(bytes: counter[4..<8]).bigEndian
-      let j14: UInt32 = UInt32(bytes: counter[8..<12]).bigEndian
-      let j15: UInt32 = UInt32(bytes: counter[12..<16]).bigEndian
+
+      let j4: UInt32 = UInt32(bytes: key.slice(0..<4)).bigEndian
+      let j5: UInt32 = UInt32(bytes: key.slice(4..<8)).bigEndian
+      let j6: UInt32 = UInt32(bytes: key.slice(8..<12)).bigEndian
+      let j7: UInt32 = UInt32(bytes: key.slice(12..<16)).bigEndian
+      let j8: UInt32 = UInt32(bytes: key.slice(16..<20)).bigEndian
+      let j9: UInt32 = UInt32(bytes: key.slice(20..<24)).bigEndian
+      let j10: UInt32 = UInt32(bytes: key.slice(24..<28)).bigEndian
+      let j11: UInt32 = UInt32(bytes: key.slice(28..<32)).bigEndian
+      let j12: UInt32 = UInt32(bytes: counter.slice(0..<4)).bigEndian
+      let j13: UInt32 = UInt32(bytes: counter.slice(4..<8)).bigEndian
+      let j14: UInt32 = UInt32(bytes: counter.slice(8..<12)).bigEndian
+      let j15: UInt32 = UInt32(bytes: counter.slice(12..<16)).bigEndian
 
       var (x0, x1, x2, x3, x4, x5, x6, x7) = (j0, j1, j2, j3, j4, j5, j6, j7)
       var (x8, x9, x10, x11, x12, x13, x14, x15) = (j8, j9, j10, j11, j12, j13, j14, j15)
@@ -268,29 +287,12 @@ public final class ChaCha20 {
 }
 
 fileprivate extension UInt32 {
-    init(bigEndianBytes bytes: ArraySlice<UInt8>) {
-        self = bytes.reversed().enumerated().reduce(0) {
-            $0 | (UInt32($1.element) << (8 * $1.offset))
-        }
-    }
-
     func bytes() -> [UInt8] {
         [
             UInt8((self >> 24) & 0xff),
             UInt8((self >> 16) & 0xff),
             UInt8((self >> 8) & 0xff),
             UInt8(self & 0xff),
-        ]
-    }
-}
-
-fileprivate extension UInt32 {
-    func bigEndianBytes() -> [UInt8] {
-        [
-            UInt8((self >> 24) & 0xFF),
-            UInt8((self >> 16) & 0xFF),
-            UInt8((self >> 8) & 0xFF),
-            UInt8(self & 0xFF)
         ]
     }
 }
