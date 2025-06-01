@@ -203,13 +203,13 @@ public struct KDBXWriter {
 
         // MARK: 4.d Encrypt payload
 
-        let mainKey = MainKey.make(masterSalt: content.header.masterSalt, unlockKey: unlockKey)
+        let mainContentKey = MainKey.make(masterSalt: content.header.masterSalt, unlockKey: unlockKey)
 
         switch content.header.encryptionAlgorithm {
         case .AES256CBC:
             do {
                 let AES256CBC = try AES(
-                    key: Array(mainKey),
+                    key: Array(mainContentKey),
                     blockMode: CBC(iv: Array(content.header.encryptionNonce)),
                     padding: .pkcs7
                 )
@@ -219,7 +219,10 @@ public struct KDBXWriter {
             }
 
         case .ChaCha20:
-            fatalError("ChaCha20 is unsupported")
+            guard let chaCha20 = try? ChaCha20(key: mainContentKey, iv: content.header.encryptionNonce) else {
+                throw .unknown(reason: "Failed to initialize ChaCha20, invalid decryption key or nonce")
+            }
+            payload = Data(chaCha20.decrypt(payload))
         }
 
         // MARK: 4.e Write HMAC-protected block stream

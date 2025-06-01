@@ -4,7 +4,6 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
-import CryptoSwift
 import Foundation
 
 /// The content of the `.kdbx` file.

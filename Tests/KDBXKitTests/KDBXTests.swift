@@ -12,7 +12,8 @@ struct KDBXTests {
     @Test
     func KDBXReaderSimple_Argon2d_AES256() async throws {
         // KDF: argon2d
-        // Content encryption: AES256CBC
+        // Main Content encryption: AES256CBC
+        // Inner Header encryption: ChaCha20
         let kdbxFilepath = Bundle.module.path(forResource: "Resources/simple-argon2d-aes256", ofType: "kdbx")!
         let xmlFilepath = Bundle.module.path(forResource: "Resources/simple-argon2d-aes256", ofType: "xml")!
         let data = try Data(contentsOf: URL(filePath: kdbxFilepath))
@@ -53,7 +54,8 @@ struct KDBXTests {
     @Test
     func KDBXReaderSimple_Argon2id_AES256() async throws {
         // KDF: argon2id
-        // Content encryption: AES256CBC
+        // Main Content encryption: AES256CBC
+        // Inner Header encryption: ChaCha20
         let kdbxFilepath = Bundle.module.path(forResource: "Resources/simple-argon2id-aes256", ofType: "kdbx")!
         let xmlFilepath = Bundle.module.path(forResource: "Resources/simple-argon2id-aes256", ofType: "xml")!
         let data = try Data(contentsOf: URL(filePath: kdbxFilepath))
@@ -94,7 +96,8 @@ struct KDBXTests {
     @Test
     func KDBXReaderSimple_AES256_AES256() async throws {
         // KDF: AES256
-        // Content encryption: AES256CBC
+        // Main Content encryption: AES256CBC
+        // Inner Header encryption: ChaCha20
         let kdbxFilepath = Bundle.module.path(forResource: "Resources/simple-aes256-aes256", ofType: "kdbx")!
         let xmlFilepath = Bundle.module.path(forResource: "Resources/simple-aes256-aes256", ofType: "xml")!
         let data = try Data(contentsOf: URL(filePath: kdbxFilepath))
@@ -133,6 +136,7 @@ struct KDBXTests {
     func Format400_Argon2d_ChaCha20() async throws {
         // KDF: argon2d
         // Content encryption: ChaCha20
+        // Inner Header encryption: ChaCha20
         let kdbxFilepath = Bundle.module.path(forResource: "Resources/Format400", ofType: "kdbx")!
         let xmlFilepath = Bundle.module.path(forResource: "Resources/Format400", ofType: "xml")!
         let data = try Data(contentsOf: URL(filePath: kdbxFilepath))
@@ -173,11 +177,34 @@ struct KDBXTests {
     }
 
     @Test
-    func readThenWriteThenReadAgain() async throws {
+    func Simple_AES256_AES256_readThenWriteThenReadAgain() async throws {
         let kdbxFilepath = Bundle.module.path(forResource: "Resources/simple-aes256-aes256", ofType: "kdbx")!
         let referenceKDBXData = try Data(contentsOf: URL(filePath: kdbxFilepath))
 
         let unlockData = UnlockData(masterPassword: "123")
+        var reader = KDBXReader(referenceKDBXData)
+        let reference = try reader.parse(unlockData: unlockData)
+
+        let outputStream = OutputStream(toMemory: ())
+        outputStream.open()
+        try KDBXWriter(to: outputStream).write(reference, unlockData: unlockData)
+        let writtenKDBXData = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
+
+        var reader2 = KDBXReader(writtenKDBXData)
+        let readAgain = try reader2.parse(unlockData: unlockData)
+
+        #expect(readAgain == reference)
+    }
+
+    @Test
+    func Format400_Argon2d_ChaCha20_readThenWriteThenReadAgain() async throws {
+        // KDF: argon2d
+        // Main Content encryption: ChaCha20
+        // Inner Header encryption: ChaCha20
+        let kdbxFilepath = Bundle.module.path(forResource: "Resources/Format400", ofType: "kdbx")!
+        let referenceKDBXData = try Data(contentsOf: URL(filePath: kdbxFilepath))
+
+        let unlockData = UnlockData(masterPassword: "t")
         var reader = KDBXReader(referenceKDBXData)
         let reference = try reader.parse(unlockData: unlockData)
 
