@@ -117,7 +117,10 @@ let reference = KDBX(
                         .init(key: "Title", value: .regular("Hello World")),
                         .init(key: "Password", value: .unprotected("god")),
                     ],
-                    binaries: [],
+                    binaries: [
+                        .init(key: "RefBinary", value: .ref(0)),
+                        .init(key: "InlineBinary", value: .inline(Data([1, 2, 3]))),
+                    ],
                     autoType: .init(
                         enabled: true,
                         dataTransferObfuscation: .twoChannelObfuscation,

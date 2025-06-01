@@ -827,7 +827,7 @@ struct XMLDocumentReader {
         if let ref {
             value = .ref(ref)
         } else if let rawValue {
-            guard let data = rawValue.data(using: .utf8) else {
+            guard let data = Data(base64Encoded: rawValue) else {
                 throw .corrupted(reason: "Failed to parse base64 inline data in ProtectedBinary in \(node.fullyQualifiedName)")
             }
             value = .inline(data)
