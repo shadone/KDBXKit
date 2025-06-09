@@ -7,6 +7,11 @@
 public struct KDBX: Sendable, Equatable {
     public var meta: Meta
     public var root: Root
+
+    public init(meta: Meta, root: Root) {
+        self.meta = meta
+        self.root = root
+    }
 }
 
 public extension KDBX {

@@ -24,5 +24,23 @@ public extension KDBX {
 
         /// Last date/time when the object has been moved (within its parent group or to a different group). This is used by the synchronization algorithm to determine the latest location of the object.
         public var locationChanged: Date?
+
+        public init(
+            creationTime: Date? = nil,
+            lastModificationTime: Date? = nil,
+            lastAccessTime: Date? = nil,
+            expiryTime: Date? = nil,
+            expires: Bool? = nil,
+            usageCount: UInt64? = nil,
+            locationChanged: Date? = nil
+        ) {
+            self.creationTime = creationTime
+            self.lastModificationTime = lastModificationTime
+            self.lastAccessTime = lastAccessTime
+            self.expiryTime = expiryTime
+            self.expires = expires
+            self.usageCount = usageCount
+            self.locationChanged = locationChanged
+        }
     }
 }

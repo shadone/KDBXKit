@@ -45,15 +45,33 @@ public struct InnerHeader: Sendable, Equatable {
     public var encryptionAlgorithm: EncryptionAlgorithm
 
     /// The encryption key that was used for encrypting protected strings in the XML document. See ``EncryptionAlgorithm-swift.enum``
+    ///
+    /// For ChaCha20, the key is 64 bytes.
+    /// For Salsa20, the key is 32 bytes.
     public var encryptionKey: Data
 
     public struct BinaryContent: Sendable, Equatable {
         /// The flag indicates that the binary content should be protected in the process memory.
         public var shouldBeProtected: Bool
         public var data: Data
+
+        public init(shouldBeProtected: Bool, data: Data) {
+            self.shouldBeProtected = shouldBeProtected
+            self.data = data
+        }
     }
 
     /// A binary content is referenced in the XML document by its index in the inner header (the first binary content has
     /// index 0, the second one has index 1, etc.).
     public var binaryContent: [BinaryContent]
+
+    public init(
+        encryptionAlgorithm: EncryptionAlgorithm,
+        encryptionKey: Data,
+        binaryContent: [BinaryContent]
+    ) {
+        self.encryptionAlgorithm = encryptionAlgorithm
+        self.encryptionKey = encryptionKey
+        self.binaryContent = binaryContent
+    }
 }

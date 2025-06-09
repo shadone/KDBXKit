@@ -9,6 +9,12 @@ import Foundation
 /// The content of the `.kdbx` file.
 public struct KDBXContent: Equatable {
     public var database: KDBX
-    public let header: Header
-    public let innerHeader: InnerHeader
+    public var header: Header
+    public var innerHeader: InnerHeader
+
+    public init(database: KDBX, header: Header, innerHeader: InnerHeader) {
+        self.database = database
+        self.header = header
+        self.innerHeader = innerHeader
+    }
 }

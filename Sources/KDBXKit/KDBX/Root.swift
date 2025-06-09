@@ -12,5 +12,13 @@ public extension KDBX {
 
         /// When the user deletes an object (group, entry, ...), an item is created in this list. When synchronizing/merging database files, this information can be used to decide whether an object has been deleted.
         public var deletedObjects: [DeletedObject]
+
+        public init(
+            group: Group,
+            deletedObjects: [DeletedObject]
+        ) {
+            self.group = group
+            self.deletedObjects = deletedObjects
+        }
     }
 }

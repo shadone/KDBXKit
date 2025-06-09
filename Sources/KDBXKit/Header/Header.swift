@@ -103,4 +103,22 @@ public struct Header: Sendable, Equatable {
     ///
     /// Value type: [`Variant dictionary`](https://keepass.info/help/kb/kdbx.html#vardict).
     public let publicCustomData: VariantDictionary
+
+    public init(
+        formatVersion: FormatVersion,
+        encryptionAlgorithm: EncryptionAlgorithm,
+        compressionAlgorithm: CompressionAlgorithm,
+        masterSalt: Data,
+        encryptionNonce: Data,
+        kdfParameters: KDFParameters,
+        publicCustomData: VariantDictionary
+    ) {
+        self.formatVersion = formatVersion
+        self.encryptionAlgorithm = encryptionAlgorithm
+        self.compressionAlgorithm = compressionAlgorithm
+        self.masterSalt = masterSalt
+        self.encryptionNonce = encryptionNonce
+        self.kdfParameters = kdfParameters
+        self.publicCustomData = publicCustomData
+    }
 }

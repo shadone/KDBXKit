@@ -15,6 +15,11 @@ public enum KDFParameters: Sendable, Equatable {
 
         /// Rounds
         public let rounds: UInt64
+
+        public init(salt: Data, rounds: UInt64) {
+            self.salt = salt
+            self.rounds = rounds
+        }
     }
 
     public struct Argon2: Sendable, Equatable {
@@ -54,6 +59,20 @@ public enum KDFParameters: Sendable, Equatable {
         ///
         /// Minimum 1, maximum 0x00FFFFFF.
         public let parallelism: UInt32
+
+        public init(
+            version: Version,
+            salt: Data,
+            iterations: UInt64,
+            memory: UInt64,
+            parallelism: UInt32
+        ) {
+            self.version = version
+            self.salt = salt
+            self.iterations = iterations
+            self.memory = memory
+            self.parallelism = parallelism
+        }
     }
 
     /// AES KDF

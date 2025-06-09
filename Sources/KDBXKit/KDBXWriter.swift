@@ -35,7 +35,7 @@ public struct KDBXWriter {
 
     let outputStream: OutputStream
 
-    init(to outputStream: OutputStream) {
+    public init(to outputStream: OutputStream) {
         self.outputStream = outputStream
     }
 
@@ -145,7 +145,7 @@ public struct KDBXWriter {
         try write(data)
     }
 
-    func write(_ content: KDBXContent, unlockData: UnlockData) throws(Error) {
+    public func write(_ content: KDBXContent, unlockData: UnlockData) throws(Error) {
         guard outputStream.streamStatus == .open else {
             throw .unknown(reason: "Stream is not ready for writing")
         }
