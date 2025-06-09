@@ -31,16 +31,16 @@ public extension KDBX.Entry {
 
         validateDateIsInFuture(times?.locationChanged, in: "Entry[\(uuid.uuidString)].Times.LocationChanged")
 
-        // Check all ProtectedStrings have unique key
         var allStringKeys: Set<String> = []
         for protectedString in strings {
+            // Check all ProtectedStrings have unique key
             if allStringKeys.contains(protectedString.key) {
                 results.append(.warning("Entry[\(uuid.uuidString)].Strings have duplicate keys: \(protectedString.key)"))
             }
             allStringKeys.insert(protectedString.key)
 
             if protectedString.key == "Title" {
-                // Check that the Title key is unprotected
+                // Check that the Title key is *not* unprotected
                 switch protectedString.value {
                 case .protectedInMemory:
                     results.append(.warning("Entry[\(uuid.uuidString)].Strings[Title] type is ProtectInMemory, recommended to be regular"))
@@ -53,10 +53,34 @@ public extension KDBX.Entry {
                     break
                 }
             }
+
+            if protectedString.key == "Password" {
+                // Check that Password key *is* protected
+                switch protectedString.value {
+                case .protectedInMemory:
+                    results.append(.warning("Entry[\(uuid.uuidString)].Strings[Password] type is ProtectInMemory, recommended to be Protected"))
+
+                case .unprotected:
+                    // That's what we want!
+                    break
+
+                case .regular:
+                    results.append(.warning("Entry[\(uuid.uuidString)].Strings[Password] type is Regular, recommended to be Protected"))
+                }
+            }
         }
         // Check that the Entry has Title key
         if !allStringKeys.contains("Title") {
             results.append(.warning("Entry[\(uuid.uuidString)].Strings does not have a Title"))
+        }
+
+        var allBinariesKeys: Set<String> = []
+        for protectedBinary in binaries {
+            // Check all ProtectedBinaries have unique key
+            if allBinariesKeys.contains(protectedBinary.key) {
+                results.append(.warning("Entry[\(uuid.uuidString)].Binaries have duplicate keys: \(protectedBinary.key)"))
+            }
+            allBinariesKeys.insert(protectedBinary.key)
         }
 
         for historicalEntry in history {
