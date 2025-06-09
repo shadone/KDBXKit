@@ -20,6 +20,18 @@ public extension KDBX {
 
             /// - note: This type is only used in an unencrypted XML file.
             case protectedInMemory(String)
+
+            /// Returns the raw string of the ``ProtectedString`` value.
+            public var stringValue: String {
+                switch self {
+                case .regular(let string):
+                    return string
+                case .unprotected(let string):
+                    return string
+                case .protectedInMemory(let string):
+                    return string
+                }
+            }
         }
 
         public var key: String
