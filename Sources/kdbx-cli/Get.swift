@@ -29,16 +29,16 @@ struct Get: ParsableCommand {
                 let valueType: String
 
                 switch string.value {
-                case let .unprotected(v):
-                    value = v
+                case let .unprotected(b):
+                    value = b.revealedString
                     valueType = "[*]"
 
-                case let .regular(v):
-                    value = v
+                case let .regular(b):
+                    value = b.revealedString
                     valueType = ""
 
-                case let .protectedInMemory(v):
-                    value = v
+                case let .protectedInMemory(b):
+                    value = b.revealedString
                     valueType = "[M]"
                 }
 

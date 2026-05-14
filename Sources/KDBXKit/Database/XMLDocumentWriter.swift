@@ -335,21 +335,24 @@ struct XMLDocumentWriter {
 
         let valueNode = node.addElement("Value")
         switch protectedString.value {
-        case let .regular(value):
-            valueNode.addText(value)
+        case let .regular(bytes):
+            // Cleartext XML — non-secret. Materialize a transient String just
+            // for the XML text node; XMLDocumentWriter takes String anyway.
+            bytes.withRevealedString { valueNode.addText($0) }
 
-        case let .unprotected(unprotectedValue):
-            guard let data = unprotectedValue.data(using: .utf8) else {
-                preconditionFailure("Failed to convert string to utf8 data")
+        case let .unprotected(bytes):
+            // Feed raw bytes straight to the inner-cipher encryptor — no
+            // transient String detour for sensitive data.
+            let encrypted = bytes.withUnsafeBytes { ptr in
+                Data(encryptor.encrypt(Array(ptr.bindMemory(to: UInt8.self))))
             }
-            let encrypted = Data(encryptor.encrypt(data))
             valueNode.addText(encode(encrypted))
             valueNode.attributes = [
                 (name: "Protected", value: "True"),
             ]
 
-        case let .protectedInMemory(value):
-            valueNode.addText(value)
+        case let .protectedInMemory(bytes):
+            bytes.withRevealedString { valueNode.addText($0) }
             valueNode.attributes = [
                 (name: "ProtectInMemory", value: "True"),
             ]
