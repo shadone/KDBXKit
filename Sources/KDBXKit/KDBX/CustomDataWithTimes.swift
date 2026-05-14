@@ -11,5 +11,11 @@ public extension KDBX {
         public var key: String
         public var value: String
         public var lastModificationTime: Date?
+
+        public init(key: String, value: String, lastModificationTime: Date? = nil) {
+            self.key = key
+            self.value = value
+            self.lastModificationTime = lastModificationTime
+        }
     }
 }

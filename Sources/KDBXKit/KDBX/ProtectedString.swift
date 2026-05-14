@@ -36,5 +36,10 @@ public extension KDBX {
 
         public var key: String
         public var value: Value
+
+        public init(key: String, value: Value) {
+            self.key = key
+            self.value = value
+        }
     }
 }
