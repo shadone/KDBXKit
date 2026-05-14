@@ -28,7 +28,7 @@ import SwiftGzip
 /// https://keepass.info/help/kb/kdbx.html
 public struct KDBXReader: Sendable {
     /// Errors thrown by `KDBXReader.parse`.
-    public enum Error: Swift.Error, Sendable {
+    public enum Error: Swift.Error, Sendable, Equatable {
         // MARK: - Caller errors
 
         /// `parse(unlockData: nil)` was used — fine if you only wanted to
@@ -121,6 +121,45 @@ public struct KDBXReader: Sendable {
     public init(_ data: Data) {
         self.data = data
         pos = data.startIndex
+    }
+
+    // MARK: - One-shot static API
+
+    /// Parse a complete KDBX file in one call. The common case.
+    ///
+    /// If you also want access to the intermediate state when parsing fails
+    /// (e.g. the parsed `Header` after a wrong-credentials error so you can
+    /// show the user the file name + format), construct a `KDBXReader`
+    /// directly and call the mutating `parse(unlockData:)` instead.
+    public static func parse(_ data: Data, unlockData: UnlockData) throws(Error) -> KDBXContent {
+        var reader = KDBXReader(data)
+        return try reader.parse(unlockData: unlockData)
+    }
+
+    /// Inspect a KDBX file's header without unlocking it. No password / key
+    /// file needed. Validates the file signature, format version, and header
+    /// SHA-256 — anything beyond that lives in the encrypted body.
+    public static func parseHeader(_ data: Data) throws(Error) -> Header {
+        var reader = KDBXReader(data)
+        do throws(Error) {
+            _ = try reader.parse(unlockData: nil)
+            // parse(unlockData: nil) always throws .unlockDataRequired after
+            // the header is captured. Reaching here means the parser shape
+            // changed — defensive throw rather than silent return.
+            throw Error.corruptedHeader(reason: "Reader unexpectedly returned without unlock data")
+        } catch {
+            // error is typed as KDBXReader.Error here.
+            if case .unlockDataRequired = error {
+                // Expected path: header was parsed, parser stopped waiting
+                // for credentials.
+            } else {
+                throw error
+            }
+        }
+        guard let header = reader.header else {
+            throw .corruptedHeader(reason: "Reader did not capture the header")
+        }
+        return header
     }
 
     // MARK: Read <token> helpers
