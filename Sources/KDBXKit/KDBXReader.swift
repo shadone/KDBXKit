@@ -108,9 +108,19 @@ public struct KDBXReader: Sendable {
     /// - note: This is for debug purposes, for accessing the value even if the parsing failed due to e.g. corrupted content.
     public private(set) var innerHeader: InnerHeader?
 
-    /// The raw XML document but before decryption of the string content (i.e. no inner decryption applied)
+    /// The raw decrypted XML document (with the inner-stream-cipher protected
+    /// strings still base64-encoded — those are decrypted further into the
+    /// returned `KDBXContent`).
     ///
-    /// - note: This is for debug purposes, for accessing the value even if the parsing failed due to e.g. corrupted content.
+    /// **Released on success.** Unprotected fields (Title, URL, Notes) are
+    /// plaintext in this `String`; keeping it around for the reader's
+    /// lifetime would mean every unlocked vault retains its entire metadata
+    /// as a long-lived Swift `String` on the heap (where we can't zero it).
+    /// On a successful parse, `parse(unlockData:)` clears this property
+    /// before returning. It's retained only when:
+    ///
+    /// - parse fails after decryption (helps diagnose the XML-level failure)
+    /// - the caller used `parse(unlockData:retainsXMLForDiagnostics: true)`
     public private(set) var xmlDocument: String?
 
     /// The size of the each blocks of the HMAC-protected block stream.
@@ -185,7 +195,10 @@ public struct KDBXReader: Sendable {
 
     // MARK: Public API
 
-    public mutating func parse(unlockData: UnlockData?) throws(Error) -> KDBXContent {
+    public mutating func parse(
+        unlockData: UnlockData?,
+        retainsXMLForDiagnostics: Bool = false
+    ) throws(Error) -> KDBXContent {
         let header: Header
         let headerLength: Int
 
@@ -373,6 +386,15 @@ public struct KDBXReader: Sendable {
             case let .corrupted(reason):
                 throw .corruptedXML(reason: reason)
             }
+        }
+
+        // Plaintext XML housekeeping: release it now unless the caller
+        // explicitly asked us to retain for golden tests / debugging.
+        // Holding the full XML in a Swift `String` for the reader's lifetime
+        // means every unprotected field stays plaintext on the heap until
+        // the reader deallocates.
+        if !retainsXMLForDiagnostics {
+            self.xmlDocument = nil
         }
 
         return .init(database: database, header: header, innerHeader: innerHeader)

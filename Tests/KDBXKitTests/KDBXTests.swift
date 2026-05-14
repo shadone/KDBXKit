@@ -19,7 +19,7 @@ struct KDBXTests {
         let data = try Data(contentsOf: URL(filePath: kdbxFilepath))
 
         var reader = KDBXReader(data)
-        let content = try reader.parse(unlockData: .init(masterPassword: "123"))
+        let content = try reader.parse(unlockData: .init(masterPassword: "123"), retainsXMLForDiagnostics: true)
 
         #expect(reader.header != nil)
         #expect(reader.header == content.header)
@@ -61,7 +61,7 @@ struct KDBXTests {
         let data = try Data(contentsOf: URL(filePath: kdbxFilepath))
 
         var reader = KDBXReader(data)
-        let content = try reader.parse(unlockData: .init(masterPassword: "123"))
+        let content = try reader.parse(unlockData: .init(masterPassword: "123"), retainsXMLForDiagnostics: true)
 
         #expect(reader.header != nil)
         #expect(reader.header == content.header)
@@ -103,7 +103,7 @@ struct KDBXTests {
         let data = try Data(contentsOf: URL(filePath: kdbxFilepath))
 
         var reader = KDBXReader(data)
-        let content = try reader.parse(unlockData: .init(masterPassword: "123"))
+        let content = try reader.parse(unlockData: .init(masterPassword: "123"), retainsXMLForDiagnostics: true)
 
         #expect(reader.header != nil)
         #expect(reader.header == content.header)
@@ -142,7 +142,7 @@ struct KDBXTests {
         let data = try Data(contentsOf: URL(filePath: kdbxFilepath))
 
         var reader = KDBXReader(data)
-        let content = try reader.parse(unlockData: .init(masterPassword: "t"))
+        let content = try reader.parse(unlockData: .init(masterPassword: "t"), retainsXMLForDiagnostics: true)
 
         #expect(reader.header != nil)
         #expect(reader.header == content.header)
