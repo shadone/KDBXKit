@@ -187,7 +187,10 @@ struct KDBXTests {
 
         let outputStream = OutputStream(toMemory: ())
         outputStream.open()
-        try KDBXWriter(to: outputStream).write(reference, unlockData: unlockData)
+        // Exact-equality round-trip — pin salts so the written file is
+        // byte-identical to the reference. Production writes auto-regenerate
+        // salts (see KDBXWriter.write's `regenerateSalts:` parameter).
+        try KDBXWriter(to: outputStream).write(reference, unlockData: unlockData, regenerateSalts: false)
         let writtenKDBXData = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
 
         var reader2 = KDBXReader(writtenKDBXData)
@@ -210,7 +213,10 @@ struct KDBXTests {
 
         let outputStream = OutputStream(toMemory: ())
         outputStream.open()
-        try KDBXWriter(to: outputStream).write(reference, unlockData: unlockData)
+        // Exact-equality round-trip — pin salts so the written file is
+        // byte-identical to the reference. Production writes auto-regenerate
+        // salts (see KDBXWriter.write's `regenerateSalts:` parameter).
+        try KDBXWriter(to: outputStream).write(reference, unlockData: unlockData, regenerateSalts: false)
         let writtenKDBXData = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
 
         var reader2 = KDBXReader(writtenKDBXData)

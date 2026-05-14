@@ -184,14 +184,36 @@ public struct KDBXWriter {
         try write(data)
     }
 
-    public func write(_ content: KDBXContent, unlockData: UnlockData) throws(Error) {
+    /// Serialize a vault to the output stream.
+    ///
+    /// - Parameters:
+    ///   - content: the vault to write.
+    ///   - unlockData: the user's key (password and/or key file).
+    ///   - regenerateSalts: when `true` (the default — and what the spec
+    ///     mandates), `masterSalt`, `encryptionNonce`, and the KDF salt are
+    ///     replaced with fresh CSPRNG bytes before encryption. The on-disk
+    ///     file differs every time you save the same content with the same
+    ///     password. Set to `false` only when you need deterministic output
+    ///     (round-trip tests, integration fixtures).
+    public func write(
+        _ content: KDBXContent,
+        unlockData: UnlockData,
+        regenerateSalts: Bool = true
+    ) throws(Error) {
         guard outputStream.streamStatus == .open else {
             throw .streamNotOpen
         }
 
+        // Per the KDBX spec: masterSalt, encryptionNonce, and Argon2 salt
+        // MUST be regenerated on every save. Reusing them with the same key
+        // gives an attacker access to the same ciphertext for the same
+        // plaintext, weakening confidentiality. Default-on; the round-trip
+        // tests can opt out for exact byte-equality.
+        let preparedContent = regenerateSalts ? Self.regeneratingSalts(in: content) : content
+
         // MARK: 1. Header
 
-        let headerData = try serialize(content.header)
+        let headerData = try serialize(preparedContent.header)
         try write(headerData)
 
         // MARK: 2. SHA-256 of the header
@@ -203,7 +225,7 @@ public struct KDBXWriter {
 
         let unlockKey: Data
         do {
-            unlockKey = try unlockData.computeUnlockKey(kdfParameters: content.header.kdfParameters)
+            unlockKey = try unlockData.computeUnlockKey(kdfParameters: preparedContent.header.kdfParameters)
         } catch {
             switch error {
             case let .unsupportedKDF(uuid):
@@ -212,7 +234,7 @@ public struct KDBXWriter {
         }
 
         let headerKey = HMACProtectedBlockStream.keyForHeader(
-            masterSalt: content.header.masterSalt,
+            masterSalt: preparedContent.header.masterSalt,
             unlockKey: unlockKey
         )
 
@@ -225,15 +247,15 @@ public struct KDBXWriter {
 
         // MARK: 4.a Serialize Inner Header
 
-        payload += try serialize(content.innerHeader)
+        payload += try serialize(preparedContent.innerHeader)
 
         // MARK: 4.b Serialize XML Document
 
-        payload += try serialize(content.database, encryptor: content.innerHeader.makeEncryptor())
+        payload += try serialize(preparedContent.database, encryptor: preparedContent.innerHeader.makeEncryptor())
 
         // MARK: 4.c Compress payload if needed
 
-        switch content.header.compressionAlgorithm {
+        switch preparedContent.header.compressionAlgorithm {
         case .none:
             break
 
@@ -247,14 +269,14 @@ public struct KDBXWriter {
 
         // MARK: 4.d Encrypt payload
 
-        let mainContentKey = MainKey.make(masterSalt: content.header.masterSalt, unlockKey: unlockKey)
+        let mainContentKey = MainKey.make(masterSalt: preparedContent.header.masterSalt, unlockKey: unlockKey)
 
-        switch content.header.encryptionAlgorithm {
+        switch preparedContent.header.encryptionAlgorithm {
         case .AES256CBC:
             do {
                 let AES256CBC = try AES(
                     key: Array(mainContentKey),
-                    blockMode: CBC(iv: Array(content.header.encryptionNonce)),
+                    blockMode: CBC(iv: Array(preparedContent.header.encryptionNonce)),
                     padding: .pkcs7
                 )
                 payload = try Data(AES256CBC.encrypt(Array(payload)))
@@ -263,7 +285,7 @@ public struct KDBXWriter {
             }
 
         case .ChaCha20:
-            guard let chaCha20 = try? ChaCha20(key: mainContentKey, iv: content.header.encryptionNonce) else {
+            guard let chaCha20 = try? ChaCha20(key: mainContentKey, iv: preparedContent.header.encryptionNonce) else {
                 throw .encryptionFailed(reason: "Failed to initialize ChaCha20: invalid key or nonce")
             }
             // ChaCha20 is a stream cipher; encrypt and decrypt are the same XOR
@@ -294,7 +316,7 @@ public struct KDBXWriter {
             try writeHMACProtectedBlock(
                 index: blockIndex,
                 data: block,
-                masterSalt: content.header.masterSalt,
+                masterSalt: preparedContent.header.masterSalt,
                 unlockKey: unlockKey
             )
 
@@ -306,8 +328,79 @@ public struct KDBXWriter {
         try writeHMACProtectedBlock(
             index: blockIndex,
             data: Data(),
-            masterSalt: content.header.masterSalt,
+            masterSalt: preparedContent.header.masterSalt,
             unlockKey: unlockKey
+        )
+    }
+
+    /// Returns a copy of `content` with fresh CSPRNG bytes for the master
+    /// salt, encryption nonce, and KDF salt. Per KDBX spec these must be
+    /// regenerated on every save — leaving them stale across saves weakens
+    /// confidentiality (same key + same plaintext → same ciphertext).
+    private static func regeneratingSalts(in content: KDBXContent) -> KDBXContent {
+        let header = content.header
+
+        // Nonce length depends on the cipher.
+        let nonceLength: Int
+        switch header.encryptionAlgorithm {
+        case .AES256CBC: nonceLength = 16
+        case .ChaCha20:  nonceLength = 12
+        }
+
+        // KDF salt length: keep what was there (size is meaningful for some
+        // KDFs and the writer shouldn't silently re-shape it), but refill
+        // the bytes with random.
+        let newKDF: KDFParameters
+        switch header.kdfParameters {
+        case let .aes(params, additional):
+            newKDF = .aes(
+                .init(salt: SecureRandom.bytes(params.salt.count), rounds: params.rounds),
+                additional: additional
+            )
+        case let .argon2d(params, additional):
+            newKDF = .argon2d(
+                Header.Argon2WithFreshSalt(params),
+                additional: additional
+            )
+        case let .argon2id(params, additional):
+            newKDF = .argon2id(
+                Header.Argon2WithFreshSalt(params),
+                additional: additional
+            )
+        case .unknown:
+            // Caller will fail at the KDF derivation step anyway; pass the
+            // unknown KDF through unchanged so the error surfaces there.
+            newKDF = header.kdfParameters
+        }
+
+        let newHeader = Header(
+            formatVersion: header.formatVersion,
+            encryptionAlgorithm: header.encryptionAlgorithm,
+            compressionAlgorithm: header.compressionAlgorithm,
+            masterSalt: SecureRandom.bytes(32),
+            encryptionNonce: SecureRandom.bytes(nonceLength),
+            kdfParameters: newKDF,
+            publicCustomData: header.publicCustomData
+        )
+
+        return KDBXContent(
+            database: content.database,
+            header: newHeader,
+            innerHeader: content.innerHeader
+        )
+    }
+}
+
+private extension Header {
+    /// Replaces only the salt of an `Argon2` parameter block, preserving
+    /// iteration / memory / parallelism / version.
+    static func Argon2WithFreshSalt(_ p: KDFParameters.Argon2) -> KDFParameters.Argon2 {
+        KDFParameters.Argon2(
+            version: p.version,
+            salt: SecureRandom.bytes(p.salt.count),
+            iterations: p.iterations,
+            memory: p.memory,
+            parallelism: p.parallelism
         )
     }
 }
