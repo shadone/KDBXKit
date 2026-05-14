@@ -78,6 +78,21 @@ public struct UnlockData: Sendable {
     /// lifetime beyond the persistence call.
     public var keyDataBytes: SecureBytes { keyData }
 
+    /// Constant-time equality against another `UnlockData`. Use this in
+    /// any re-authentication path where the caller already holds the
+    /// authoritative unlock and wants to verify a freshly-typed master
+    /// password produces the same pre-hash — biometric enrollment is
+    /// the obvious case.
+    ///
+    /// Constant-time matters less here than at HMAC comparison time
+    /// (no remote attacker can measure the wall-clock of an in-process
+    /// compare), but using the wrong tool is still the wrong tool.
+    public func matches(_ other: UnlockData) -> Bool {
+        let a = keyData.withUnsafeBytes { Data($0) }
+        let b = other.keyData.withUnsafeBytes { Data($0) }
+        return ConstantTime.equals(a, b)
+    }
+
     /// Run the KDF identified by `kdfParameters` against this unlock's key
     /// data, producing the 32-byte transformed key `T` from the KDBX spec.
     /// Throws `UnlockDataError.unsupportedKDF` when the KDF UUID in the file

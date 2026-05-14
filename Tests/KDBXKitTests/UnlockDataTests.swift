@@ -28,4 +28,11 @@ struct UnlockDataTests {
         let bytesB = viaRaw.keyDataBytes.withUnsafeBytes { Data($0) }
         #expect(bytesA == bytesB)
     }
+
+    @Test("matches() returns true for the same password, false otherwise")
+    func matchesSamePassword() {
+        let unlock = UnlockData(masterPassword: "the right password")
+        #expect(unlock.matches(UnlockData(masterPassword: "the right password")) == true)
+        #expect(unlock.matches(UnlockData(masterPassword: "the wrong password")) == false)
+    }
 }
