@@ -106,3 +106,6 @@ xcuserdata/
 
 # SwiftPM-generated workspace metadata
 .swiftpm/xcode/package.xcworkspace/
+
+# Auto-generated SwiftPM Xcode integration files
+.swiftpm/xcode/xcshareddata/xcschemes/
