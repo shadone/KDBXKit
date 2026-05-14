@@ -7,7 +7,7 @@
 import Foundation
 
 /// The content of the `.kdbx` file.
-public struct KDBXContent: Equatable {
+public struct KDBXContent: Equatable, Sendable {
     public var database: KDBX
     public var header: Header
     public var innerHeader: InnerHeader
