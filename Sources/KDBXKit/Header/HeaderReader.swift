@@ -105,7 +105,7 @@ struct HeaderReader: Sendable {
             let valueData = try readData(length: Int(valueLength))
 
             guard let fieldType = HeaderFieldType(rawValue: type) else {
-                print("Unknown field type: \(type)")
+                KDBXLog.header.debug("Unknown field type: \(type)")
                 continue
             }
 

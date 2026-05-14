@@ -101,7 +101,7 @@ class VariantDictionaryReader {
             let valueData = try readData(length: Int(valueLength))
 
             guard let valueType = VariantDictionaryValueType(rawValue: type) else {
-                print("Unknown variant dictionary value type: \(type)")
+                KDBXLog.header.debug("Unknown variant dictionary value type: \(type)")
                 continue
             }
 

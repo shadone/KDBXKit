@@ -141,7 +141,7 @@ struct XMLDocumentReader {
                 root = try parseRoot(child)
 
             default:
-                print("Unexpected element: \(child.fullyQualifiedName)")
+                KDBXLog.parser.debug("Unexpected element: \(child.fullyQualifiedName)")
             }
         }
 
@@ -276,7 +276,7 @@ struct XMLDocumentReader {
                 meta.customData = try parseCustomDataWithTimesList(child)
 
             default:
-                print("Unexpected element \(child.fullyQualifiedName)")
+                KDBXLog.parser.debug("Unexpected element \(child.fullyQualifiedName)")
             }
         }
 
@@ -296,7 +296,7 @@ struct XMLDocumentReader {
                 deletedObjects = try parseDeletedObjects(child)
 
             default:
-                print("Unexpected element \(child.fullyQualifiedName)")
+                KDBXLog.parser.debug("Unexpected element \(child.fullyQualifiedName)")
             }
         }
 
@@ -333,7 +333,7 @@ struct XMLDocumentReader {
                     memoryProtection.protectNotes = try parseBool(stringValue, node: child)
                 }
             default:
-                print("Unexpected element \(child.fullyQualifiedName)")
+                KDBXLog.parser.debug("Unexpected element \(child.fullyQualifiedName)")
             }
         }
 
@@ -345,7 +345,7 @@ struct XMLDocumentReader {
 
         for itemNode in node.children {
             guard itemNode.name == "Icon" else {
-                print("Unexpected element \(itemNode.fullyQualifiedName)")
+                KDBXLog.parser.debug("Unexpected element \(itemNode.fullyQualifiedName)")
                 continue
             }
 
@@ -388,7 +388,7 @@ struct XMLDocumentReader {
                 }
 
             default:
-                print("Unexpected element \(child.fullyQualifiedName)")
+                KDBXLog.parser.debug("Unexpected element \(child.fullyQualifiedName)")
             }
         }
 
@@ -404,7 +404,7 @@ struct XMLDocumentReader {
 
         for itemNode in node.children {
             guard itemNode.name == "Item" else {
-                print("Unexpected element \(itemNode.fullyQualifiedName)")
+                KDBXLog.parser.debug("Unexpected element \(itemNode.fullyQualifiedName)")
                 continue
             }
 
@@ -418,12 +418,12 @@ struct XMLDocumentReader {
                 case "Value":
                     value = text(in: child) ?? ""
                 default:
-                    print("Unexpected element \(child.fullyQualifiedName)")
+                    KDBXLog.parser.debug("Unexpected element \(child.fullyQualifiedName)")
                 }
             }
 
             guard let key, let value else {
-                print("Missing Key or Value node in CustomDataWithTimes in \(itemNode.fullyQualifiedName)")
+                KDBXLog.parser.debug("Missing Key or Value node in CustomDataWithTimes in \(itemNode.fullyQualifiedName)")
                 continue
             }
 
@@ -438,7 +438,7 @@ struct XMLDocumentReader {
 
         for itemNode in node.children {
             guard itemNode.name == "Item" else {
-                print("Unexpected element \(itemNode.fullyQualifiedName)")
+                KDBXLog.parser.debug("Unexpected element \(itemNode.fullyQualifiedName)")
                 continue
             }
 
@@ -457,12 +457,12 @@ struct XMLDocumentReader {
                         lastModificationTime = try parseDate(stringValue, node: child)
                     }
                 default:
-                    print("Unexpected element \(child.fullyQualifiedName)")
+                    KDBXLog.parser.debug("Unexpected element \(child.fullyQualifiedName)")
                 }
             }
 
             guard let key, let value else {
-                print("Missing Key or Value node in CustomDataWithTimes in \(itemNode.fullyQualifiedName)")
+                KDBXLog.parser.debug("Missing Key or Value node in CustomDataWithTimes in \(itemNode.fullyQualifiedName)")
                 continue
             }
 
@@ -540,7 +540,7 @@ struct XMLDocumentReader {
                 group.groups.append(subGroup)
 
             default:
-                print("Unexpected element \(child.fullyQualifiedName)")
+                KDBXLog.parser.debug("Unexpected element \(child.fullyQualifiedName)")
             }
         }
 
@@ -588,7 +588,7 @@ struct XMLDocumentReader {
                 }
 
             default:
-                print("Unexpected element \(child.fullyQualifiedName)")
+                KDBXLog.parser.debug("Unexpected element \(child.fullyQualifiedName)")
             }
         }
 
@@ -687,7 +687,7 @@ struct XMLDocumentReader {
                 entry.history = try parseEntryList(child)
 
             default:
-                print("Unexpected element \(child.fullyQualifiedName)")
+                KDBXLog.parser.debug("Unexpected element \(child.fullyQualifiedName)")
             }
         }
 
@@ -703,7 +703,7 @@ struct XMLDocumentReader {
                 let entry = try parseEntry(child)
                 entries.append(entry)
             default:
-                print("Unexpected element \(child.fullyQualifiedName)")
+                KDBXLog.parser.debug("Unexpected element \(child.fullyQualifiedName)")
             }
         }
 
@@ -733,7 +733,7 @@ struct XMLDocumentReader {
                         case "False":
                             isProtected = false
                         default:
-                            print("Unexpected attribute value '\(value)' in attribute \(name) in \(child.fullyQualifiedName)")
+                            KDBXLog.parser.debug("Unexpected attribute value '\(value)' in attribute \(name) in \(child.fullyQualifiedName)")
                         }
 
                     case "ProtectInMemory":
@@ -743,16 +743,16 @@ struct XMLDocumentReader {
                         case "False":
                             shouldProtectInMemory = false
                         default:
-                            print("Unexpected attribute value '\(value)' in attribute \(name) in \(child.fullyQualifiedName)")
+                            KDBXLog.parser.debug("Unexpected attribute value '\(value)' in attribute \(name) in \(child.fullyQualifiedName)")
                         }
 
                     default:
-                        print("Unexpected attribute '\(name)' in String in \(child.fullyQualifiedName)")
+                        KDBXLog.parser.debug("Unexpected attribute '\(name)' in String in \(child.fullyQualifiedName)")
                     }
                 }
 
             default:
-                print("Unexpected element \(child.fullyQualifiedName)")
+                KDBXLog.parser.debug("Unexpected element \(child.fullyQualifiedName)")
             }
         }
 
@@ -776,7 +776,7 @@ struct XMLDocumentReader {
             }
         } else if let shouldProtectInMemory, shouldProtectInMemory {
             // TODO: we are currently not protecting in memory
-            print("Protect in memory not yet implemented in \(node.fullyQualifiedName)")
+            KDBXLog.parser.debug("Protect in memory not yet implemented in \(node.fullyQualifiedName)")
             value = .protectedInMemory(rawValue ?? "")
         } else {
             value = .regular(rawValue ?? "")
@@ -806,12 +806,12 @@ struct XMLDocumentReader {
                         ref = refValue
 
                     default:
-                        print("Unexpected attribute '\(name)' in Binary in \(child.fullyQualifiedName)")
+                        KDBXLog.parser.debug("Unexpected attribute '\(name)' in Binary in \(child.fullyQualifiedName)")
                     }
                 }
 
             default:
-                print("Unexpected element \(child.fullyQualifiedName)")
+                KDBXLog.parser.debug("Unexpected element \(child.fullyQualifiedName)")
             }
         }
 
@@ -853,7 +853,7 @@ struct XMLDocumentReader {
                     deletionTime = try parseDate(stringValue, node: child)
                 }
             default:
-                print("Unexpected element \(child.fullyQualifiedName)")
+                KDBXLog.parser.debug("Unexpected element \(child.fullyQualifiedName)")
             }
         }
 
@@ -872,7 +872,7 @@ struct XMLDocumentReader {
                 let deletedObject = try parseDeletedObject(child)
                 deletedObjects.append(deletedObject)
             default:
-                print("Unexpected element \(child.fullyQualifiedName)")
+                KDBXLog.parser.debug("Unexpected element \(child.fullyQualifiedName)")
             }
         }
         return deletedObjects
@@ -899,7 +899,7 @@ struct XMLDocumentReader {
                 autotype.association.append(association)
 
             default:
-                print("Unexpected element \(child.fullyQualifiedName)")
+                KDBXLog.parser.debug("Unexpected element \(child.fullyQualifiedName)")
             }
         }
 
@@ -919,7 +919,7 @@ struct XMLDocumentReader {
                 keyStrokeSequence = text(in: child)
 
             default:
-                print("Unexpected element \(child.fullyQualifiedName)")
+                KDBXLog.parser.debug("Unexpected element \(child.fullyQualifiedName)")
             }
         }
 

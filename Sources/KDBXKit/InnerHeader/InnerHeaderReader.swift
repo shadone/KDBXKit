@@ -86,7 +86,7 @@ struct InnerHeaderReader {
             let valueData = try readData(length: Int(valueLength))
 
             guard let fieldType = InnerHeaderFieldType(rawValue: type) else {
-                print("Unknown inner header field type: \(type)")
+                KDBXLog.innerHeader.debug("Unknown inner header field type: \(type)")
                 continue
             }
 

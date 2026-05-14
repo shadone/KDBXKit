@@ -116,11 +116,11 @@ extension KDFParameters {
 
     init?(from params: VariantDictionary) {
         guard case let .bytes(uuidData) = params["$UUID"] else {
-            print("KDF Parameters: Missing required '$UUID' key")
+            KDBXLog.kdf.debug("KDF Parameters: Missing required '$UUID' key")
             return nil
         }
         guard let uuid = uuidData.asUUIDLE() else {
-            print("KDF Parameters: Invalid '$UUID' key length (expected 16, got \(uuidData.count): \(uuidData.hexString)")
+            KDBXLog.kdf.debug("KDF Parameters: Invalid '$UUID' key length (expected 16, got \(uuidData.count): \(uuidData.hexString)")
             return nil
         }
 
@@ -150,12 +150,12 @@ extension KDFParameters {
             }
 
             guard let version = Argon2.Version(rawValue: versionRawValue) else {
-                print("KDF Parameters: Unsupported version of Argon2: \(versionRawValue)")
+                KDBXLog.kdf.debug("KDF Parameters: Unsupported version of Argon2: \(versionRawValue)")
                 return nil
             }
 
             if case .v1_0 = version {
-                print("KDF Parameters: Argon2 version 1.0 is not supported: \(versionRawValue)")
+                KDBXLog.kdf.debug("KDF Parameters: Argon2 version 1.0 is not supported: \(versionRawValue)")
                 return nil
             }
 
