@@ -21,10 +21,10 @@ public final class Salsa20: Encryptable & Decryptable {
     public static let blockSize = 64
     private let key: any DataProtocol
     private let nonce: any DataProtocol
-    private var blockCounter: UInt64 = 0
+    private var blockCounter: UInt64
     private var offsetInBlock: Int = 0
 
-    public init(key: any DataProtocol, iv nonce: any DataProtocol) throws {
+    public init(key: any DataProtocol, iv nonce: any DataProtocol, blockCounter: UInt64 = 0) throws {
         guard key.count == 32 else {
             throw NSError(domain: "Salsa20", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid key length"])
         }
@@ -34,6 +34,7 @@ public final class Salsa20: Encryptable & Decryptable {
 
         self.key = key
         self.nonce = nonce
+        self.blockCounter = blockCounter
     }
 
     public func encrypt(_ input: any DataProtocol) -> any DataProtocol {
