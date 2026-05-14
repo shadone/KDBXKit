@@ -7,76 +7,89 @@
 import CryptoKit
 import Foundation
 
-/// Container for the key data needed for unlocking the `.kdbx` content.
+/// Errors raised while turning a user-provided key into a vault unlock key.
+public enum UnlockDataError: Error, Sendable {
+    /// The KDF identified by this UUID isn't implemented by KDBXKit. The
+    /// reader records the UUID from the file's KDF parameters so the caller
+    /// can describe what the file used.
+    case unsupportedKDF(UUID)
+}
+
+/// Container for the key data needed to unlock a `.kdbx` file.
 ///
-/// For some of the cryptographic primitives used in the KDBX file format, a key is required. The keys are computed as follows:
+/// KDBX derives the unlock key in two passes:
 ///
-/// ```
-/// 1. Let R be the SHA-256 hash of the concatenation of the components of the master key that the user has provided (each optional, in the following order):
-///    a. SHA-256 hash of the master password (encoded using UTF-8).
-///    b. Key stored in a key file.
-///    c. Key provided by a key provider plugin.
-///    d. Key protected using the Windows user account (DPAPI).
-/// 2. Let T be the result of transforming R using a key derivation function. The function and parameters for it are stored in the header.
-/// ```
+/// 1. **Pre-hash.** `R = SHA-256(SHA-256(password.utf8) || keyFile)`.
+///    Components are optional: at least one of password or key file must be
+///    provided. (Key-provider plugins and Windows DPAPI keys from the spec
+///    aren't currently supported.)
+/// 2. **KDF.** `T = KDF(R)` where the KDF and its parameters are stored in
+///    the file header. Supported: AES-KDF, Argon2d, Argon2id.
+///
+/// `UnlockData` performs step 1 at init and **discards the cleartext
+/// password buffer immediately**. Swift `String` can't be securely zeroed,
+/// so keeping the password around longer than necessary is a real concern
+/// for a password manager — by storing only the 32-byte pre-hash internally
+/// we shorten the cleartext lifetime to the init call frame.
+///
+/// `UnlockData` is `Sendable`, so it can be passed across actor boundaries
+/// (e.g. from the UI thread to a detached writer task).
 ///
 /// https://keepass.info/help/kb/kdbx.html#keys
-public struct UnlockData {
-    let masterPassword: String?
-    let keyFile: Data?
+public struct UnlockData: Sendable {
+    /// The 32-byte pre-hash R. Combined with the file's KDF salt + parameters
+    /// to produce the unlock key.
+    let keyData: Data
 
+    /// Build an unlock from a master password and an optional key file.
     public init(masterPassword: String, keyFile: Data? = nil) {
-        self.masterPassword = masterPassword
-        self.keyFile = keyFile
+        keyData = Self.makeKeyData(password: masterPassword, keyFile: keyFile)
     }
 
+    /// Build an unlock from a key file alone (no password).
     public init(keyFile: Data) {
-        masterPassword = nil
-        self.keyFile = keyFile
+        keyData = Self.makeKeyData(password: nil, keyFile: keyFile)
     }
 
-    func makeKeyData() -> Data {
-        // Let R be the SHA-256 hash of the concatenation of the components of the master key
-        // that the user has provided (each optional, in the following order):
-        var r = SHA256()
-
-        // 1. SHA-256 hash of the master password (encoded using UTF-8).
-        if let masterPassword {
-            let utf8 = masterPassword.data(using: .utf8)! // Swift.String -> utf8 cannot fail
-            r.update(data: utf8.sha256())
-        }
-
-        // 2. Key stored in a key file.
-        if let keyFile {
-            r.update(data: keyFile)
-        }
-
-        // 3. Key provided by a key provider plugin.
-        // 4. Key protected using the Windows user account (DPAPI).
-
-        return Data(r.finalize())
+    /// Build an unlock from already-derived key data — used by tests and
+    /// integrations that have the SHA-256 pre-hash in hand. Internal because
+    /// public callers should go through the password / key-file initializers.
+    init(rawKeyData: Data) {
+        precondition(rawKeyData.count == 32, "Raw key data must be SHA-256-sized (32 bytes)")
+        keyData = rawKeyData
     }
 
-    func computeUnlockKey(
-        salt _: Data,
-        kdfParameters: KDFParameters
-    ) -> Data {
-        let keydata = makeKeyData()
-
-        // Let T be the result of transforming R using a key derivation function. The function and
-        // parameters for it are stored in the header.
+    /// Run the KDF identified by `kdfParameters` against this unlock's key
+    /// data, producing the 32-byte transformed key `T` from the KDBX spec.
+    /// Throws `UnlockDataError.unsupportedKDF` when the KDF UUID in the file
+    /// isn't one of AES-KDF / Argon2d / Argon2id.
+    func computeUnlockKey(kdfParameters: KDFParameters) throws(UnlockDataError) -> Data {
         switch kdfParameters {
-        case .aes(let params, additional: _):
-            return AESKDF.derive(salt: params.salt, rounds: params.rounds, keydata)
+        case let .aes(params, _):
+            return AESKDF.derive(salt: params.salt, rounds: params.rounds, keyData)
 
-        case .argon2d(let params, additional: _):
-            return Argon2KDF.argon2d(password: keydata, params: params)
+        case let .argon2d(params, _):
+            return Argon2KDF.argon2d(password: keyData, params: params)
 
-        case .argon2id(let params, additional: _):
-            return Argon2KDF.argon2id(password: keydata, params: params)
+        case let .argon2id(params, _):
+            return Argon2KDF.argon2id(password: keyData, params: params)
 
-        case .unknown:
-            fatalError("Internal error: unknown KDF")
+        case let .unknown(uuid):
+            throw .unsupportedKDF(uuid)
         }
+    }
+
+    private static func makeKeyData(password: String?, keyFile: Data?) -> Data {
+        // R = SHA-256( SHA-256(password.utf8) || keyFile )
+        var hasher = SHA256()
+        if let password {
+            // String → UTF-8 cannot fail.
+            let utf8 = password.data(using: .utf8)!
+            hasher.update(data: utf8.sha256())
+        }
+        if let keyFile {
+            hasher.update(data: keyFile)
+        }
+        return Data(hasher.finalize())
     }
 }

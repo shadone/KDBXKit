@@ -100,3 +100,9 @@ xcuserdata/
 **/xcshareddata/WorkspaceSettings.xcsettings
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,vim,xcode,swiftpackagemanager,visualstudiocode
+# Code coverage (swift test --enable-code-coverage)
+*.profraw
+*.profdata
+
+# SwiftPM-generated workspace metadata
+.swiftpm/xcode/package.xcworkspace/

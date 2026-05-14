@@ -142,10 +142,15 @@ public struct KDBXReader: Sendable {
         // MARK: 3. HMAC-SHA256 of the header
 
         // calculate HMAC-SHA256 of the header
-        let unlockKey = unlockData.computeUnlockKey(
-            salt: header.masterSalt,
-            kdfParameters: header.kdfParameters,
-        )
+        let unlockKey: Data
+        do {
+            unlockKey = try unlockData.computeUnlockKey(kdfParameters: header.kdfParameters)
+        } catch {
+            switch error {
+            case let .unsupportedKDF(uuid):
+                throw .unsupported(reason: "Unsupported KDF: \(uuid.uuidString)")
+            }
+        }
 
         let headerKey = HMACProtectedBlockStream.keyForHeader(masterSalt: header.masterSalt, unlockKey: unlockKey)
 

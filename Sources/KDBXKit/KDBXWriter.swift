@@ -162,10 +162,15 @@ public struct KDBXWriter {
 
         // MARK: 3. HMAC-SHA256 of the header
 
-        let unlockKey = unlockData.computeUnlockKey(
-            salt: content.header.masterSalt,
-            kdfParameters: content.header.kdfParameters
-        )
+        let unlockKey: Data
+        do {
+            unlockKey = try unlockData.computeUnlockKey(kdfParameters: content.header.kdfParameters)
+        } catch {
+            switch error {
+            case let .unsupportedKDF(uuid):
+                throw .unknown(reason: "Unsupported KDF: \(uuid.uuidString)")
+            }
+        }
 
         let headerKey = HMACProtectedBlockStream.keyForHeader(
             masterSalt: content.header.masterSalt,
