@@ -129,7 +129,10 @@ public struct KDBXReader: Sendable {
         let headerSHA256 = headerData.sha256()
 
         let headerSHA256FromFile = try readData(length: 32)
-        if headerSHA256 != headerSHA256FromFile {
+        // SHA-256 here is an integrity check — not a secret comparison — so a
+        // short-circuiting `!=` would technically be fine. Using constant-time
+        // anyway so we don't have two compare conventions in the same parser.
+        if !ConstantTime.equals(headerSHA256, headerSHA256FromFile) {
             throw Error.corrupted(reason: "Invalid header SHA256 digest")
         }
 
@@ -156,7 +159,9 @@ public struct KDBXReader: Sendable {
 
         let headerHMACSHA256 = headerData.hmacSha256(key: headerKey)
         let headerHMACSHA256FromFile = try readData(length: 32)
-        if headerHMACSHA256 != headerHMACSHA256FromFile {
+        // HMAC compare *must* be constant-time — leaking how many leading
+        // bytes of an attacker's guess matched is the classic timing oracle.
+        if !ConstantTime.equals(headerHMACSHA256, headerHMACSHA256FromFile) {
             throw Error.invalidUnlockData
         }
 
@@ -192,9 +197,12 @@ public struct KDBXReader: Sendable {
             digest.update(data: block)
             let hmac = Data(digest.finalize())
 
-            if hmac != hmacFromFile {
-                print("Block \(blockIndex) HMAC mismatch: ours \(hmac.hexString), file \(hmacFromFile.hexString)")
-                break
+            if !ConstantTime.equals(hmac, hmacFromFile) {
+                // A mismatched block HMAC means the encrypted stream has been
+                // tampered with (or the file is truncated). Stopping the stream
+                // is the right move; treating this as corruption is more useful
+                // to callers than the previous "print and silently break".
+                throw Error.corrupted(reason: "Block \(blockIndex) HMAC mismatch")
             }
 
             payload.append(block)
