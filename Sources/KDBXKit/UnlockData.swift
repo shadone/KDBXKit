@@ -53,13 +53,30 @@ public struct UnlockData: Sendable {
         keyData = Self.makeKeyData(password: nil, keyFile: keyFile)
     }
 
-    /// Build an unlock from already-derived key data — used by tests and
-    /// integrations that have the SHA-256 pre-hash in hand. Internal because
-    /// public callers should go through the password / key-file initializers.
-    init(rawKeyData: Data) {
+    /// Build an unlock from already-derived key data — the 32-byte
+    /// SHA-256 pre-hash `R` from the KDBX spec.
+    ///
+    /// Use this when restoring an `UnlockData` from a side channel —
+    /// e.g. Keychain-backed biometric unlock — where the caller stored
+    /// the pre-hash on first unlock and is now rehydrating without
+    /// re-prompting for the master password. The pre-hash is not the
+    /// master password, but it does grant the same unlock authority,
+    /// so callers MUST protect it appropriately (Keychain access
+    /// control, biometric gate, etc.).
+    ///
+    /// - Precondition: `rawKeyData.count == 32`.
+    public init(rawKeyData: Data) {
         precondition(rawKeyData.count == 32, "Raw key data must be SHA-256-sized (32 bytes)")
         keyData = SecureBytes(rawKeyData)
     }
+
+    /// Direct read access to the 32-byte pre-hash. Used by callers who
+    /// need to hand the key material to an external secure store (e.g.
+    /// Keychain) — exactly the inverse of `init(rawKeyData:)`.
+    ///
+    /// The returned `SecureBytes` is the live buffer; do not extend its
+    /// lifetime beyond the persistence call.
+    public var keyDataBytes: SecureBytes { keyData }
 
     /// Run the KDF identified by `kdfParameters` against this unlock's key
     /// data, producing the 32-byte transformed key `T` from the KDBX spec.
