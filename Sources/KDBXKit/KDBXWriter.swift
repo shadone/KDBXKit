@@ -225,9 +225,12 @@ public struct KDBXWriter {
 
         case .ChaCha20:
             guard let chaCha20 = try? ChaCha20(key: mainContentKey, iv: content.header.encryptionNonce) else {
-                throw .unknown(reason: "Failed to initialize ChaCha20, invalid decryption key or nonce")
+                throw .unknown(reason: "Failed to initialize ChaCha20, invalid encryption key or nonce")
             }
-            payload = Data(chaCha20.decrypt(payload))
+            // ChaCha20 is a stream cipher; encrypt and decrypt are the same XOR
+            // operation, but call out the direction here for readability — this
+            // is the encryption path.
+            payload = Data(chaCha20.encrypt(payload))
         }
 
         // MARK: 4.e Write HMAC-protected block stream
