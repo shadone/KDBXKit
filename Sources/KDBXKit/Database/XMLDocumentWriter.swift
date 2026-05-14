@@ -340,9 +340,18 @@ struct XMLDocumentWriter {
             // for the XML text node; XMLDocumentWriter takes String anyway.
             bytes.withRevealedString { valueNode.addText($0) }
 
-        case let .unprotected(bytes):
-            // Feed raw bytes straight to the inner-cipher encryptor — no
-            // transient String detour for sensitive data.
+        case .unprotected, .lazyInnerCipher:
+            // Both cases serialize the same way on disk — as base64
+            // `Protected="True"`. For `.unprotected` the bytes are
+            // already plaintext in SecureBytes; for `.lazyInnerCipher`
+            // we have to decrypt with the *reader's* keystream source
+            // and re-encrypt with the writer's fresh `encryptor`,
+            // because the inner key regenerates per write.
+            //
+            // `.bytes` handles both — for `.lazyInnerCipher` it runs
+            // the lazy decrypt and returns a fresh SecureBytes that
+            // zero-deinits as soon as the let binding drops it.
+            let bytes = protectedString.value.bytes
             let encrypted = bytes.withUnsafeBytes { ptr in
                 Data(encryptor.encrypt(Array(ptr.bindMemory(to: UInt8.self))))
             }

@@ -40,6 +40,10 @@ struct Get: ParsableCommand {
                 case let .protectedInMemory(b):
                     value = b.revealedString
                     valueType = "[M]"
+
+                case .lazyInnerCipher:
+                    value = string.value.revealedString
+                    valueType = "[*]"
                 }
 
                 print("\t\(name)\(valueType): \(value)")

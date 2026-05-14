@@ -45,7 +45,7 @@ public extension KDBX.Entry {
                 case .protectedInMemory:
                     results.append(.warning("Entry[\(uuid.uuidString)].Strings[Title] type is ProtectInMemory, recommended to be regular"))
 
-                case .unprotected:
+                case .unprotected, .lazyInnerCipher:
                     results.append(.warning("Entry[\(uuid.uuidString)].Strings[Title] type is Protected, recommended to be regular"))
 
                 case .regular:
@@ -60,8 +60,10 @@ public extension KDBX.Entry {
                 case .protectedInMemory:
                     results.append(.warning("Entry[\(uuid.uuidString)].Strings[Password] type is ProtectInMemory, recommended to be Protected"))
 
-                case .unprotected:
-                    // That's what we want!
+                case .unprotected, .lazyInnerCipher:
+                    // That's what we want — the on-disk form is the
+                    // inner-cipher-encrypted ciphertext, regardless of
+                    // whether we kept it lazy in memory.
                     break
 
                 case .regular:

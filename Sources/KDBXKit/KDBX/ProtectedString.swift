@@ -9,30 +9,59 @@ import Foundation
 public extension KDBX {
     struct ProtectedString: Sendable, Equatable {
         /// The value of a `<Value>` element inside an entry's `<String>`
-        /// node. Three forms exist in the KDBX spec; all of them carry
-        /// secret-shaped bytes from our perspective (passwords, TOTP seeds,
-        /// notes), so the payload is always `SecureBytes` — a page-locked,
-        /// zero-on-deinit wrapper — rather than a `Swift.String` which
-        /// can't be securely zeroed and would persist on the heap until
-        /// ARC collects it.
-        public enum Value: Sendable, Equatable {
+        /// node. Three on-disk forms exist in the KDBX spec; from our
+        /// perspective each one carries secret-shaped bytes (passwords,
+        /// TOTP seeds, notes), so the payload is always either
+        /// `SecureBytes` — a page-locked, zero-on-deinit wrapper — or a
+        /// lazy reference to inner-cipher-encrypted bytes that gets
+        /// decrypted on demand. Either way, no `Swift.String` (which
+        /// can't be securely zeroed) carries the secret.
+        public enum Value: Sendable {
             /// Plaintext in the XML document.
             case regular(SecureBytes)
 
-            /// Was stored encrypted with the inner stream cipher in the XML
-            /// document; here it's the **decrypted** bytes. (The case name
-            /// reflects its in-memory state, not the on-disk state.)
+            /// Was stored encrypted with the inner stream cipher in the
+            /// XML document. The associated bytes are the **decrypted**
+            /// plaintext, materialized eagerly. (Compare `.lazyInnerCipher`,
+            /// which holds the ciphertext + offset and decrypts on demand
+            /// — that's the form `XMLDocumentReader` emits today; this
+            /// one exists so callers can build values from cleartext
+            /// after editing.)
             case unprotected(SecureBytes)
 
             /// Used only in unencrypted XML files (very rare in practice).
             case protectedInMemory(SecureBytes)
 
-            /// Direct read access to the underlying bytes. Use this
-            /// when handing the value to crypto APIs or comparing.
+            /// Inner-cipher ciphertext + the byte offset within the
+            /// inner-stream keystream at which the writer wrote it.
+            /// Decryption is deferred until a caller actually asks for
+            /// the plaintext — so a vault that's been unlocked but
+            /// whose passwords haven't been read leaves only ciphertext
+            /// in memory. A memory dump captures the inner key (in
+            /// `KeystreamSource`) and the ciphertext, but reconstructing
+            /// the plaintext still requires the attacker to do the
+            /// XOR work — and any plaintext that ever was in memory is
+            /// scoped to a `withRevealedString` / `withRevealedBytes`
+            /// call frame.
+            ///
+            /// The reader emits this case for every `Protected="True"`
+            /// node; the writer materializes-then-re-encrypts on save
+            /// because the inner key regenerates per write anyway
+            /// (`KDBXWriter.regenerateSalts: true`).
+            case lazyInnerCipher(ciphertext: Data, offset: Int, source: KeystreamSource)
+
+            /// Decrypted plaintext bytes. For `.lazyInnerCipher`, this
+            /// runs the inner-cipher decryption on every call and returns
+            /// a fresh `SecureBytes` — the returned buffer deinit-zeros
+            /// as soon as the caller drops the last reference, so prefer
+            /// `withRevealedString` / `withRevealedBytes` over holding
+            /// the result.
             public var bytes: SecureBytes {
                 switch self {
                 case let .regular(b), let .unprotected(b), let .protectedInMemory(b):
                     return b
+                case let .lazyInnerCipher(ciphertext, offset, source):
+                    return source.decrypt(ciphertext: ciphertext, at: offset)
                 }
             }
 
@@ -44,6 +73,11 @@ public extension KDBX {
             /// executes (and briefly after — ARC isn't synchronous). This
             /// is unavoidable at the boundary; the goal is to make the
             /// dwell time millisecond-scale rather than session-scale.
+            ///
+            /// For `.lazyInnerCipher` values this fires the inner-cipher
+            /// decryption inside the call — the decrypted `SecureBytes`
+            /// goes out of scope (and zero-deinits) the moment `body`
+            /// returns.
             @discardableResult
             public func withRevealedString<R>(_ body: (String) throws -> R) rethrows -> R {
                 try bytes.withRevealedString(body)
@@ -80,5 +114,15 @@ public extension KDBX {
             self.key = key
             self.value = value
         }
+    }
+}
+
+extension KDBX.ProtectedString.Value: Equatable {
+    /// Two values compare equal when their plaintext byte sequences
+    /// match. Lazy values get decrypted on the spot — the cost is one
+    /// inner-cipher derivation per side. `SecureBytes.==` is
+    /// constant-time across the full byte sequence.
+    public static func == (lhs: KDBX.ProtectedString.Value, rhs: KDBX.ProtectedString.Value) -> Bool {
+        lhs.bytes == rhs.bytes
     }
 }
