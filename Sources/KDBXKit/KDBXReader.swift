@@ -27,17 +27,71 @@ import SwiftGzip
 ///
 /// https://keepass.info/help/kb/kdbx.html
 public struct KDBXReader: Sendable {
-    public enum Error: Swift.Error {
-        /// The provided key data (e.g. master password) does not match.
+    /// Errors thrown by `KDBXReader.parse`.
+    public enum Error: Swift.Error, Sendable {
+        // MARK: - Caller errors
+
+        /// `parse(unlockData: nil)` was used — fine if you only wanted to
+        /// inspect the file header via `reader.header`, but you can't get a
+        /// full `KDBXContent` without credentials.
         ///
-        /// This is triggered early in the parsing, when computing HMAC-SHA256 of the header and comparing it with the one
-        /// stored in the file.
-        case invalidUnlockData
+        /// **Note:** If you want a header-only inspect, prefer
+        /// `KDBXReader.parseHeader(_:)` which doesn't require a try/catch
+        /// dance.
+        case unlockDataRequired
 
-        /// The provided KDBX file is not supported.
-        case unsupported(reason: String)
+        /// The provided key data (password and/or key file) does not match.
+        /// Triggered when the HMAC of the header — computed with the user's
+        /// derived key — disagrees with the HMAC stored in the file.
+        case wrongCredentials
 
-        case corrupted(reason: String)
+        // MARK: - Format/feature support
+
+        /// KDBX file format major.minor version isn't supported by KDBXKit.
+        /// KDBXKit currently supports 4.0 and 4.1.
+        case unsupportedFormatVersion(major: UInt16, minor: UInt16)
+
+        /// The file's encryption algorithm UUID isn't supported. Currently
+        /// supported: AES-256-CBC and ChaCha20.
+        case unsupportedEncryption(UUID)
+
+        /// The file's compression-algorithm code isn't supported. Currently
+        /// supported: `0` (none) and `1` (gzip).
+        case unsupportedCompression(UInt32)
+
+        /// The file's key derivation function UUID isn't supported. Currently
+        /// supported: AES-KDF, Argon2d, Argon2id.
+        case unsupportedKDF(UUID)
+
+        // MARK: - Corruption
+
+        /// File signature bytes don't match the KDBX magic — almost always
+        /// because the input isn't a KDBX file at all.
+        case invalidFileSignature
+
+        /// The file header (cleartext) is structurally invalid.
+        case corruptedHeader(reason: String)
+
+        /// The header's SHA-256 digest stored alongside it doesn't match the
+        /// header we read — suggests on-disk corruption rather than tampering
+        /// (the SHA-256 isn't a MAC).
+        case corruptedHeaderDigest
+
+        /// An HMAC of an encrypted block doesn't match its expected value.
+        /// Indicates the encrypted stream has been tampered with or the file
+        /// is truncated.
+        case corruptedHMAC(reason: String)
+
+        /// The inner header (binary attachment table etc.) is structurally
+        /// invalid after decryption.
+        case corruptedInnerHeader(reason: String)
+
+        /// The decrypted XML payload couldn't be parsed.
+        case corruptedXML(reason: String)
+
+        // MARK: - I/O
+
+        /// Read past the end of the input data.
         case unexpectedEOF
     }
 
@@ -105,15 +159,15 @@ public struct KDBXReader: Sendable {
         } catch {
             switch error {
             case .invalidSignature:
-                throw .corrupted(reason: "Invalid file signature")
+                throw .invalidFileSignature
             case let .unsupportedFormatVersion(major, minor):
-                throw .unsupported(reason: "KDBX format version \(major).\(minor) is not supported")
+                throw .unsupportedFormatVersion(major: major, minor: minor)
             case let .unsupportedCompression(compression):
-                throw .unsupported(reason: "The specified compression algorithm (\(compression)) is not supported")
+                throw .unsupportedCompression(compression)
             case let .unsupportedEncryption(uuid):
-                throw .unsupported(reason: "The specified encryption algorithm (\(uuid.uuidString)) is not supported")
+                throw .unsupportedEncryption(uuid)
             case let .corrupted(reason):
-                throw .corrupted(reason: "Header: \(reason)")
+                throw .corruptedHeader(reason: reason)
             case .unexpectedEOF:
                 throw .unexpectedEOF
             }
@@ -133,13 +187,13 @@ public struct KDBXReader: Sendable {
         // short-circuiting `!=` would technically be fine. Using constant-time
         // anyway so we don't have two compare conventions in the same parser.
         if !ConstantTime.equals(headerSHA256, headerSHA256FromFile) {
-            throw Error.corrupted(reason: "Invalid header SHA256 digest")
+            throw Error.corruptedHeaderDigest
         }
 
         guard let unlockData else {
-            // Shortcircuit early if the master password was not provided, maybe the intention
-            // is to read the header only.
-            throw .invalidUnlockData
+            // Shortcircuit early if no credentials were provided — caller can
+            // still inspect `self.header`.
+            throw .unlockDataRequired
         }
 
         // MARK: 3. HMAC-SHA256 of the header
@@ -151,7 +205,7 @@ public struct KDBXReader: Sendable {
         } catch {
             switch error {
             case let .unsupportedKDF(uuid):
-                throw .unsupported(reason: "Unsupported KDF: \(uuid.uuidString)")
+                throw .unsupportedKDF(uuid)
             }
         }
 
@@ -162,7 +216,7 @@ public struct KDBXReader: Sendable {
         // HMAC compare *must* be constant-time — leaking how many leading
         // bytes of an attacker's guess matched is the classic timing oracle.
         if !ConstantTime.equals(headerHMACSHA256, headerHMACSHA256FromFile) {
-            throw Error.invalidUnlockData
+            throw Error.wrongCredentials
         }
 
         // MARK: 4. Parse HMAC-protected block stream
@@ -202,7 +256,7 @@ public struct KDBXReader: Sendable {
                 // tampered with (or the file is truncated). Stopping the stream
                 // is the right move; treating this as corruption is more useful
                 // to callers than the previous "print and silently break".
-                throw Error.corrupted(reason: "Block \(blockIndex) HMAC mismatch")
+                throw Error.corruptedHMAC(reason: "Block \(blockIndex) HMAC mismatch")
             }
 
             payload.append(block)
@@ -220,7 +274,7 @@ public struct KDBXReader: Sendable {
 
         case .ChaCha20:
             guard let chaCha20 = try? ChaCha20(key: mainContentKey, iv: header.encryptionNonce) else {
-                throw .corrupted(reason: "Failed to initialize ChaCha20, invalid decryption key or nonce")
+                throw .corruptedHeader(reason: "Failed to initialize ChaCha20: invalid key or nonce")
             }
             payload = Data(chaCha20.decrypt(payload))
         }
@@ -236,7 +290,7 @@ public struct KDBXReader: Sendable {
                 let decompressor = GzipDecompressor()
                 payload = try decompressor.unzip(data: payload)
             } catch {
-                throw Error.corrupted(reason: "Failed to decompress: \(error)")
+                throw Error.corruptedXML(reason: "Failed to decompress: \(error)")
             }
         }
 
@@ -251,7 +305,7 @@ public struct KDBXReader: Sendable {
         } catch {
             switch error {
             case let .corrupted(reason):
-                throw Error.corrupted(reason: "Inner header: \(reason)")
+                throw Error.corruptedInnerHeader(reason: reason)
             case .unexpectedEOF:
                 throw Error.unexpectedEOF
             }
@@ -264,7 +318,7 @@ public struct KDBXReader: Sendable {
 
         // The remaining payload is the XML document
         guard let xmlDocument = String(validating: payload, as: UTF8.self) else {
-            throw Error.corrupted(reason: "Failed to parse the XML document as a utf8 string")
+            throw Error.corruptedXML(reason: "Failed to parse the XML document as a utf8 string")
         }
         self.xmlDocument = xmlDocument
 
@@ -278,7 +332,7 @@ public struct KDBXReader: Sendable {
         } catch {
             switch error {
             case let .corrupted(reason):
-                throw .corrupted(reason: "Database: \(reason)")
+                throw .corruptedXML(reason: reason)
             }
         }
 

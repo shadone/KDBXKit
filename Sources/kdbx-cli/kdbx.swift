@@ -28,7 +28,7 @@ enum ReadError: Error, CustomStringConvertible {
 
 enum ReadResult {
     case success(KDBXContent, KDBXReader)
-    /// The master password was given but doesn't match the password used for encryption
+    /// No unlock data was provided, or the master password doesn't match.
     case invalidUnlockData(KDBXReader)
 }
 
@@ -47,23 +47,32 @@ func read(from filepath: String, unlockData: UnlockData?) throws(ReadError) -> R
         return .success(content, kdbxReader)
     } catch {
         switch error {
-        case .invalidUnlockData:
-            if unlockData != nil {
-                // the user provided master password but it doesn't match
-                return .invalidUnlockData(kdbxReader)
-            } else {
-                // the user did not provide master password, so expected failure
-                return .invalidUnlockData(kdbxReader)
-            }
+        case .unlockDataRequired, .wrongCredentials:
+            return .invalidUnlockData(kdbxReader)
 
-        case let .unsupported(reason):
-            throw .unsupported("The specified KDBX file is not supported: \(reason)")
+        case let .unsupportedFormatVersion(major, minor):
+            throw .unsupported("Format version \(major).\(minor) is not supported")
+        case let .unsupportedEncryption(uuid):
+            throw .unsupported("Encryption algorithm \(uuid.uuidString) is not supported")
+        case let .unsupportedCompression(code):
+            throw .unsupported("Compression algorithm \(code) is not supported")
+        case let .unsupportedKDF(uuid):
+            throw .unsupported("KDF \(uuid.uuidString) is not supported")
 
-        case let .corrupted(reason):
-            throw .corrupted("Failed to parse KDBX file: \(reason)")
-
+        case .invalidFileSignature:
+            throw .corrupted("Not a KDBX file (invalid signature)")
+        case let .corruptedHeader(reason):
+            throw .corrupted("Corrupted header: \(reason)")
+        case .corruptedHeaderDigest:
+            throw .corrupted("Corrupted header digest")
+        case let .corruptedHMAC(reason):
+            throw .corrupted("Corrupted HMAC: \(reason)")
+        case let .corruptedInnerHeader(reason):
+            throw .corrupted("Corrupted inner header: \(reason)")
+        case let .corruptedXML(reason):
+            throw .corrupted("Corrupted XML: \(reason)")
         case .unexpectedEOF:
-            throw .corrupted("Failed to parse KDBX file: unexpected end of file")
+            throw .corrupted("Unexpected end of file")
         }
     }
 }
