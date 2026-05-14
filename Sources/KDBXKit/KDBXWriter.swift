@@ -163,7 +163,7 @@ public struct KDBXWriter {
         index blockIndex: UInt64,
         data: Data,
         masterSalt: Data,
-        unlockKey: Data
+        unlockKey: SecureBytes
     ) throws(Error) {
         let blockKey = HMACProtectedBlockStream.keyForBlock(
             at: UInt64(blockIndex),
@@ -223,8 +223,8 @@ public struct KDBXWriter {
 
         // MARK: 3. HMAC-SHA256 of the header
 
-        let unlockKey: Data
-        do {
+        let unlockKey: SecureBytes
+        do throws(UnlockDataError) {
             unlockKey = try unlockData.computeUnlockKey(kdfParameters: preparedContent.header.kdfParameters)
         } catch {
             switch error {
@@ -269,23 +269,33 @@ public struct KDBXWriter {
 
         // MARK: 4.d Encrypt payload
 
-        let mainContentKey = MainKey.make(masterSalt: preparedContent.header.masterSalt, unlockKey: unlockKey)
+        let mainContentKey: SecureBytes = MainKey.make(masterSalt: preparedContent.header.masterSalt, unlockKey: unlockKey)
 
         switch preparedContent.header.encryptionAlgorithm {
         case .AES256CBC:
             do {
-                let AES256CBC = try AES(
-                    key: Array(mainContentKey),
-                    blockMode: CBC(iv: Array(preparedContent.header.encryptionNonce)),
-                    padding: .pkcs7
-                )
-                payload = try Data(AES256CBC.encrypt(Array(payload)))
+                let cipher = try mainContentKey.withUnsafeBytes { keyPtr -> CryptoSwift.AES in
+                    try CryptoSwift.AES(
+                        key: Array(keyPtr.bindMemory(to: UInt8.self)),
+                        blockMode: CBC(iv: Array(preparedContent.header.encryptionNonce)),
+                        padding: .pkcs7
+                    )
+                }
+                payload = try Data(cipher.encrypt(Array(payload)))
             } catch {
                 throw .encryptionFailed(reason: "AES-256-CBC: \(error)")
             }
 
         case .ChaCha20:
-            guard let chaCha20 = try? ChaCha20(key: mainContentKey, iv: preparedContent.header.encryptionNonce) else {
+            let chaCha20: ChaCha20
+            do {
+                chaCha20 = try mainContentKey.withUnsafeBytes { keyPtr in
+                    try ChaCha20(
+                        key: Data(keyPtr.bindMemory(to: UInt8.self)),
+                        iv: preparedContent.header.encryptionNonce
+                    )
+                }
+            } catch {
                 throw .encryptionFailed(reason: "Failed to initialize ChaCha20: invalid key or nonce")
             }
             // ChaCha20 is a stream cipher; encrypt and decrypt are the same XOR

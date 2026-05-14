@@ -37,9 +37,11 @@ public enum UnlockDataError: Error, Sendable {
 ///
 /// https://keepass.info/help/kb/kdbx.html#keys
 public struct UnlockData: Sendable {
-    /// The 32-byte pre-hash R. Combined with the file's KDF salt + parameters
-    /// to produce the unlock key.
-    let keyData: Data
+    /// The 32-byte pre-hash R, held in zero-on-deinit storage. Combined with
+    /// the file's KDF salt + parameters to produce the unlock key. Stored as
+    /// `SecureBytes` rather than `Data` so the buffer is `mlock`'d and the
+    /// bytes are zeroed when the last reference releases.
+    let keyData: SecureBytes
 
     /// Build an unlock from a master password and an optional key file.
     public init(masterPassword: String, keyFile: Data? = nil) {
@@ -56,14 +58,14 @@ public struct UnlockData: Sendable {
     /// public callers should go through the password / key-file initializers.
     init(rawKeyData: Data) {
         precondition(rawKeyData.count == 32, "Raw key data must be SHA-256-sized (32 bytes)")
-        keyData = rawKeyData
+        keyData = SecureBytes(rawKeyData)
     }
 
     /// Run the KDF identified by `kdfParameters` against this unlock's key
     /// data, producing the 32-byte transformed key `T` from the KDBX spec.
     /// Throws `UnlockDataError.unsupportedKDF` when the KDF UUID in the file
     /// isn't one of AES-KDF / Argon2d / Argon2id.
-    func computeUnlockKey(kdfParameters: KDFParameters) throws(UnlockDataError) -> Data {
+    func computeUnlockKey(kdfParameters: KDFParameters) throws(UnlockDataError) -> SecureBytes {
         switch kdfParameters {
         case let .aes(params, _):
             return AESKDF.derive(salt: params.salt, rounds: params.rounds, keyData)
@@ -79,7 +81,7 @@ public struct UnlockData: Sendable {
         }
     }
 
-    private static func makeKeyData(password: String?, keyFile: Data?) -> Data {
+    private static func makeKeyData(password: String?, keyFile: Data?) -> SecureBytes {
         // R = SHA-256( SHA-256(password.utf8) || keyFile )
         var hasher = SHA256()
         if let password {
@@ -90,6 +92,6 @@ public struct UnlockData: Sendable {
         if let keyFile {
             hasher.update(data: keyFile)
         }
-        return Data(hasher.finalize())
+        return SecureBytes(Data(hasher.finalize()))
     }
 }

@@ -90,7 +90,7 @@ struct Info: ParsableCommand {
 
             print("Inner Header:")
             print("\tEncryption Algorithm: \(innerHeader.encryptionAlgorithm)")
-            print("\tEncryption key: \(innerHeader.encryptionKey.hexString)")
+            print("\tEncryption key: \(innerHeader.encryptionKey.toData().hexString)")
             print("\tBinary Content: \(innerHeader.binaryContent.count) elements")
             for (index, element) in innerHeader.binaryContent.enumerated() {
                 print("\t\t\(index): \(element.data.count) bytes" + (element.shouldBeProtected ? " [protected]" : ""))

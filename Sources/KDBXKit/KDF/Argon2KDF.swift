@@ -8,10 +8,17 @@ import argon2
 import Foundation
 
 enum Argon2KDF {
-    static func argon2id(password: Data, params: KDFParameters.Argon2) -> Data {
+    /// Argon2id KDF. Returns `SecureBytes` so the derived key is held in
+    /// zero-on-deinit storage from the moment it's produced.
+    static func argon2id(password: SecureBytes, params: KDFParameters.Argon2) -> SecureBytes {
         let hashLength = 32
         let hashPtr = UnsafeMutablePointer<UInt8>.allocate(capacity: hashLength)
-        defer { hashPtr.deallocate() }
+        defer {
+            // Best-effort zero before deallocate so the allocator doesn't
+            // hand the buffer (with key bytes still in it) to another caller.
+            hashPtr.update(repeating: 0, count: hashLength)
+            hashPtr.deallocate()
+        }
 
         let result = password.withUnsafeBytes { passwordPtr in
             params.salt.withUnsafeBytes { saltPtr in
@@ -32,16 +39,20 @@ enum Argon2KDF {
         let code = Argon2_ErrorCodes(rawValue: result)
         switch code {
         case ARGON2_OK:
-            return Data(bytes: hashPtr, count: hashLength)
+            return SecureBytes(UnsafeBufferPointer(start: hashPtr, count: hashLength))
         default:
             fatalError("Argon2id: error\(code)")
         }
     }
 
-    static func argon2d(password: Data, params: KDFParameters.Argon2) -> Data {
+    /// Argon2d KDF.
+    static func argon2d(password: SecureBytes, params: KDFParameters.Argon2) -> SecureBytes {
         let hashLength = 32
         let hash = UnsafeMutablePointer<UInt8>.allocate(capacity: hashLength)
-        defer { hash.deallocate() }
+        defer {
+            hash.update(repeating: 0, count: hashLength)
+            hash.deallocate()
+        }
 
         let result = password.withUnsafeBytes { passwordPtr in
             params.salt.withUnsafeBytes { saltPtr in
@@ -62,7 +73,7 @@ enum Argon2KDF {
         let code = Argon2_ErrorCodes(rawValue: result)
         switch code {
         case ARGON2_OK:
-            return Data(bytes: hash, count: hashLength)
+            return SecureBytes(UnsafeBufferPointer(start: hash, count: hashLength))
         default:
             fatalError("Argon2id error: \(code)")
         }

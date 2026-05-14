@@ -251,8 +251,8 @@ public struct KDBXReader: Sendable {
         // MARK: 3. HMAC-SHA256 of the header
 
         // calculate HMAC-SHA256 of the header
-        let unlockKey: Data
-        do {
+        let unlockKey: SecureBytes
+        do throws(UnlockDataError) {
             unlockKey = try unlockData.computeUnlockKey(kdfParameters: header.kdfParameters)
         } catch {
             switch error {
@@ -318,15 +318,23 @@ public struct KDBXReader: Sendable {
 
         // MARK: 4.a Decrypt payload
 
-        let mainContentKey = MainKey.make(masterSalt: header.masterSalt, unlockKey: unlockKey)
+        let mainContentKey: SecureBytes = MainKey.make(masterSalt: header.masterSalt, unlockKey: unlockKey)
 
         switch header.encryptionAlgorithm {
         case .AES256CBC:
-            payload = AES256CBC.decrypt(iv: header.encryptionNonce, cipherText: payload, mainContentKey)
+            payload = mainContentKey.withUnsafeBytes { keyPtr in
+                let keyData = Data(keyPtr.bindMemory(to: UInt8.self))
+                return AES256CBC.decrypt(iv: header.encryptionNonce, cipherText: payload, keyData)
+            }
 
         case .ChaCha20:
-            guard let chaCha20 = try? ChaCha20(key: mainContentKey, iv: header.encryptionNonce) else {
-                throw .corruptedHeader(reason: "Failed to initialize ChaCha20: invalid key or nonce")
+            let chaCha20: ChaCha20
+            do {
+                chaCha20 = try mainContentKey.withUnsafeBytes { keyPtr in
+                    try ChaCha20(key: Data(keyPtr.bindMemory(to: UInt8.self)), iv: header.encryptionNonce)
+                }
+            } catch {
+                throw Error.corruptedHeader(reason: "Failed to initialize ChaCha20: invalid key or nonce")
             }
             payload = Data(chaCha20.decrypt(payload))
         }

@@ -48,7 +48,12 @@ public struct InnerHeader: Sendable, Equatable {
     ///
     /// For ChaCha20, the key is 64 bytes.
     /// For Salsa20, the key is 32 bytes.
-    public var encryptionKey: Data
+    ///
+    /// Held as `SecureBytes` (page-locked, zero-on-deinit) — this key
+    /// encrypts every password in the unlocked vault; a process-memory dump
+    /// of just this 32/64-byte value is enough to decrypt every protected
+    /// string in the file.
+    public var encryptionKey: SecureBytes
 
     public struct BinaryContent: Sendable, Equatable {
         /// The flag indicates that the binary content should be protected in the process memory.
@@ -67,11 +72,24 @@ public struct InnerHeader: Sendable, Equatable {
 
     public init(
         encryptionAlgorithm: EncryptionAlgorithm,
-        encryptionKey: Data,
+        encryptionKey: SecureBytes,
         binaryContent: [BinaryContent]
     ) {
         self.encryptionAlgorithm = encryptionAlgorithm
         self.encryptionKey = encryptionKey
         self.binaryContent = binaryContent
+    }
+
+    /// Convenience for callers that have a `Data` in hand (e.g. parsers).
+    public init(
+        encryptionAlgorithm: EncryptionAlgorithm,
+        encryptionKey: Data,
+        binaryContent: [BinaryContent]
+    ) {
+        self.init(
+            encryptionAlgorithm: encryptionAlgorithm,
+            encryptionKey: SecureBytes(encryptionKey),
+            binaryContent: binaryContent
+        )
     }
 }

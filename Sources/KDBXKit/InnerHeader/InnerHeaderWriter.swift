@@ -67,7 +67,12 @@ struct InnerHeaderWriter {
         }
 
         try writeField(.encryptionAlgorithm, value: innerHeader.encryptionAlgorithm.rawValue.toDataLittleEndian())
-        try writeField(.encryptionKey, value: innerHeader.encryptionKey)
+        // SecureBytes → transient Data for the write. The Data is dropped
+        // when this scope exits; the SecureBytes original remains zero-on-deinit.
+        let encryptionKeyData = innerHeader.encryptionKey.withUnsafeBytes { keyPtr in
+            Data(keyPtr.bindMemory(to: UInt8.self))
+        }
+        try writeField(.encryptionKey, value: encryptionKeyData)
 
         for binaryContent in innerHeader.binaryContent {
             try write(InnerHeaderFieldType.binaryContent.rawValue)

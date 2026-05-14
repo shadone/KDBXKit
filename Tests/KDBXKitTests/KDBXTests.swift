@@ -41,7 +41,7 @@ struct KDBXTests {
         #expect(reader.innerHeader == content.innerHeader)
 
         #expect(content.innerHeader.encryptionAlgorithm == .ChaCha20)
-        #expect(content.innerHeader.encryptionKey.hexString == "89b089183e2dc2c220df1e94feef6d658dacf87dbb4e2a1337e5380f25eed8dc72492e6fb9794329d7fc80b0932ad37a4fca03ae7ea2c17b7e829e5256054496")
+        #expect(content.innerHeader.encryptionKey.toData().hexString == "89b089183e2dc2c220df1e94feef6d658dacf87dbb4e2a1337e5380f25eed8dc72492e6fb9794329d7fc80b0932ad37a4fca03ae7ea2c17b7e829e5256054496")
         #expect(content.innerHeader.binaryContent.isEmpty == true)
 
         let xmlDocument = reader.xmlDocument
@@ -83,7 +83,7 @@ struct KDBXTests {
         #expect(reader.innerHeader == content.innerHeader)
 
         #expect(content.innerHeader.encryptionAlgorithm == .ChaCha20)
-        #expect(content.innerHeader.encryptionKey.hexString == "f17626dfb97ba00416955501fb794e34f95da47472985d4916accb3e0853c6b6e1c11a42ab6b3265279bd169c16c4a546968deb54760c0a42bc549120f88b55e")
+        #expect(content.innerHeader.encryptionKey.toData().hexString == "f17626dfb97ba00416955501fb794e34f95da47472985d4916accb3e0853c6b6e1c11a42ab6b3265279bd169c16c4a546968deb54760c0a42bc549120f88b55e")
         #expect(content.innerHeader.binaryContent.isEmpty == true)
 
         let xmlDocument = reader.xmlDocument
@@ -122,7 +122,7 @@ struct KDBXTests {
         #expect(reader.innerHeader == content.innerHeader)
 
         #expect(content.innerHeader.encryptionAlgorithm == .ChaCha20)
-        #expect(content.innerHeader.encryptionKey.hexString == "40b2e668db617d0cd1ed710ec717e4df17ee5f0f3d5abfd06a41b5e8ff4e061308007e8d04a00df48b28184cb141e5564e5b81266a83c4d019cb4a18cfa141d5")
+        #expect(content.innerHeader.encryptionKey.toData().hexString == "40b2e668db617d0cd1ed710ec717e4df17ee5f0f3d5abfd06a41b5e8ff4e061308007e8d04a00df48b28184cb141e5564e5b81266a83c4d019cb4a18cfa141d5")
         #expect(content.innerHeader.binaryContent.isEmpty == true)
 
         let xmlDocument = reader.xmlDocument
@@ -164,7 +164,7 @@ struct KDBXTests {
         #expect(reader.innerHeader == content.innerHeader)
 
         #expect(content.innerHeader.encryptionAlgorithm == .ChaCha20)
-        #expect(content.innerHeader.encryptionKey.hexString == "82e360f53b72fa95c82b32d5129ebe891dd1974f56aeca7221f3ce6ab7b92f4644d0a832501b6eeb05fa2d1bc5a57a532ac3d4954370da171bf558a041ed8c3e")
+        #expect(content.innerHeader.encryptionKey.toData().hexString == "82e360f53b72fa95c82b32d5129ebe891dd1974f56aeca7221f3ce6ab7b92f4644d0a832501b6eeb05fa2d1bc5a57a532ac3d4954370da171bf558a041ed8c3e")
         #expect(content.innerHeader.binaryContent.isEmpty == false)
         #expect(content.innerHeader.binaryContent[0].shouldBeProtected == false)
         #expect(content.innerHeader.binaryContent[0].data == Data(hexString: "466f726d61743430300a"))
