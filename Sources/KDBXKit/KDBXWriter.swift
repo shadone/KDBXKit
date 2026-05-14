@@ -9,28 +9,62 @@ import CryptoSwift
 import Foundation
 import SwiftGzip
 
-/// Parser for the `.kdbx` file format.
+/// Writes a `KDBXContent` to a `.kdbx` byte stream.
 ///
 /// Overview of a KDBX file:
 ///
 /// ```
 ///                                      This class:
-/// 1. Header.                           <<- parses
-/// 2. SHA-256 hash of the header.       <<- validates
-/// 3. HMAC-SHA-256 hash of the header.  <<- validates
-/// 4. In HMAC-protected block stream:   <<- parses
-///    a. Encrypted:                     <<- decrypts
-///       i. Compressed (optional):      <<- decompresses
-///          - Inner header.             <<- parses & returns binary content
-///          - XML document.             <<- returns
+/// 1. Header.                           <<- writes
+/// 2. SHA-256 hash of the header.       <<- writes
+/// 3. HMAC-SHA-256 hash of the header.  <<- writes
+/// 4. In HMAC-protected block stream:   <<- writes
+///    a. Encrypted:                     <<- encrypts
+///       i. Compressed (optional):      <<- compresses
+///          - Inner header.             <<- writes
+///          - XML document.             <<- writes
 /// ```
 ///
 /// https://keepass.info/help/kb/kdbx.html
 public struct KDBXWriter {
-    public enum Error: Swift.Error {
-        case unknown(reason: String)
-        /// When writing to a fixed length stream, there is no place to write.
+    /// Errors raised by `KDBXWriter.write`.
+    public enum Error: Swift.Error, Sendable {
+        // MARK: - I/O
+
+        /// The underlying output stream returned an error during a write.
+        case streamWriteFailed(any Swift.Error)
+
+        /// The output stream was not in the `.open` state when `write()` was
+        /// called. Caller must open the stream first.
+        case streamNotOpen
+
+        /// Buffer exhausted — only meaningful when writing to a fixed-size
+        /// memory stream that can't grow.
         case unexpectedEOF
+
+        // MARK: - Serialization
+
+        /// Producing the cleartext header bytes failed.
+        case headerSerializationFailed(reason: String)
+
+        /// Producing the cleartext inner-header bytes failed.
+        case innerHeaderSerializationFailed(reason: String)
+
+        /// Producing the cleartext XML document failed.
+        case xmlSerializationFailed(reason: String)
+
+        // MARK: - Format/feature support
+
+        /// The KDF UUID in the content header isn't supported by KDBXKit.
+        case unsupportedKDF(UUID)
+
+        // MARK: - Crypto
+
+        /// Encryption of the main payload failed.
+        case encryptionFailed(reason: String)
+
+        /// Compression of the main payload failed.
+        case compressionFailed(reason: String)
     }
 
     let outputStream: OutputStream
@@ -44,10 +78,15 @@ public struct KDBXWriter {
             try outputStream.write(data: data)
         } catch {
             switch error {
-            case let .streamError(error):
-                let description = error?.localizedDescription ?? "nil"
-                throw .unknown(reason: "Write failed: \(description)")
-
+            case let .streamError(streamError):
+                if let streamError {
+                    throw .streamWriteFailed(streamError)
+                } else {
+                    throw .streamWriteFailed(NSError(
+                        domain: "KDBXWriter", code: 1,
+                        userInfo: [NSLocalizedDescriptionKey: "Unknown stream error"]
+                    ))
+                }
             case .unexpectedEOF:
                 throw .unexpectedEOF
             }
@@ -65,12 +104,12 @@ public struct KDBXWriter {
             case .unexpectedEOF:
                 throw .unexpectedEOF
             case let .unknown(reason):
-                throw .unknown(reason: "Failed to write header: \(reason)")
+                throw .headerSerializationFailed(reason: reason)
             }
         }
 
         guard let data = headerOutputStream.property(forKey: .dataWrittenToMemoryStreamKey) as? Data else {
-            fatalError("Failed to get output stream data for Header")
+            throw .headerSerializationFailed(reason: "Memory output stream did not return Data")
         }
 
         return data
@@ -87,12 +126,12 @@ public struct KDBXWriter {
             case .unexpectedEOF:
                 throw .unexpectedEOF
             case let .unknown(reason):
-                throw .unknown(reason: "Failed to write inner header: \(reason)")
+                throw .innerHeaderSerializationFailed(reason: reason)
             }
         }
 
         guard let data = innerHeaderOutputStream.property(forKey: .dataWrittenToMemoryStreamKey) as? Data else {
-            fatalError("Failed to get output stream data for Inner Header")
+            throw .innerHeaderSerializationFailed(reason: "Memory output stream did not return Data")
         }
 
         return data
@@ -109,12 +148,12 @@ public struct KDBXWriter {
             case .unexpectedEOF:
                 throw .unexpectedEOF
             case let .unknown(reason):
-                throw .unknown(reason: "Failed to write header: \(reason)")
+                throw .xmlSerializationFailed(reason: reason)
             }
         }
 
         guard let data = xmlDocumentOutputStream.property(forKey: .dataWrittenToMemoryStreamKey) as? Data else {
-            fatalError("Failed to get output stream data for Header")
+            throw .xmlSerializationFailed(reason: "Memory output stream did not return Data")
         }
 
         return data
@@ -147,7 +186,7 @@ public struct KDBXWriter {
 
     public func write(_ content: KDBXContent, unlockData: UnlockData) throws(Error) {
         guard outputStream.streamStatus == .open else {
-            throw .unknown(reason: "Stream is not ready for writing")
+            throw .streamNotOpen
         }
 
         // MARK: 1. Header
@@ -168,7 +207,7 @@ public struct KDBXWriter {
         } catch {
             switch error {
             case let .unsupportedKDF(uuid):
-                throw .unknown(reason: "Unsupported KDF: \(uuid.uuidString)")
+                throw .unsupportedKDF(uuid)
             }
         }
 
@@ -202,7 +241,7 @@ public struct KDBXWriter {
             do {
                 payload = try GzipCompressor().zip(data: payload)
             } catch {
-                throw Error.unknown(reason: "failed to compress: \(error)")
+                throw .compressionFailed(reason: "\(error)")
             }
         }
 
@@ -220,12 +259,12 @@ public struct KDBXWriter {
                 )
                 payload = try Data(AES256CBC.encrypt(Array(payload)))
             } catch {
-                throw .unknown(reason: "Failed to encrypt main payload: \(error)")
+                throw .encryptionFailed(reason: "AES-256-CBC: \(error)")
             }
 
         case .ChaCha20:
             guard let chaCha20 = try? ChaCha20(key: mainContentKey, iv: content.header.encryptionNonce) else {
-                throw .unknown(reason: "Failed to initialize ChaCha20, invalid encryption key or nonce")
+                throw .encryptionFailed(reason: "Failed to initialize ChaCha20: invalid key or nonce")
             }
             // ChaCha20 is a stream cipher; encrypt and decrypt are the same XOR
             // operation, but call out the direction here for readability — this
