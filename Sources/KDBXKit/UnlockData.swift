@@ -97,7 +97,11 @@ public struct UnlockData: Sendable {
     /// data, producing the 32-byte transformed key `T` from the KDBX spec.
     /// Throws `UnlockDataError.unsupportedKDF` when the KDF UUID in the file
     /// isn't one of AES-KDF / Argon2d / Argon2id.
-    func computeUnlockKey(kdfParameters: KDFParameters) throws(UnlockDataError) -> SecureBytes {
+    ///
+    /// Public so callers can time the same code path the real unlock
+    /// uses — useful for showing an estimated unlock time when the
+    /// user is configuring KDF parameters for a fresh vault.
+    public func computeUnlockKey(kdfParameters: KDFParameters) throws(UnlockDataError) -> SecureBytes {
         switch kdfParameters {
         case let .aes(params, _):
             return AESKDF.derive(salt: params.salt, rounds: params.rounds, keyData)
