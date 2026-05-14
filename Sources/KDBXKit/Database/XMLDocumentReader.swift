@@ -20,6 +20,15 @@ import Nodal
 ///          - Inner header.
 ///          - XML document.             <<- parses XML document
 /// ```
+/// Mutable counter the reader uses to track its position in the inner
+/// cipher keystream during the XML walk. Class-backed so recursive
+/// `parse*` helpers can advance it without each one having to be
+/// `mutating`.
+private final class KeystreamCursor {
+    var position: Int = 0
+    func advance(by count: Int) { position += count }
+}
+
 struct XMLDocumentReader {
     enum Error: Swift.Error {
         case corrupted(reason: String)
@@ -30,11 +39,27 @@ struct XMLDocumentReader {
     var meta = KDBX.Meta()
     var root: KDBX.Root?
 
-    let decryptor: any Decryptable
+    /// Random-access keystream — the reader records each protected
+    /// node's keystream offset instead of decrypting in line.
+    let keystreamSource: KeystreamSource
 
-    init(xmlDocument: String, decryptor: any Decryptable) {
+    /// Running offset into the inner-cipher keystream, boxed in a class
+    /// so the recursive `parse*` walk can advance it without every
+    /// function having to be `mutating`. Advances by `ciphertext.count`
+    /// for each `Protected="True"` node encountered during the walk;
+    /// emitted alongside the ciphertext into a
+    /// `ProtectedString.Value.lazyInnerCipher` so each value can be
+    /// decrypted independently on access.
+    ///
+    /// The writer consumes the keystream linearly in document order,
+    /// so as long as the reader visits protected nodes in the same
+    /// order (entries → strings → history → strings, recursively), the
+    /// recorded offsets line up with what the writer produced.
+    private let cursor = KeystreamCursor()
+
+    init(xmlDocument: String, keystreamSource: KeystreamSource) {
         document = try! Document(string: xmlDocument)
-        self.decryptor = decryptor
+        self.keystreamSource = keystreamSource
     }
 
     // MARK: Parse <datatype> helpers
@@ -766,11 +791,21 @@ struct XMLDocumentReader {
                 guard let data = Data(base64Encoded: rawValue) else {
                     throw .corrupted(reason: "Failed to parse base64 ProtectedData in \(node.fullyQualifiedName)")
                 }
-                let stringData = decryptor.decrypt(data)
-                guard let unprotectedString = String(validating: stringData, as: UTF8.self) else {
-                    throw .corrupted(reason: "Failed to create utf8 string from decrypted value at \(node.fullyQualifiedName)")
-                }
-                value = .unprotected(unprotectedString)
+                // Lazy: record (ciphertext, current offset, shared source).
+                // The plaintext is only materialized when a caller asks
+                // via `.bytes` / `.withRevealedString`. Until then the
+                // entry's password lives in memory as base64-decoded
+                // ciphertext, which is useless without the inner key.
+                value = .lazyInnerCipher(
+                    ciphertext: data,
+                    offset: cursor.position,
+                    source: keystreamSource
+                )
+                // Advance the offset — the writer wrote these N bytes
+                // of keystream linearly when it produced this node, so
+                // the next protected node we encounter starts at this
+                // new offset.
+                cursor.advance(by: data.count)
             } else {
                 value = .unprotected("")
             }

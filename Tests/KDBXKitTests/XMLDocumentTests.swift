@@ -185,7 +185,9 @@ struct XMLDocumentTests {
         let xmlFilepath = Bundle.module.path(forResource: "Resources/database-encrypted-empty", ofType: "xml")!
         let xmlDocument = try String(contentsOfFile: xmlFilepath, encoding: .utf8)
 
-        let reader = XMLDocumentReader(xmlDocument: xmlDocument, decryptor: MockCryptor())
+        // The fixture has no protected strings, so the keystream source's
+        // key/nonce never actually run — a benign InnerHeader is enough.
+        let reader = XMLDocumentReader(xmlDocument: xmlDocument, keystreamSource: Self.mockKeystream())
         let database = try reader.parse()
 
         #expect(database.meta.generator == "KeePassXC")
@@ -194,21 +196,11 @@ struct XMLDocumentTests {
         #expect(database.meta.maintenanceHistoryDays == 365)
     }
 
-    @Test
-    func writeThenReadWithoutInnerEncryption() throws {
-        let outputStream = OutputStream(toMemory: ())
-        outputStream.open()
-        let writer = XMLDocumentWriter(to: outputStream, encryptor: MockCryptor())
-        try writer.write(reference)
-
-        let data = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
-        let xmlDocument = String(validating: data, as: UTF8.self)!
-
-        let reader = XMLDocumentReader(xmlDocument: xmlDocument, decryptor: MockCryptor())
-        let parsed = try reader.parse()
-
-        #expect(parsed == reference)
-    }
+    // Note: a "write then read with MockCryptor (identity)" test used
+    // to live here. After C-7's lazy refactor, the reader always
+    // routes Protected="True" values through a real KeystreamSource,
+    // and there's no useful identity stub — `writeThenReadWithInnerEncryption`
+    // below exercises the same round-trip path with real ChaCha20.
 
     @Test
     func writeThenReadWithInnerEncryption() throws {
@@ -231,10 +223,31 @@ struct XMLDocumentTests {
 
         let reader = XMLDocumentReader(
             xmlDocument: xmlDocument,
-            decryptor: innerHeader.makeDecryptor()
+            keystreamSource: innerHeader.makeKeystreamSource()
         )
         let parsed = try reader.parse()
 
         #expect(parsed == reference)
+    }
+
+    /// Builds a no-op-equivalent `KeystreamSource` for fixtures that
+    /// either have zero protected strings (so the source is never
+    /// invoked) or were written with `MockCryptor` (identity cipher).
+    /// In the second case, the test relies on the reader producing
+    /// `.lazyInnerCipher` values that round-trip through `==` against
+    /// the reference structure — `==` decrypts the lazy values, and
+    /// since the writer didn't actually encrypt, the bytes match the
+    /// reference plaintext.
+    ///
+    /// Caveat: this only works because `MockCryptor` is identity. If a
+    /// future test mixes a real encrypting writer with this mock
+    /// keystream, the reader will hand back gibberish — `==` will
+    /// fail loudly, which is the right outcome.
+    private static func mockKeystream() -> KeystreamSource {
+        KeystreamSource(
+            algorithm: .chacha20,
+            key: SecureBytes(Data(repeating: 0, count: 32)),
+            nonce: Data(repeating: 0, count: 12)
+        )
     }
 }

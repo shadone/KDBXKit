@@ -62,4 +62,53 @@ extension InnerHeader {
     func makeEncryptor() -> any Encryptable {
         makeCryptor()
     }
+
+    /// Produce a `KeystreamSource` carrying the inner-cipher key and
+    /// nonce. Used by the reader to emit `.lazyInnerCipher`
+    /// `ProtectedString.Value`s — same key derivation as
+    /// `makeCryptor()`, but value-typed and Sendable so it can be
+    /// embedded in entries without keeping a stateful cipher alive.
+    func makeKeystreamSource() -> KeystreamSource {
+        encryptionKey.withUnsafeBytes { keyPtr -> KeystreamSource in
+            var rawKey = Data(keyPtr.bindMemory(to: UInt8.self))
+            defer {
+                rawKey.withUnsafeMutableBytes { ptr in
+                    ptr.initializeMemory(as: UInt8.self, repeating: 0)
+                }
+            }
+
+            switch encryptionAlgorithm {
+            case .ChaCha20:
+                // K is 64 bytes. The inner cipher derives:
+                //   H := SHA-512(K)
+                //   key   = H[0..32]
+                //   nonce = H[32..44]
+                guard rawKey.count == 64 else {
+                    fatalError("Invalid inner encryption (ChaCha20) key length: \(rawKey.count)")
+                }
+                let hash = rawKey.sha512()
+                let key = hash.subdata(in: 0..<32)
+                let nonce = hash.subdata(in: 32..<44)
+                return KeystreamSource(
+                    algorithm: .chacha20,
+                    key: SecureBytes(key),
+                    nonce: nonce
+                )
+
+            case .Salsa20:
+                // K is 32 bytes; key = SHA-256(K). Nonce is a fixed
+                // constant from the KDBX spec.
+                guard rawKey.count == 32 else {
+                    fatalError("Invalid inner encryption (Salsa20) key length: \(rawKey.count)")
+                }
+                let key = rawKey.sha256()
+                let nonce = Data([0xE8, 0x30, 0x09, 0x4B, 0x97, 0x20, 0x5D, 0x2A])
+                return KeystreamSource(
+                    algorithm: .salsa20,
+                    key: SecureBytes(key),
+                    nonce: nonce
+                )
+            }
+        }
+    }
 }
