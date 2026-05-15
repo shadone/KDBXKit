@@ -102,7 +102,7 @@ public struct Header: Sendable, Equatable {
     /// (elements `//Meta/CustomData`, `//Group/CustomData` and `//Entry/CustomData`).
     ///
     /// Value type: [`Variant dictionary`](https://keepass.info/help/kb/kdbx.html#vardict).
-    public let publicCustomData: VariantDictionary
+    public var publicCustomData: VariantDictionary
 
     public init(
         formatVersion: FormatVersion,
