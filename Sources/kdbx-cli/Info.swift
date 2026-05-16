@@ -17,9 +17,15 @@ struct Info: ParsableCommand {
         let content: KDBXContent?
         let hasUnlockDataButNotCorrect: Bool
 
-        switch try read(from: commonOptions.filepath, unlockData: commonOptions.unlockData) {
-        case let .invalidUnlockData(kdxReader):
-            kdbx = kdxReader
+        let unlockData = try commonOptions.credentials.resolve(requireUnlock: false)
+        switch try read(from: commonOptions.filepath, unlockData: unlockData) {
+        case let .noCredentials(kdbxReader):
+            kdbx = kdbxReader
+            content = nil
+            hasUnlockDataButNotCorrect = false
+
+        case let .wrongCredentials(kdbxReader):
+            kdbx = kdbxReader
             content = nil
             hasUnlockDataButNotCorrect = true
 

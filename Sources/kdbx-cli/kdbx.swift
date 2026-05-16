@@ -28,8 +28,10 @@ enum ReadError: Error, CustomStringConvertible {
 
 enum ReadResult {
     case success(KDBXContent, KDBXReader)
-    /// No unlock data was provided, or the master password doesn't match.
-    case invalidUnlockData(KDBXReader)
+    /// No unlock data was provided. The header is still inspectable.
+    case noCredentials(KDBXReader)
+    /// Unlock data was provided but doesn't match.
+    case wrongCredentials(KDBXReader)
 }
 
 func read(from filepath: String, unlockData: UnlockData?) throws(ReadError) -> ReadResult {
@@ -47,8 +49,10 @@ func read(from filepath: String, unlockData: UnlockData?) throws(ReadError) -> R
         return .success(content, kdbxReader)
     } catch {
         switch error {
-        case .unlockDataRequired, .wrongCredentials:
-            return .invalidUnlockData(kdbxReader)
+        case .unlockDataRequired:
+            return .noCredentials(kdbxReader)
+        case .wrongCredentials:
+            return .wrongCredentials(kdbxReader)
 
         case let .unsupportedFormatVersion(major, minor):
             throw .unsupported("Format version \(major).\(minor) is not supported")

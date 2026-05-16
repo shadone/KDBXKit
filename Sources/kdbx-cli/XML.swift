@@ -13,8 +13,9 @@ struct XML: ParsableCommand {
     var commonOptions: CommonOptions
 
     mutating func run() throws {
+        let unlockData = try commonOptions.credentials.resolve(requireUnlock: true)
         guard
-            case let .success(_, kdbx) = try read(from: commonOptions.filepath, unlockData: commonOptions.unlockData)
+            case let .success(_, kdbx) = try read(from: commonOptions.filepath, unlockData: unlockData)
         else {
             throw AppError.invalidUnlockData
         }
