@@ -81,6 +81,42 @@ struct KeePassXCInteropTests {
     }
 
     @Test(
+        "Round-trip through KeePassXC preserves comma-tags written as semicolon-tags",
+        .enabled(if: KeePassXCInteropTests.cliAvailable, "KeePassXC CLI not installed")
+    )
+    func ourOutput_preservesTagsAcrossDialects() throws {
+        // kpxc-extras carries `2fa,login,work` (KeePassXC's comma dialect).
+        // Our reader splits on either separator; our writer emits `;`.
+        // The real test: KeePassXC must still find the entry (and round-trip
+        // the tag attribute as it likes) when we hand back `;`-separated.
+        let path = Bundle.module.path(forResource: "Resources/kpxc-extras", ofType: "kdbx")!
+        let data = try Data(contentsOf: URL(filePath: path))
+        let unlock = UnlockData(masterPassword: "test")
+
+        var reader = KDBXReader(data)
+        let content = try reader.parse(unlockData: unlock)
+
+        let outPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kdbxkit-interop-\(UUID().uuidString).kdbx").path
+        defer { try? FileManager.default.removeItem(atPath: outPath) }
+
+        let outputStream = OutputStream(toFileAtPath: outPath, append: false)!
+        outputStream.open()
+        try KDBXWriter(to: outputStream).write(content, unlockData: unlock)
+        outputStream.close()
+
+        let output = try runCLI(["show", outPath, "GitHub"], stdin: "test\n")
+        // KeePassXC's `show` prints the tags line. Our writer emits them
+        // semicolon-separated; KeePassXC accepts either form.
+        #expect(output.contains("Tags:"))
+        #expect(output.contains("2fa"))
+        #expect(output.contains("login"))
+        #expect(output.contains("work"))
+        // Custom string fields also survive the full round-trip.
+        #expect(output.contains("Title: GitHub"))
+    }
+
+    @Test(
         "Our writer's keyfile-protected output is readable by keepassxc-cli",
         .enabled(if: KeePassXCInteropTests.cliAvailable, "KeePassXC CLI not installed")
     )
