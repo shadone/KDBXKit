@@ -40,7 +40,11 @@ public extension KDBXContent {
             settingsChanged: now,
             databaseName: databaseName,
             databaseNameChanged: now,
-            masterKeyChanged: now
+            masterKeyChanged: now,
+            memoryProtection: KDBX.MemoryProtectionConfig(protectPassword: true),
+            recycleBinEnabled: true,
+            recycleBinUUID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
+            recycleBinChanged: now
         )
 
         let database = KDBX(

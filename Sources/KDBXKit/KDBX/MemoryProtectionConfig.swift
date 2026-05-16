@@ -12,5 +12,19 @@ public extension KDBX {
         public var protectPassword: Bool?
         public var protectURL: Bool?
         public var protectNotes: Bool?
+
+        public init(
+            protectTitle: Bool? = nil,
+            protectUserName: Bool? = nil,
+            protectPassword: Bool? = nil,
+            protectURL: Bool? = nil,
+            protectNotes: Bool? = nil
+        ) {
+            self.protectTitle = protectTitle
+            self.protectUserName = protectUserName
+            self.protectPassword = protectPassword
+            self.protectURL = protectURL
+            self.protectNotes = protectNotes
+        }
     }
 }
