@@ -188,7 +188,7 @@ private final class XMLBuildDelegate: NSObject, XMLParserDelegate {
         if hasElementChild {
             closing.children.removeAll { child in
                 child.kind == .text
-                    && child.value.unicodeScalars.allSatisfy(Self.isWhitespace)
+                    && child.value.unicodeScalars.allSatisfy(Node.isXMLWhitespace)
             }
         }
     }
@@ -213,9 +213,5 @@ private final class XMLBuildDelegate: NSObject, XMLParserDelegate {
                 column: parser.columnNumber
             )
         }
-    }
-
-    private static func isWhitespace(_ c: Unicode.Scalar) -> Bool {
-        c == " " || c == "\t" || c == "\n" || c == "\r"
     }
 }

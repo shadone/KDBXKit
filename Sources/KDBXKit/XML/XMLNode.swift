@@ -70,4 +70,12 @@ final class Node {
         child.parent = self
         children.append(child)
     }
+
+    /// XML's S production (§2.3): SPACE | TAB | CR | LF. Matches the
+    /// "ignorable whitespace" the parser already strips between element
+    /// siblings, and is what the serializer uses to decide whether a
+    /// stray text node between elements is just indentation noise.
+    static func isXMLWhitespace(_ c: Unicode.Scalar) -> Bool {
+        c == " " || c == "\t" || c == "\n" || c == "\r"
+    }
 }

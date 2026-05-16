@@ -100,8 +100,9 @@ struct XMLSerializer {
             // Skip stray empty text nodes between elements (parser
             // doesn't generate them, but be defensive).
             if child.kind == .text {
-                let trimmed = child.value.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimmed.isEmpty { continue }
+                if child.value.unicodeScalars.allSatisfy(Node.isXMLWhitespace) {
+                    continue
+                }
                 out.append("\n")
                 out.append(String(repeating: indentation, count: depth + 1))
                 out.append(escapeText(child.value))
