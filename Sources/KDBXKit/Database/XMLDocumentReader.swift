@@ -662,7 +662,10 @@ struct XMLDocumentReader {
             return []
         }
 
-        return stringValue.components(separatedBy: ";")
+        // Trailing/empty segments ("a;", ";;b") produce empty strings via
+        // `components(separatedBy:)` — drop them since an empty tag has no
+        // meaning.
+        return stringValue.components(separatedBy: ";").filter { !$0.isEmpty }
     }
 
     func parseEntry(_ node: Node) throws(Error) -> KDBX.Entry {

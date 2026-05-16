@@ -332,6 +332,45 @@ struct XMLDocumentTests {
         #expect(meta.masterKeyChangeForce == .never)
     }
 
+    // MARK: Tags parsing
+
+    private func parseGroupTagsXML(_ tagsBody: String) throws -> [String] {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <KeePassFile>
+            <Meta/>
+            <Root>
+                <Group>
+                    <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                    <Tags>\(tagsBody)</Tags>
+                </Group>
+            </Root>
+        </KeePassFile>
+        """
+        let reader = XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
+        return try reader.parse().root.group.tags
+    }
+
+    @Test
+    func parser_trailingSemicolonInTags_droppedNotEmpty() throws {
+        #expect(try parseGroupTagsXML("a;") == ["a"])
+    }
+
+    @Test
+    func parser_consecutiveSemicolonsInTags_collapsed() throws {
+        #expect(try parseGroupTagsXML("a;;b") == ["a", "b"])
+    }
+
+    @Test
+    func parser_onlySemicolonsInTags_yieldsEmpty() throws {
+        #expect(try parseGroupTagsXML(";;;") == [])
+    }
+
+    @Test
+    func parser_normalTags_preserved() throws {
+        #expect(try parseGroupTagsXML("one;two;three") == ["one", "two", "three"])
+    }
+
     /// Builds a no-op-equivalent `KeystreamSource` for fixtures that
     /// either have zero protected strings (so the source is never
     /// invoked) or were written with `MockCryptor` (identity cipher).
