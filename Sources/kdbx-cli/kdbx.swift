@@ -82,6 +82,8 @@ func read(
             throw .corrupted("Corrupted inner header: \(reason)")
         case let .corruptedXML(reason):
             throw .corrupted("Corrupted XML: \(reason)")
+        case let .decompressedPayloadTooLarge(limit):
+            throw .corrupted("Decompressed payload exceeds limit (\(limit) bytes)")
         case .unexpectedEOF:
             throw .corrupted("Unexpected end of file")
         }

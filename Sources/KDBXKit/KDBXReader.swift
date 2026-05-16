@@ -89,11 +89,25 @@ public struct KDBXReader: Sendable {
         /// The decrypted XML payload couldn't be parsed.
         case corruptedXML(reason: String)
 
+        /// The compressed payload, after gzip inflation, exceeded
+        /// `KDBXReader.maxDecompressedPayloadSize`. Defensive cap against
+        /// pathological / corrupt files that would otherwise allocate
+        /// unbounded amounts of memory. The HMAC is verified before
+        /// decompression, so this is a robustness signal rather than an
+        /// attack indicator.
+        case decompressedPayloadTooLarge(limit: Int)
+
         // MARK: - I/O
 
         /// Read past the end of the input data.
         case unexpectedEOF
     }
+
+    /// Maximum acceptable size of the gzip-decompressed payload, in bytes.
+    /// Realistic vaults are single-digit MB even with attachments; this is a
+    /// generous defensive ceiling, not a soft limit. Reading a file whose
+    /// decompressed payload exceeds this throws `.decompressedPayloadTooLarge`.
+    public static let maxDecompressedPayloadSize = 256 * 1024 * 1024
 
     let data: Data
     var pos: Data.Index
@@ -197,7 +211,8 @@ public struct KDBXReader: Sendable {
 
     public mutating func parse(
         unlockData: UnlockData?,
-        retainsXMLForDiagnostics: Bool = false
+        retainsXMLForDiagnostics: Bool = false,
+        maxDecompressedPayloadSize: Int = KDBXReader.maxDecompressedPayloadSize
     ) throws(Error) -> KDBXContent {
         let header: Header
         let headerLength: Int
@@ -346,12 +361,20 @@ public struct KDBXReader: Sendable {
             break
 
         case .gzip:
+            // Stream-decompress into a capped buffer so a malformed or
+            // crafted payload that would inflate without bound fails
+            // mid-inflation rather than after the fact.
+            let input = InputStream(data: payload)
+            let output = CappedDataOutputStream(cap: maxDecompressedPayloadSize)
             do {
-                let decompressor = GzipDecompressor()
-                payload = try decompressor.unzip(data: payload)
+                try GzipDecompressor().unzip(inputStream: input, outputStream: output)
             } catch {
+                if output.overflowed {
+                    throw Error.decompressedPayloadTooLarge(limit: maxDecompressedPayloadSize)
+                }
                 throw Error.corruptedXML(reason: "Failed to decompress: \(error)")
             }
+            payload = output.collected
         }
 
         // MARK: 4.a.i.1 Parse Inner Header
