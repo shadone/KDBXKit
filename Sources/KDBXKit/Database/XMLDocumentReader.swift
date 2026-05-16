@@ -100,17 +100,37 @@ struct XMLDocumentReader {
     }
 
     private func parseValueOrNever<T: Sendable & FixedWidthInteger>(_ string: String, node: Node) throws(Error) -> KDBX.ValueOrNever<T> {
-        if string == "-1" {
+        // XSD specifies "-1" as the sentinel, but any negative is treated
+        // as `.never` so a producer writing e.g. "-2" doesn't crash the reader.
+        if let signed = Int64(string), signed < 0 {
             return .never
         }
         return try .value(parseNumber(string, node: node))
     }
 
     private func parseValueOrUnlimited<T: Sendable & FixedWidthInteger>(_ string: String, node: Node) throws(Error) -> KDBX.ValueOrUnlimited<T> {
-        if string == "-1" {
+        // XSD specifies "-1" as the sentinel, but any negative is treated
+        // as `.unlimited` so a producer writing e.g. "-2" doesn't crash the reader.
+        if let signed = Int64(string), signed < 0 {
             return .unlimited
         }
         return try .value(parseNumber(string, node: node))
+    }
+
+    /// Lenient counterpart to `parseNumber` for unsigned XSD fields that
+    /// have no sentinel (`MaintenanceHistoryDays`, `UsageCount`). Returns
+    /// nil instead of throwing on negative or otherwise-unparseable input,
+    /// so a corrupt value drops the field rather than failing the whole load.
+    private func parseLenientUnsigned<T: FixedWidthInteger & UnsignedInteger>(_ string: String, node: Node) -> T? {
+        if let signed = Int64(string), signed < 0 {
+            KDBXLog.parser.debug("Negative value '\(string)' for unsigned field in \(node.fullyQualifiedName); dropping")
+            return nil
+        }
+        guard let value = T(string) else {
+            KDBXLog.parser.debug("Failed to parse \(T.self) '\(string)' in \(node.fullyQualifiedName); dropping")
+            return nil
+        }
+        return value
     }
 
     /// - parameter string: A 128-bit UUID encoded using Base64.
@@ -218,7 +238,7 @@ struct XMLDocumentReader {
 
             case "MaintenanceHistoryDays":
                 if let stringValue = text(in: child) {
-                    meta.maintenanceHistoryDays = try parseNumber(stringValue, node: child)
+                    meta.maintenanceHistoryDays = parseLenientUnsigned(stringValue, node: child)
                 }
 
             case "Color":
@@ -604,7 +624,7 @@ struct XMLDocumentReader {
 
             case "UsageCount":
                 if let stringValue = text(in: child) {
-                    times.usageCount = try parseNumber(stringValue, node: node)
+                    times.usageCount = parseLenientUnsigned(stringValue, node: node)
                 }
 
             case "LocationChanged":

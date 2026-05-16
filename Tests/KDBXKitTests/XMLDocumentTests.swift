@@ -231,6 +231,107 @@ struct XMLDocumentTests {
         #expect(parsed == reference)
     }
 
+    // MARK: Lenient parsing of negative integer fields
+    //
+    // The XSD declares `MaintenanceHistoryDays` and `UsageCount` as
+    // `xs:unsignedInt` / `xs:unsignedLong` (no sentinel), and `HistoryMaxItems` /
+    // `HistoryMaxSize` / `MasterKeyChangeRec` / `MasterKeyChangeForce` as
+    // signed with `-1` meaning "unlimited" / "never". A corrupt producer that
+    // emits some other negative value must not crash the reader.
+
+    private func parseMetaXML(_ metaBody: String) throws -> KDBX.Meta {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <KeePassFile>
+            <Meta>\(metaBody)</Meta>
+            <Root>
+                <Group>
+                    <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                </Group>
+            </Root>
+        </KeePassFile>
+        """
+        let reader = XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
+        return try reader.parse().meta
+    }
+
+    private func parseGroupTimesXML(_ timesBody: String) throws -> KDBX.Times? {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <KeePassFile>
+            <Meta/>
+            <Root>
+                <Group>
+                    <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                    <Times>\(timesBody)</Times>
+                </Group>
+            </Root>
+        </KeePassFile>
+        """
+        let reader = XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
+        return try reader.parse().root.group.times
+    }
+
+    @Test
+    func parser_negativeMaintenanceHistoryDays_dropsField() throws {
+        let meta = try parseMetaXML("<MaintenanceHistoryDays>-5</MaintenanceHistoryDays>")
+        #expect(meta.maintenanceHistoryDays == nil)
+    }
+
+    @Test
+    func parser_garbageMaintenanceHistoryDays_dropsField() throws {
+        let meta = try parseMetaXML("<MaintenanceHistoryDays>abc</MaintenanceHistoryDays>")
+        #expect(meta.maintenanceHistoryDays == nil)
+    }
+
+    @Test
+    func parser_positiveMaintenanceHistoryDays_preserved() throws {
+        let meta = try parseMetaXML("<MaintenanceHistoryDays>365</MaintenanceHistoryDays>")
+        #expect(meta.maintenanceHistoryDays == 365)
+    }
+
+    @Test
+    func parser_negativeUsageCount_dropsField() throws {
+        let times = try parseGroupTimesXML("<UsageCount>-1</UsageCount>")
+        #expect(times?.usageCount == nil)
+    }
+
+    @Test
+    func parser_positiveUsageCount_preserved() throws {
+        let times = try parseGroupTimesXML("<UsageCount>42</UsageCount>")
+        #expect(times?.usageCount == 42)
+    }
+
+    @Test
+    func parser_minusOneHistoryMaxItems_unlimited() throws {
+        let meta = try parseMetaXML("<HistoryMaxItems>-1</HistoryMaxItems>")
+        #expect(meta.historyMaxItems == .unlimited)
+    }
+
+    @Test
+    func parser_otherNegativeHistoryMaxItems_unlimited() throws {
+        let meta = try parseMetaXML("<HistoryMaxItems>-7</HistoryMaxItems>")
+        #expect(meta.historyMaxItems == .unlimited)
+    }
+
+    @Test
+    func parser_otherNegativeHistoryMaxSize_unlimited() throws {
+        let meta = try parseMetaXML("<HistoryMaxSize>-99</HistoryMaxSize>")
+        #expect(meta.historyMaxSize == .unlimited)
+    }
+
+    @Test
+    func parser_otherNegativeMasterKeyChangeRec_never() throws {
+        let meta = try parseMetaXML("<MasterKeyChangeRec>-42</MasterKeyChangeRec>")
+        #expect(meta.masterKeyChangeRec == .never)
+    }
+
+    @Test
+    func parser_minusOneMasterKeyChangeForce_never() throws {
+        let meta = try parseMetaXML("<MasterKeyChangeForce>-1</MasterKeyChangeForce>")
+        #expect(meta.masterKeyChangeForce == .never)
+    }
+
     /// Builds a no-op-equivalent `KeystreamSource` for fixtures that
     /// either have zero protected strings (so the source is never
     /// invoked) or were written with `MockCryptor` (identity cipher).
