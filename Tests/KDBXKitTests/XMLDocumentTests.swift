@@ -332,6 +332,49 @@ struct XMLDocumentTests {
         #expect(meta.masterKeyChangeForce == .never)
     }
 
+    // MARK: Group nesting depth cap
+
+    private func buildNestedGroupsXML(depth: Int) -> String {
+        var openTags = ""
+        var closeTags = ""
+        for _ in 0..<depth {
+            openTags += "<Group><UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>"
+            closeTags = "</Group>" + closeTags
+        }
+        return """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <KeePassFile>
+            <Meta/>
+            <Root>
+                <Group>
+                    <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                    \(openTags)\(closeTags)
+                </Group>
+            </Root>
+        </KeePassFile>
+        """
+    }
+
+    @Test
+    func parser_groupNestingUnderCap_succeeds() throws {
+        // Lower the cap so we can exercise the boundary at depths Nodal
+        // handles trivially. Real production cap is 100.
+        let xml = buildNestedGroupsXML(depth: 5)
+        var reader = XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
+        reader.maxGroupNestingDepth = 10
+        _ = try reader.parse()
+    }
+
+    @Test
+    func parser_groupNestingOverCap_throws() {
+        let xml = buildNestedGroupsXML(depth: 15)
+        var reader = XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
+        reader.maxGroupNestingDepth = 10
+        #expect(throws: XMLDocumentReader.Error.self) {
+            _ = try reader.parse()
+        }
+    }
+
     // MARK: Parser warnings (unknown elements / attributes)
 
     @Test

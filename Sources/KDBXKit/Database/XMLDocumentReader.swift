@@ -546,7 +546,23 @@ struct XMLDocumentReader {
         return customData
     }
 
-    func parseGroup(_ node: Node) throws(Error) -> KDBX.Group {
+    /// Hard cap on nested `<Group>` depth. Bounds stack usage in the
+    /// recursive walk against pathological / crafted inputs. 100 levels of
+    /// nested groups is absurd in any real vault (KeePass's own UI starts to
+    /// struggle past two-digit nesting), so anyone hitting this is either
+    /// corrupt or hostile.
+    ///
+    /// Settable so tests can lower it; production callers use the default.
+    /// Note that the underlying XML parser (Nodal) has its own recursion
+    /// limit which is platform-dependent and likely lower than wide ints —
+    /// in practice a malicious input is more likely to be rejected by the
+    /// XML layer first.
+    var maxGroupNestingDepth = 100
+
+    func parseGroup(_ node: Node, depth: Int = 0) throws(Error) -> KDBX.Group {
+        if depth >= maxGroupNestingDepth {
+            throw .corrupted(reason: "Group nesting exceeds \(maxGroupNestingDepth) levels in \(node.fullyQualifiedName)")
+        }
         var group = KDBX.Group(uuid: UUID(), iconID: 0, tags: [], customData: [], entries: [], groups: [])
 
         for child in node.children {
@@ -610,7 +626,7 @@ struct XMLDocumentReader {
                 group.entries.append(entry)
 
             case "Group":
-                let subGroup = try parseGroup(child)
+                let subGroup = try parseGroup(child, depth: depth + 1)
                 group.groups.append(subGroup)
 
             default:
