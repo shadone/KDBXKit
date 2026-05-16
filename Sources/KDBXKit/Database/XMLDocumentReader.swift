@@ -5,7 +5,6 @@
 //
 
 import Foundation
-import Nodal
 
 /// Overview of a KDBX file:
 ///
@@ -553,10 +552,10 @@ struct XMLDocumentReader {
     /// corrupt or hostile.
     ///
     /// Settable so tests can lower it; production callers use the default.
-    /// Note that the underlying XML parser (Nodal) has its own recursion
-    /// limit which is platform-dependent and likely lower than wide ints —
-    /// in practice a malicious input is more likely to be rejected by the
-    /// XML layer first.
+    /// The XML parser itself is recursive-descent with no explicit cap, so
+    /// a pathologically deep document would blow the thread stack before
+    /// reaching this layer. In practice 100 levels is well under either
+    /// bound and well past anything a real vault produces.
     var maxGroupNestingDepth = 100
 
     func parseGroup(_ node: Node, depth: Int = 0) throws(Error) -> KDBX.Group {

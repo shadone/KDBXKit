@@ -5,7 +5,6 @@
 //
 
 import Foundation
-import Nodal
 
 /// Overview of a KDBX file:
 ///
@@ -485,31 +484,22 @@ struct XMLDocumentWriter {
 
     func write(_ database: KDBX) throws(Error) {
         let document = Document()
-        let rootDocumentNode = document.makeDocumentElement(name: "KeePassFile")
-        guard let xmlDeclaration = document.node.addChild(ofKind: .declaration, at: .first) else {
-            fatalError("Failed to add XML declaration")
-        }
         // `version="1.0"` is mandatory per XML 1.0 §2.8; without it some
         // strict XML parsers (notably KeePassXC's) reject the document and
         // report "No root group" or similar. Our reader is lenient enough
         // to accept the malformed form, which is what hid this for so long.
-        xmlDeclaration.attributes = [
-            (name: "version", value: "1.0"),
-            (name: "encoding", value: "UTF-8"),
-            (name: "standalone", value: "yes"),
-        ]
+        document.declaration = XMLDeclaration(
+            version: "1.0",
+            encoding: "UTF-8",
+            standalone: "yes"
+        )
+        let rootDocumentNode = document.makeDocumentElement(name: "KeePassFile")
 
         let metaNode = rootDocumentNode.addElement("Meta")
         write(database.meta, to: metaNode)
         let rootNode = rootDocumentNode.addElement("Root")
         write(database.root, to: rootNode)
 
-        let data: Data
-        do {
-            data = try document.xmlData(encoding: .utf8, indentation: "\t")
-        } catch {
-            throw .unknown(reason: "Failed to write XML document: \(error)")
-        }
-        try write(data)
+        try write(document.xmlData(indentation: "\t"))
     }
 }

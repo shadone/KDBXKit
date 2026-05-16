@@ -6,7 +6,6 @@
 
 import CryptoKit
 import Foundation
-import Nodal
 
 /// Errors raised while turning a user-provided key into a vault unlock key.
 public enum UnlockDataError: Error, Sendable {

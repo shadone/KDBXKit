@@ -1,5 +1,5 @@
 {
-  "originHash" : "91c1ee4935b3f24d14605ea2d0f78b179d4f5f609604b855dfa83aee8453db60",
+  "originHash" : "e5fd6ae30b7d8355fd639074e2560913aeeea7a8cbd92695f84ac5c26aac676d",
   "pins" : [
     {
       "identity" : "cryptoswift",
@@ -8,15 +8,6 @@
       "state" : {
         "revision" : "729e01bc9b9dab466ac85f21fb9ee2bc1c61b258",
         "version" : "1.8.4"
-      }
-    },
-    {
-      "identity" : "nodal",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/tomasf/Nodal.git",
-      "state" : {
-        "revision" : "763efeebe6bf1c26958dcbb29661a9af45cced52",
-        "version" : "0.3.1"
       }
     },
     {

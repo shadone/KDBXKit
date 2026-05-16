@@ -471,8 +471,8 @@ struct XMLDocumentTests {
 
     @Test
     func parser_groupNestingUnderCap_succeeds() throws {
-        // Lower the cap so we can exercise the boundary at depths Nodal
-        // handles trivially. Real production cap is 100.
+        // Lower the cap so we can exercise the boundary at depths the
+        // XML parser handles trivially. Real production cap is 100.
         let xml = buildNestedGroupsXML(depth: 5)
         var reader = XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
         reader.maxGroupNestingDepth = 10
