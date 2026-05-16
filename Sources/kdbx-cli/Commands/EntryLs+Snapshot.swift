@@ -12,10 +12,14 @@ import KDBXKit
 struct EntryListSnapshot: Encodable {
     let entries: [EntrySnapshot]
 
-    init(content: KDBXContent) {
+    init(content: KDBXContent, showSecrets: Bool) {
         var collected: [EntrySnapshot] = []
         content.database.visitEntries(in: content.database.root.group) { entry in
-            collected.append(EntrySnapshot(entry: entry, innerHeader: content.innerHeader))
+            collected.append(EntrySnapshot(
+                entry: entry,
+                innerHeader: content.innerHeader,
+                showSecrets: showSecrets
+            ))
         }
         entries = collected
     }
@@ -47,9 +51,9 @@ struct EntrySnapshot: Encodable {
     let fields: [FieldSnapshot]
     let binaries: [BinarySnapshot]
 
-    init(entry: KDBX.Entry, innerHeader: InnerHeader) {
+    init(entry: KDBX.Entry, innerHeader: InnerHeader, showSecrets: Bool) {
         uuid = entry.uuid.uuidString
-        fields = entry.strings.map(FieldSnapshot.init)
+        fields = entry.strings.map { FieldSnapshot($0, showSecrets: showSecrets) }
         binaries = entry.binaries.map { binary in
             BinarySnapshot(binary: binary, innerHeader: innerHeader)
         }
@@ -62,27 +66,46 @@ struct FieldSnapshot: Encodable {
         case unprotected
         case protectedInMemory
         case lazyInnerCipher
+
+        /// On-disk protected fields are what `--show-secrets` gates.
+        /// `regular` fields (Title, URL, UserName by convention) are not
+        /// considered secret; KDBX writers stored them plaintext.
+        var isOnDiskProtected: Bool {
+            switch self {
+            case .regular: return false
+            case .unprotected, .protectedInMemory, .lazyInnerCipher: return true
+            }
+        }
     }
 
     let key: String
     let value: String
     let protection: Protection
+    let masked: Bool
 
-    init(_ kv: KDBX.ProtectedString) {
+    init(_ kv: KDBX.ProtectedString, showSecrets: Bool) {
         key = kv.key
+        let rawValue: String
         switch kv.value {
         case let .regular(b):
-            value = b.revealedString
+            rawValue = b.revealedString
             protection = .regular
         case let .unprotected(b):
-            value = b.revealedString
+            rawValue = b.revealedString
             protection = .unprotected
         case let .protectedInMemory(b):
-            value = b.revealedString
+            rawValue = b.revealedString
             protection = .protectedInMemory
         case .lazyInnerCipher:
-            value = kv.value.revealedString
+            rawValue = kv.value.revealedString
             protection = .lazyInnerCipher
+        }
+        if protection.isOnDiskProtected, !showSecrets {
+            value = maskedFieldPlaceholder
+            masked = true
+        } else {
+            value = rawValue
+            masked = false
         }
     }
 

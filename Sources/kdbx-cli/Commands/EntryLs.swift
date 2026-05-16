@@ -21,6 +21,9 @@ extension Entry {
         @OptionGroup()
         var outputOptions: OutputOptions
 
+        @OptionGroup()
+        var secretsOptions: SecretsOptions
+
         mutating func run() throws {
             let unlockData = try commonOptions.credentials.resolve(requireUnlock: true)
             guard
@@ -29,7 +32,10 @@ extension Entry {
                 throw AppError.wrongCredentials
             }
 
-            let snapshot = EntryListSnapshot(content: content)
+            let snapshot = EntryListSnapshot(
+                content: content,
+                showSecrets: secretsOptions.showSecrets
+            )
 
             switch outputOptions.format {
             case .human:
