@@ -77,6 +77,56 @@ struct KeyFileTests {
         #expect(normalized == Data(SHA256.hash(data: blob)))
     }
 
+    @Test("Keyfile normalization: v1 XML keyfile (hex inside <Data>) parses to 32 bytes")
+    func normalize_xmlV1Hex() {
+        let xml = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <KeyFile>
+            <Meta><Version>1.0</Version></Meta>
+            <Key>
+                <Data>000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F</Data>
+            </Key>
+        </KeyFile>
+        """
+        let normalized = UnlockData.normalizeKeyFile(Data(xml.utf8))
+        #expect(normalized == Data((0..<32).map { UInt8($0) }))
+    }
+
+    @Test("Keyfile normalization: v2 XML keyfile (base64 + Hash attribute) parses to 32 bytes")
+    func normalize_xmlV2Base64() {
+        // base64 of bytes 0x00..0x1F:
+        let xml = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <KeyFile>
+            <Meta><Version>2.0</Version></Meta>
+            <Key>
+                <Data Hash="50E03C97">AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=</Data>
+            </Key>
+        </KeyFile>
+        """
+        let normalized = UnlockData.normalizeKeyFile(Data(xml.utf8))
+        #expect(normalized == Data((0..<32).map { UInt8($0) }))
+    }
+
+    @Test("Keyfile normalization: malformed XML keyfile falls through to SHA-256 fallback")
+    func normalize_malformedXMLFallsThrough() {
+        // Looks like XML (has `<KeyFile`) but the Data element is bogus.
+        let xml = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <KeyFile>
+            <Key>
+                <Data>not-valid-hex-or-base64-and-not-32-chars-long</Data>
+            </Key>
+        </KeyFile>
+        """
+        let blob = Data(xml.utf8)
+        let normalized = UnlockData.normalizeKeyFile(blob)
+        // Falls through to SHA-256(file) — a defensive choice rather than
+        // throwing; produces a stable-but-different unlock key for
+        // unrecognized shapes.
+        #expect(normalized == Data(SHA256.hash(data: blob)))
+    }
+
     @Test("Real KeePassXC-generated 128-byte binary keyfile unlocks the matching db")
     func realKeyFileFromKeePassXC() throws {
         // Built via `keepassxc-cli db-edit --set-key-file …` — the CLI

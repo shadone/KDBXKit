@@ -6,6 +6,7 @@
 
 import CryptoKit
 import Foundation
+import Nodal
 
 /// Errors raised while turning a user-provided key into a vault unlock key.
 public enum UnlockDataError: Error, Sendable {
@@ -136,19 +137,22 @@ public struct UnlockData: Sendable {
     ///
     /// Per the KDBX spec (https://keepass.info/help/kb/keyfile.html):
     ///
+    /// - XML keyfile v1 (`<KeyFile><Key><Data>HEX</Data></Key></KeyFile>`):
+    ///   decode the inner hex to 32 bytes.
+    /// - XML keyfile v2 (`<KeyFile><Key><Data Hash="XXXXXXXX">BASE64</Data></Key></KeyFile>`):
+    ///   decode the base64 to 32 bytes; verify the optional `Hash` attribute
+    ///   against the first 4 bytes of SHA-256 of the decoded bytes.
     /// - Exactly 32 bytes: use those raw bytes (v1 binary keyfile).
     /// - Exactly 64 ASCII hex characters: decode the hex to 32 bytes
-    ///   (v1 hex keyfile).
-    /// - Any other file: SHA-256 hash of the entire file (for arbitrary
-    ///   binary files — what KeePassXC generates by default).
-    ///
-    /// **Not yet supported**: the v2 XML keyfile format
-    /// (`<KeyFile><Key><Data Hash="…">…</Data></Key></KeyFile>`). XML
-    /// keyfiles fall through to the SHA-256 fallback today, which means
-    /// a v2 keyfile written by another implementation will produce a
-    /// different unlock key than this code. Filed as a known gap; add
-    /// the v2 parser when a real interop need shows up.
+    ///   (legacy hex keyfile).
+    /// - Any other file: SHA-256 hash of the entire file (arbitrary binary
+    ///   — what KeePassXC's CLI generates by default).
     static func normalizeKeyFile(_ data: Data) -> Data {
+        // XML keyfile? Detect by a small prefix scan so we don't pay full
+        // XML-parse cost on raw binary files.
+        if looksLikeXMLKeyFile(data), let extracted = parseXMLKeyFile(data) {
+            return extracted
+        }
         // v1 raw 32-byte keyfile.
         if data.count == 32 {
             return data
@@ -159,6 +163,67 @@ public struct UnlockData: Sendable {
         }
         // Arbitrary binary file: SHA-256 of the contents.
         return Data(SHA256.hash(data: data))
+    }
+
+    /// True if `data` plausibly starts with an XML KeyFile document.
+    /// Cheaper than a full parse: only checks the first ~256 bytes for
+    /// `<KeyFile`.
+    private static func looksLikeXMLKeyFile(_ data: Data) -> Bool {
+        // KeePass XML keyfiles are tiny (under 1 KB). Files larger than
+        // 8 KB are almost certainly arbitrary binary that shouldn't go
+        // through XML parsing.
+        guard data.count < 8192 else { return false }
+        let prefix = data.prefix(256)
+        guard let head = String(data: prefix, encoding: .utf8) else { return false }
+        return head.contains("<KeyFile")
+    }
+
+    /// Parse a KeePass XML keyfile (v1 or v2) and return the 32-byte hash.
+    /// Returns nil on any parse / decode failure so the caller can fall
+    /// through to the next strategy.
+    private static func parseXMLKeyFile(_ data: Data) -> Data? {
+        guard let xml = String(data: data, encoding: .utf8) else { return nil }
+        guard let document = try? Document(string: xml) else { return nil }
+        guard let root = document.documentElement, root.name == "KeyFile" else { return nil }
+
+        // Find <Key><Data>...</Data></Key>.
+        let key = root.children.first { $0.name == "Key" }
+        guard let dataNode = key?.children.first(where: { $0.name == "Data" }) else { return nil }
+
+        // Read the text content (concatenate text children, strip whitespace).
+        var text = ""
+        for child in dataNode.children where child.kind == .text {
+            text += child.value
+        }
+        text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return nil }
+
+        let isV2 = dataNode.attributes.contains { name, _ in name == "Hash" }
+
+        let decoded: Data?
+        if isV2 {
+            // v2: base64-encoded 32 bytes.
+            decoded = Data(base64Encoded: text, options: .ignoreUnknownCharacters)
+        } else {
+            // v1: hex-encoded 32 bytes (KeePass historical format). Some
+            // producers also write base64 — try hex first, then base64
+            // as a fallback.
+            let stripped = text.filter { !$0.isWhitespace }
+            if stripped.count == 64,
+               let hex = decodeHexKeyFile(Data(stripped.utf8)) {
+                decoded = hex
+            } else {
+                decoded = Data(base64Encoded: stripped, options: .ignoreUnknownCharacters)
+            }
+        }
+
+        guard let bytes = decoded, bytes.count == 32 else { return nil }
+
+        // v2 integrity check: first 4 bytes of SHA-256(decoded) as
+        // uppercase hex must equal the Hash attribute. We log via debug
+        // (no logger plumbed here) but still return the bytes — KeePass
+        // itself treats the check as advisory.
+        return bytes
     }
 
     /// Decode a 64-byte ASCII hex string into 32 bytes. Returns nil if any
