@@ -9,10 +9,12 @@ import ArgumentParser
 struct Attach: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "attach",
-        abstract: "List, extract, and (in P5) add entry attachments.",
+        abstract: "List, extract, add, and remove entry attachments.",
         subcommands: [
             Ls.self,
             Extract.self,
+            Add.self,
+            Rm.self,
         ],
         defaultSubcommand: Ls.self
     )
