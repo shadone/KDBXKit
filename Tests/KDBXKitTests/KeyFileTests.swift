@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
+import CryptoKit
 import Foundation
 import Testing
 @testable import KDBXKit
@@ -35,6 +36,64 @@ struct KeyFileTests {
         let bytes = try writeToMemory(content, unlockData: unlock)
         let reopened = try KDBXReader.parse(bytes, unlockData: unlock)
         #expect(reopened.database.meta.databaseName == "KeyOnly")
+    }
+
+    // MARK: Keyfile normalization (KDBX spec section "Key file")
+    //
+    // The user-provided keyfile bytes are reduced to a 32-byte contribution
+    // before being mixed into the unlock-key derivation:
+    //   - exactly 32 bytes  → use raw
+    //   - exactly 64 hex    → decode hex → 32 bytes
+    //   - anything else     → SHA-256(file)
+    // Until we added this normalization the reader could only round-trip the
+    // first case with other implementations.
+
+    @Test("Keyfile normalization: 32 raw bytes passes through unchanged")
+    func normalize_raw32() {
+        let raw = Data((0..<32).map { UInt8($0) })
+        #expect(UnlockData.normalizeKeyFile(raw) == raw)
+    }
+
+    @Test("Keyfile normalization: 64 ASCII hex decodes to 32 bytes")
+    func normalize_hex64() {
+        // Mixed case hex; expect 0x00..0x1F.
+        let hex = "000102030405060708090a0b0c0d0e0f101112131415161718191A1B1C1D1E1F"
+        let decoded = UnlockData.normalizeKeyFile(Data(hex.utf8))
+        #expect(decoded == Data((0..<32).map { UInt8($0) }))
+    }
+
+    @Test("Keyfile normalization: 64 bytes that aren't valid hex fall back to SHA-256")
+    func normalize_64nonHex() {
+        // 64 bytes of 0xFF — not valid ASCII hex.
+        let blob = Data(repeating: 0xFF, count: 64)
+        let normalized = UnlockData.normalizeKeyFile(blob)
+        #expect(normalized == Data(SHA256.hash(data: blob)))
+    }
+
+    @Test("Keyfile normalization: arbitrary binary file is SHA-256-hashed")
+    func normalize_arbitraryBinary() {
+        let blob = Data((0..<200).map { UInt8($0 & 0xFF) })
+        let normalized = UnlockData.normalizeKeyFile(blob)
+        #expect(normalized == Data(SHA256.hash(data: blob)))
+    }
+
+    @Test("Real KeePassXC-generated 128-byte binary keyfile unlocks the matching db")
+    func realKeyFileFromKeePassXC() throws {
+        // Built via `keepassxc-cli db-edit --set-key-file …` — the CLI
+        // auto-generated a 128-byte binary keyfile (KeePassXC's default
+        // shape). Without normalize-to-32 our reader rejected this as
+        // .wrongCredentials.
+        let dbPath = Bundle.module.path(forResource: "Resources/kpxc-keyfile", ofType: "kdbx")!
+        let kfPath = Bundle.module.path(forResource: "Resources/kpxc-keyfile", ofType: "key")!
+        let data = try Data(contentsOf: URL(filePath: dbPath))
+        let keyFile = try Data(contentsOf: URL(filePath: kfPath))
+        #expect(keyFile.count == 128)
+
+        let content = try KDBXReader.parse(
+            data,
+            unlockData: .init(masterPassword: "123", keyFile: keyFile)
+        )
+        #expect(content.database.meta.databaseName != nil)
     }
 
     @Test("Right password but wrong key file is rejected")

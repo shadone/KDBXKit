@@ -118,7 +118,7 @@ public struct UnlockData: Sendable {
     }
 
     private static func makeKeyData(password: String?, keyFile: Data?) -> SecureBytes {
-        // R = SHA-256( SHA-256(password.utf8) || keyFile )
+        // R = SHA-256( SHA-256(password.utf8) || normalized(keyFile) )
         var hasher = SHA256()
         if let password {
             // String → UTF-8 cannot fail.
@@ -126,8 +126,63 @@ public struct UnlockData: Sendable {
             hasher.update(data: utf8.sha256())
         }
         if let keyFile {
-            hasher.update(data: keyFile)
+            hasher.update(data: normalizeKeyFile(keyFile))
         }
         return SecureBytes(Data(hasher.finalize()))
+    }
+
+    /// Reduce a user-provided key file to the 32-byte contribution that
+    /// feeds into the unlock-key derivation.
+    ///
+    /// Per the KDBX spec (https://keepass.info/help/kb/keyfile.html):
+    ///
+    /// - Exactly 32 bytes: use those raw bytes (v1 binary keyfile).
+    /// - Exactly 64 ASCII hex characters: decode the hex to 32 bytes
+    ///   (v1 hex keyfile).
+    /// - Any other file: SHA-256 hash of the entire file (for arbitrary
+    ///   binary files — what KeePassXC generates by default).
+    ///
+    /// **Not yet supported**: the v2 XML keyfile format
+    /// (`<KeyFile><Key><Data Hash="…">…</Data></Key></KeyFile>`). XML
+    /// keyfiles fall through to the SHA-256 fallback today, which means
+    /// a v2 keyfile written by another implementation will produce a
+    /// different unlock key than this code. Filed as a known gap; add
+    /// the v2 parser when a real interop need shows up.
+    static func normalizeKeyFile(_ data: Data) -> Data {
+        // v1 raw 32-byte keyfile.
+        if data.count == 32 {
+            return data
+        }
+        // v1 hex keyfile (64 ASCII hex chars).
+        if data.count == 64, let decoded = decodeHexKeyFile(data) {
+            return decoded
+        }
+        // Arbitrary binary file: SHA-256 of the contents.
+        return Data(SHA256.hash(data: data))
+    }
+
+    /// Decode a 64-byte ASCII hex string into 32 bytes. Returns nil if any
+    /// byte is not an ASCII hex digit.
+    private static func decodeHexKeyFile(_ data: Data) -> Data? {
+        precondition(data.count == 64)
+        var out = Data(capacity: 32)
+        var i = data.startIndex
+        while i < data.endIndex {
+            guard let hi = hexValue(data[i]), let lo = hexValue(data[i + 1]) else {
+                return nil
+            }
+            out.append(UInt8(hi << 4 | lo))
+            i = i.advanced(by: 2)
+        }
+        return out
+    }
+
+    private static func hexValue(_ b: UInt8) -> UInt8? {
+        switch b {
+        case 0x30...0x39: return b - 0x30                  // '0'-'9'
+        case 0x41...0x46: return b - 0x41 + 10             // 'A'-'F'
+        case 0x61...0x66: return b - 0x61 + 10             // 'a'-'f'
+        default: return nil
+        }
     }
 }
