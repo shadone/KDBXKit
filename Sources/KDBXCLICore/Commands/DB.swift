@@ -19,6 +19,7 @@ struct DB: ParsableCommand {
             SetCipher.self,
             SetCompression.self,
             Create.self,
+            EmptyRecycleBin.self,
         ],
         defaultSubcommand: Info.self
     )
