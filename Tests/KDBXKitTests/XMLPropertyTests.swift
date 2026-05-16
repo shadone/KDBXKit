@@ -63,6 +63,11 @@ struct XMLPropertyTests {
             let bytes1 = doc1.xmlData(indentation: "\t")
 
             let reparsed = try Document(string: String(data: bytes1, encoding: .utf8) ?? "")
+            // Foundation's parser doesn't surface the XML declaration
+            // through its delegate API, so a re-parsed Document has
+            // declaration == nil and would serialize without a prolog.
+            // Re-set it to match the original — KDBXWriter does the same
+            // unconditionally before every write.
             reparsed.declaration = XMLDeclaration()
             let bytes2 = reparsed.xmlData(indentation: "\t")
 
