@@ -13,6 +13,9 @@ struct Group: ParsableCommand {
         subcommands: [
             Ls.self,
             Tree.self,
+            Add.self,
+            Rm.self,
+            Mv.self,
         ],
         defaultSubcommand: Ls.self
     )
