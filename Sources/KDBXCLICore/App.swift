@@ -6,11 +6,12 @@
 
 import ArgumentParser
 import Foundation
-import KDBXKit
 
-@main
-struct App: ParsableCommand {
-    static let configuration = CommandConfiguration(
+/// Root `kdbx` command. Public so the thin executable wrapper (and tests)
+/// can dispatch into it. The `@main` annotation lives on the executable
+/// target's `main.swift`, not on this type.
+public struct App: ParsableCommand {
+    public static let configuration = CommandConfiguration(
         commandName: "kdbx",
         abstract: "A command-line tool to work with KeePass databases.",
         version: "0.1.0",
@@ -21,4 +22,6 @@ struct App: ParsableCommand {
             Attach.self,
         ]
     )
+
+    public init() {}
 }

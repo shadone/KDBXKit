@@ -30,9 +30,29 @@ let package = Package(
         .executableTarget(
             name: "kdbx-cli",
             dependencies: [
+                "KDBXCLICore",
+            ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+                .enableUpcomingFeature("StrictConcurrency"),
+                .interoperabilityMode(.Cxx),
+            ],
+        ),
+        .target(
+            name: "KDBXCLICore",
+            dependencies: [
                 "KDBXKit",
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+                .enableUpcomingFeature("StrictConcurrency"),
+                .interoperabilityMode(.Cxx),
+            ],
+        ),
+        .testTarget(
+            name: "KDBXCLICoreTests",
+            dependencies: ["KDBXCLICore", "KDBXKit"],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
                 .enableUpcomingFeature("StrictConcurrency"),
