@@ -10,5 +10,10 @@ public extension KDBX {
     struct DeletedObject: Sendable, Equatable {
         public let uuid: UUID
         public let deletionTime: Date
+
+        public init(uuid: UUID, deletionTime: Date) {
+            self.uuid = uuid
+            self.deletionTime = deletionTime
+        }
     }
 }
