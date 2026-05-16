@@ -12,16 +12,28 @@ import KDBXKit
 struct EntryListSnapshot: Encodable {
     let entries: [EntrySnapshot]
 
-    init(content: KDBXContent, showSecrets: Bool) {
+    init(
+        rootGroup: KDBX.Group,
+        innerHeader: InnerHeader,
+        predicates: [EntryFilterPredicate],
+        showSecrets: Bool
+    ) {
         var collected: [EntrySnapshot] = []
-        content.database.visitEntries(in: content.database.root.group) { entry in
-            collected.append(EntrySnapshot(
-                entry: entry,
-                innerHeader: content.innerHeader,
-                showSecrets: showSecrets
-            ))
+        Self.visit(group: rootGroup) { entry in
+            if predicates.allSatisfy({ $0.matches(entry) }) {
+                collected.append(EntrySnapshot(
+                    entry: entry,
+                    innerHeader: innerHeader,
+                    showSecrets: showSecrets
+                ))
+            }
         }
         entries = collected
+    }
+
+    private static func visit(group: KDBX.Group, _ visitor: (KDBX.Entry) -> Void) {
+        for entry in group.entries { visitor(entry) }
+        for child in group.groups { visit(group: child, visitor) }
     }
 
     func printHuman() {
