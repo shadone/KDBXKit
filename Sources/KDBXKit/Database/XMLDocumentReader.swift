@@ -707,10 +707,17 @@ struct XMLDocumentReader {
             return []
         }
 
+        // The KDBX 4.1 XSD documents `;` as the tag separator, but
+        // KeePassXC writes tags comma-separated and KeePass 2 (.NET)
+        // accepts both `;` and `,` on input. Split on either so we
+        // round-trip with both clients.
+        //
         // Trailing/empty segments ("a;", ";;b") produce empty strings via
-        // `components(separatedBy:)` — drop them since an empty tag has no
-        // meaning.
-        return stringValue.components(separatedBy: ";").filter { !$0.isEmpty }
+        // `components(separatedBy:)` — drop them since an empty tag has
+        // no meaning.
+        return stringValue
+            .components(separatedBy: CharacterSet(charactersIn: ";,"))
+            .filter { !$0.isEmpty }
     }
 
     func parseEntry(_ node: Node) throws(Error) -> KDBX.Entry {

@@ -596,6 +596,18 @@ struct XMLDocumentTests {
         #expect(try parseGroupTagsXML("one;two;three") == ["one", "two", "three"])
     }
 
+    @Test
+    func parser_commaSeparatedTags_split() throws {
+        // KeePassXC emits comma-separated tags, not semicolon-separated.
+        #expect(try parseGroupTagsXML("2fa,login,work") == ["2fa", "login", "work"])
+    }
+
+    @Test
+    func parser_mixedSeparatorTags_split() throws {
+        // KeePass 2 (.NET) accepts both `;` and `,` on input — be lenient.
+        #expect(try parseGroupTagsXML("a;b,c;d") == ["a", "b", "c", "d"])
+    }
+
     /// Builds a no-op-equivalent `KeystreamSource` for fixtures that
     /// either have zero protected strings (so the source is never
     /// invoked) or were written with `MockCryptor` (identity cipher).
