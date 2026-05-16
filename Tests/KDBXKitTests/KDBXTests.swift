@@ -401,6 +401,32 @@ struct KDBXTests {
         return nil
     }
 
+    @Test("KeePassXC-extras fixture: read → write → read round-trip is stable")
+    func kpxcExtras_roundTrip() throws {
+        // Round-tripping kpxc-extras additionally exercises an
+        // edge case the rich fixture doesn't: a 0-byte inner-header
+        // binary entry (KeePassXC's import dropped the attachment
+        // contents but kept the placeholder). Our writer must
+        // preserve the empty placeholder so binary `Ref` indices on
+        // the consuming side stay valid.
+        let path = Bundle.module.path(forResource: "Resources/kpxc-extras", ofType: "kdbx")!
+        let referenceData = try Data(contentsOf: URL(filePath: path))
+        let unlock = UnlockData(masterPassword: "test")
+
+        var firstReader = KDBXReader(referenceData)
+        let firstParse = try firstReader.parse(unlockData: unlock)
+
+        let outputStream = OutputStream(toMemory: ())
+        outputStream.open()
+        try KDBXWriter(to: outputStream).write(firstParse, unlockData: unlock, regenerateSalts: false)
+        let writtenData = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
+
+        var secondReader = KDBXReader(writtenData)
+        let secondParse = try secondReader.parse(unlockData: unlock)
+
+        #expect(secondParse == firstParse)
+    }
+
     @Test("KeePassXC-rich fixture: read → write → read round-trip is stable")
     func kpxcRich_roundTrip() throws {
         let path = Bundle.module.path(forResource: "Resources/kpxc-rich", ofType: "kdbx")!
