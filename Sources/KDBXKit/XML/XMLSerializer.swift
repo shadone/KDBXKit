@@ -121,6 +121,11 @@ struct XMLSerializer {
     /// We escape `&`, `<`, `>`. `>` isn't strictly required raw except inside
     /// `]]>`, but escaping it everywhere matches what most XML emitters do
     /// and keeps the output safe under any parser.
+    ///
+    /// `\r` is escaped as `&#13;` because XML 1.0 §2.11 line-end
+    /// normalization would otherwise rewrite a raw CR to LF on parse,
+    /// silently corrupting any KDBX field that legitimately contains a
+    /// carriage return.
     private func escapeText(_ s: String) -> String {
         var result = ""
         result.reserveCapacity(s.utf8.count)
@@ -129,6 +134,7 @@ struct XMLSerializer {
             case "&": result.append("&amp;")
             case "<": result.append("&lt;")
             case ">": result.append("&gt;")
+            case "\r": result.append("&#13;")
             default: result.unicodeScalars.append(scalar)
             }
         }

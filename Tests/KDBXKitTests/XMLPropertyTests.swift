@@ -153,6 +153,11 @@ struct XMLPropertyTests {
             "unicode ñ æ 中 🎉",
             "embedded\ttab",
             "embedded\nnewline",
+            // CR exercises XML 1.0 §2.11 line-end normalization: a raw
+            // 0x0D would be silently rewritten to 0x0A on parse unless
+            // the serializer escapes it as `&#13;`.
+            "embedded\rcarriage",
+            "windows\r\nline-ending",
         ]
 
         let name = names.randomElement(using: &rng)!
