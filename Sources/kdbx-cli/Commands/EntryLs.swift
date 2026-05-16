@@ -18,6 +18,9 @@ extension Entry {
         @OptionGroup()
         var commonOptions: CommonOptions
 
+        @OptionGroup()
+        var outputOptions: OutputOptions
+
         mutating func run() throws {
             let unlockData = try commonOptions.credentials.resolve(requireUnlock: true)
             guard
@@ -26,49 +29,13 @@ extension Entry {
                 throw AppError.wrongCredentials
             }
 
-            content.database.visitEntries(in: content.database.root.group) { entry in
-                print("")
-                print("Entry: \(entry.uuid)")
+            let snapshot = EntryListSnapshot(content: content)
 
-                for string in entry.strings {
-                    let name = string.key
-                    let value: String
-                    let valueType: String
-
-                    switch string.value {
-                    case let .unprotected(b):
-                        value = b.revealedString
-                        valueType = "[*]"
-
-                    case let .regular(b):
-                        value = b.revealedString
-                        valueType = ""
-
-                    case let .protectedInMemory(b):
-                        value = b.revealedString
-                        valueType = "[M]"
-
-                    case .lazyInnerCipher:
-                        value = string.value.revealedString
-                        valueType = "[*]"
-                    }
-
-                    print("\t\(name)\(valueType): \(value)")
-                }
-
-                if !entry.binaries.isEmpty {
-                    print("\tBinaries:")
-                    for binary in entry.binaries {
-                        let name = binary.key
-                        switch binary.value {
-                        case let .inline(data):
-                            print("\t\t\(name): \(data.count) bytes")
-                        case let .ref(ref):
-                            let data = content.innerHeader.binaryContent[Int(ref)].data
-                            print("\t\t\(name): ref=\(ref): \(data.count) bytes")
-                        }
-                    }
-                }
+            switch outputOptions.format {
+            case .human:
+                snapshot.printHuman()
+            case .json:
+                try printJSON(snapshot)
             }
         }
     }
