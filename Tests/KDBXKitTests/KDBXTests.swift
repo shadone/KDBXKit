@@ -206,6 +206,10 @@ struct KDBXTests {
             (file: "Resources/simple-argon2d-aes256", password: "123"),
             (file: "Resources/simple-argon2id-aes256", password: "123"),
             (file: "Resources/Format400", password: "t"),
+            // KeePassXC 2.7.10-written fixture with groups, nested groups,
+            // unicode/emoji in fields, edit history, and a binary attachment
+            // — built via keepassxc-cli on top of simple-argon2id-aes256.
+            (file: "Resources/kpxc-rich", password: "123"),
         ]
     )
     func fixturesProduceNoParserWarnings(fixture: (file: String, password: String)) async throws {
@@ -222,6 +226,76 @@ struct KDBXTests {
             content.parserWarnings.isEmpty,
             "Unexpected parser warnings on \(fixture.file).kdbx: \(content.parserWarnings)"
         )
+    }
+
+    @Test("KeePassXC-rich fixture: structural content survives parse")
+    func kpxcRich_structuralExpectations() throws {
+        // Generated via keepassxc-cli (KeePassXC 2.7.10) on top of the
+        // simple-argon2id-aes256 fixture. Covers groups, nested groups,
+        // unicode/emoji in title + notes + username + password, edit history,
+        // and a binary attachment routed via the KDBX 4 inner header.
+        let path = Bundle.module.path(forResource: "Resources/kpxc-rich", ofType: "kdbx")!
+        let data = try Data(contentsOf: URL(filePath: path))
+        let content = try KDBXReader.parse(data, unlockData: .init(masterPassword: "123"))
+        let root = content.database.root.group
+
+        // Top-level entries: GitHub + Unicode.
+        let topLevelTitles = root.entries.compactMap { entry in
+            entry.strings.first(where: { $0.key == "Title" })?.value.bytes.withRevealedString { $0 }
+        }
+        #expect(topLevelTitles.contains("GitHub"))
+        #expect(topLevelTitles.contains("Unicode 测试 🌍"))
+
+        // Nested group: Work → Servers → Prod entry.
+        let work = root.groups.first { $0.name == "Work" }
+        let servers = work?.groups.first { $0.name == "Servers" }
+        let prod = servers?.entries.first
+        let prodTitle = prod?.strings.first(where: { $0.key == "Title" })?.value.bytes.withRevealedString { $0 }
+        #expect(prodTitle == "Prod")
+
+        // GitHub: two edits ⇒ at least two history records, plus an attachment.
+        let github = root.entries.first { entry in
+            entry.strings.first(where: { $0.key == "Title" })?.value.bytes.withRevealedString { $0 } == "GitHub"
+        }
+        #expect((github?.history.count ?? 0) >= 2)
+        #expect(github?.binaries.contains { $0.key == "notes.txt" } == true)
+
+        // Unicode survives: title, username, notes.
+        let unicode = root.entries.first { entry in
+            entry.strings.first(where: { $0.key == "Title" })?.value.bytes.withRevealedString { $0 } == "Unicode 测试 🌍"
+        }
+        let unicodeUserName = unicode?.strings.first(where: { $0.key == "UserName" })?.value.bytes.withRevealedString { $0 }
+        let unicodeNotes = unicode?.strings.first(where: { $0.key == "Notes" })?.value.bytes.withRevealedString { $0 }
+        #expect(unicodeUserName == "用户")
+        #expect(unicodeNotes == "汉字 + 🌸 + ñ")
+
+        // No silent drops.
+        #expect(content.parserWarnings.isEmpty)
+    }
+
+    @Test("KeePassXC-rich fixture: read → write → read round-trip is stable")
+    func kpxcRich_roundTrip() throws {
+        let path = Bundle.module.path(forResource: "Resources/kpxc-rich", ofType: "kdbx")!
+        let referenceData = try Data(contentsOf: URL(filePath: path))
+        let unlock = UnlockData(masterPassword: "123")
+
+        var firstReader = KDBXReader(referenceData)
+        let firstParse = try firstReader.parse(unlockData: unlock)
+
+        let outputStream = OutputStream(toMemory: ())
+        outputStream.open()
+        // Pin salts so the header stays byte-identical; we're testing data
+        // preservation through write+read, not salt regeneration.
+        try KDBXWriter(to: outputStream).write(firstParse, unlockData: unlock, regenerateSalts: false)
+        let writtenData = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
+
+        var secondReader = KDBXReader(writtenData)
+        let secondParse = try secondReader.parse(unlockData: unlock)
+
+        // Equality covers Meta + Root + Entries (with protected values
+        // compared via decryption), so this catches any field we silently
+        // drop or mangle through the writer.
+        #expect(secondParse == firstParse)
     }
 
     @Test
