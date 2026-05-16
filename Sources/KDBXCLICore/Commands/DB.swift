@@ -14,6 +14,7 @@ struct DB: ParsableCommand {
             Info.self,
             XML.self,
             Validate.self,
+            Rekey.self,
         ],
         defaultSubcommand: Info.self
     )
