@@ -175,8 +175,3 @@ struct EmptyRecycleBinResult: Encodable {
     }
 }
 
-private extension UUID {
-    var isZeroUUID: Bool {
-        self == UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
-    }
-}
