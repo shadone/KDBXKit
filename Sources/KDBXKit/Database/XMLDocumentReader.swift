@@ -196,15 +196,15 @@ struct XMLDocumentReader {
     // MARK: Public API
 
     func parse() throws(Error) -> KDBX {
-        guard let documentElement = document.documentElement else {
-            throw .corrupted(reason: "Missig root element")
+        guard let rootElement = document.root else {
+            throw .corrupted(reason: "Missing root element")
         }
 
-        guard documentElement.name == "KeePassFile" else {
-            throw .corrupted(reason: "Invalid root element: \(documentElement.name)")
+        guard rootElement.name == "KeePassFile" else {
+            throw .corrupted(reason: "Invalid root element: \(rootElement.name)")
         }
 
-        let (meta, root) = try parseKeepassFile(documentElement)
+        let (meta, root) = try parseKeepassFile(rootElement)
         return .init(meta: meta, root: root)
     }
 

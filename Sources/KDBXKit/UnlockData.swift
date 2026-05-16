@@ -183,7 +183,7 @@ public struct UnlockData: Sendable {
     private static func parseXMLKeyFile(_ data: Data) -> Data? {
         guard let xml = String(data: data, encoding: .utf8) else { return nil }
         guard let document = try? Document(string: xml) else { return nil }
-        guard let root = document.documentElement, root.name == "KeyFile" else { return nil }
+        guard let root = document.root, root.name == "KeyFile" else { return nil }
 
         // Find <Key><Data>...</Data></Key>.
         let key = root.children.first { $0.name == "Key" }

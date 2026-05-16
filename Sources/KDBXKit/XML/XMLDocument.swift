@@ -59,8 +59,6 @@ final class Document {
         try parse(data: data)
     }
 
-    var documentElement: Node? { root }
-
     @discardableResult
     func makeDocumentElement(name: String) -> Node {
         let element = Node.element(name: name)
