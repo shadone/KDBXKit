@@ -332,6 +332,31 @@ struct XMLDocumentTests {
         #expect(meta.masterKeyChangeForce == .never)
     }
 
+    // MARK: XML declaration well-formedness
+
+    @Test("Writer emits a valid XML 1.0 declaration (version=, encoding=, standalone=)")
+    func writer_emitsValidXMLDeclaration() throws {
+        // KeePassXC's strict XML parser rejects declarations missing the
+        // mandatory `version="1.0"` attribute with "No root group". Pin the
+        // exact triple so a future writer refactor can't drift back.
+        let inner = InnerHeader(
+            encryptionAlgorithm: .ChaCha20,
+            encryptionKey: Data(hexString: "584f97811553076c32b4ca004c19b77421280b5e596dd0f735c8d30e3063556c76b8cc3e63aed982e6fba693c6bbf21371db2c5e0d569e61e0655f59694093d8")!,
+            binaryContent: []
+        )
+        let outputStream = OutputStream(toMemory: ())
+        outputStream.open()
+        let writer = XMLDocumentWriter(to: outputStream, encryptor: inner.makeEncryptor())
+        try writer.write(reference)
+        let data = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
+        let xml = String(validating: data, as: UTF8.self)!
+        let header = xml.split(separator: "\n").first.map(String.init) ?? ""
+        #expect(header.contains("<?xml"))
+        #expect(header.contains(#"version="1.0""#))
+        #expect(header.contains(#"encoding="UTF-8""#))
+        #expect(header.contains(#"standalone="yes""#))
+    }
+
     // MARK: AutoType Association — empty fields tolerated
 
     private func parseAutoTypeAssociationXML(window: String, keystrokeSequence: String) throws -> KDBX.AutoType.Association? {

@@ -489,7 +489,12 @@ struct XMLDocumentWriter {
         guard let xmlDeclaration = document.node.addChild(ofKind: .declaration, at: .first) else {
             fatalError("Failed to add XML declaration")
         }
+        // `version="1.0"` is mandatory per XML 1.0 §2.8; without it some
+        // strict XML parsers (notably KeePassXC's) reject the document and
+        // report "No root group" or similar. Our reader is lenient enough
+        // to accept the malformed form, which is what hid this for so long.
         xmlDeclaration.attributes = [
+            (name: "version", value: "1.0"),
             (name: "encoding", value: "UTF-8"),
             (name: "standalone", value: "yes"),
         ]

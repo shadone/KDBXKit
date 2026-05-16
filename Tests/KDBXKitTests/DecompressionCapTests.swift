@@ -62,7 +62,7 @@ struct DecompressionCapTests {
         do {
             _ = try reader.parse(unlockData: .init(masterPassword: "123"), maxDecompressedPayloadSize: 1)
             Issue.record("Expected .decompressedPayloadTooLarge")
-        } catch let error as KDBXReader.Error {
+        } catch {
             if case let .decompressedPayloadTooLarge(limit) = error {
                 #expect(limit == 1)
             } else {
