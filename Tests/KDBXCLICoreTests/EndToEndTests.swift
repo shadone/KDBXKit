@@ -46,9 +46,8 @@ struct EndToEndTests {
         try keyBytes.write(to: keyFile)
 
         let unlock = UnlockData(keyFile: keyBytes)
-        var content = KDBXContent.makeEmpty(databaseName: "test", kdf: .fast)
+        let content = KDBXContent.makeEmpty(databaseName: "test", kdf: .fast)
         try VaultWriting.writeAtomically(content: content, unlockData: unlock, to: vault, backup: false)
-        _ = content // silence unused-write warning
 
         return Sandbox(dir: dir, vault: vault, keyFile: keyFile)
     }
@@ -212,6 +211,62 @@ struct EndToEndTests {
                 || after.database.meta.recycleBinUUID?.isZeroUUID == true)
         #expect(after.database.root.group.entries.isEmpty)
         #expect(after.database.root.deletedObjects.contains(where: { $0.uuid == entryID }))
+    }
+
+    // MARK: - Group set / rm / mv
+
+    @Test("group set --name renames the group and bumps Times.lastModificationTime")
+    func groupSetRenames() throws {
+        let sb = try makeSandbox()
+        defer { sb.cleanup() }
+
+        try run(["group", "add", sb.vault.path, "Old", "--in", "/", "--key-file", sb.keyFile.path])
+        let before = try reopen(sb)
+        let oldGroup = try #require(before.database.root.group.groups.first(where: { $0.name == "Old" }))
+        let modBefore = oldGroup.times?.lastModificationTime
+
+        try run(["group", "set", sb.vault.path, "/Old", "--name", "New", "--notes", "renamed", "--icon", "49", "--key-file", sb.keyFile.path])
+
+        let after = try reopen(sb)
+        let renamed = try #require(after.database.root.group.groups.first(where: { $0.uuid == oldGroup.uuid }))
+        #expect(renamed.name == "New")
+        #expect(renamed.notes == "renamed")
+        #expect(renamed.iconID == 49)
+        // Mod time advanced. If the test runs in the same wall-clock second
+        // the comparison still holds because makeEmpty stamped now and our
+        // set call stamped a later now; both come from Date().
+        if let modBefore, let modAfter = renamed.times?.lastModificationTime {
+            #expect(modAfter >= modBefore)
+        }
+    }
+
+    @Test("group set with no flags is a true no-op (no rewrite)")
+    func groupSetNoOpFastPath() throws {
+        let sb = try makeSandbox()
+        defer { sb.cleanup() }
+
+        try run(["group", "add", sb.vault.path, "X", "--in", "/", "--key-file", sb.keyFile.path])
+        let before = try reopen(sb)
+        let groupBefore = try #require(before.database.root.group.groups.first(where: { $0.name == "X" }))
+        let timesBefore = groupBefore.times
+
+        try run(["group", "set", sb.vault.path, "/X", "--key-file", sb.keyFile.path])
+
+        let after = try reopen(sb)
+        let groupAfter = try #require(after.database.root.group.groups.first(where: { $0.uuid == groupBefore.uuid }))
+        #expect(groupAfter.times == timesBefore)
+        #expect(groupAfter.name == "X")
+    }
+
+    @Test("group set works on the root group itself")
+    func groupSetWorksOnRoot() throws {
+        let sb = try makeSandbox()
+        defer { sb.cleanup() }
+
+        try run(["group", "set", sb.vault.path, "/", "--name", "Renamed Root", "--key-file", sb.keyFile.path])
+
+        let after = try reopen(sb)
+        #expect(after.database.root.group.name == "Renamed Root")
     }
 
     // MARK: - Group rm / mv

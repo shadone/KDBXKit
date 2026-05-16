@@ -16,6 +16,7 @@ struct Group: ParsableCommand {
             Add.self,
             Rm.self,
             Mv.self,
+            Group.Set.self,
         ],
         defaultSubcommand: Ls.self
     )
