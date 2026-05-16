@@ -17,6 +17,7 @@ struct App: ParsableCommand {
         subcommands: [
             DB.self,
             Entry.self,
+            Group.self,
         ]
     )
 }
