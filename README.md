@@ -39,12 +39,15 @@ try bytes.write(to: url)
 A `kdbx` executable is shipped alongside the library:
 
 ```sh
-swift run kdbx info <file.kdbx> [master-password]
-swift run kdbx xml  <file.kdbx> <master-password>
-swift run kdbx get  <file.kdbx> <master-password>
+swift run kdbx db info  <file.kdbx>                       # header-only, no creds needed
+swift run kdbx db xml   <file.kdbx> --password-stdin      # full XML dump
+swift run kdbx entry ls <file.kdbx> --password-stdin      # list entries
 ```
 
-`info` is the default subcommand and works without a password (header-only inspection).
+Credentials never come from `argv`. Resolution order: `--password-stdin` →
+`KDBX_PASSWORD` env (suppress with `--no-env`) → `--key-file <path>` →
+no-echo TTY prompt. Add `--key-file <path>` to any of the above to combine
+key-file material with a master password.
 
 ## Development
 

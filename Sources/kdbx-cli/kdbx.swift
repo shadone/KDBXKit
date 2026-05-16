@@ -34,7 +34,11 @@ enum ReadResult {
     case wrongCredentials(KDBXReader)
 }
 
-func read(from filepath: String, unlockData: UnlockData?) throws(ReadError) -> ReadResult {
+func read(
+    from filepath: String,
+    unlockData: UnlockData?,
+    retainsXMLForDiagnostics: Bool = false
+) throws(ReadError) -> ReadResult {
     let data: Data
     do {
         data = try Data(contentsOf: URL(filePath: filepath))
@@ -45,7 +49,10 @@ func read(from filepath: String, unlockData: UnlockData?) throws(ReadError) -> R
     var kdbxReader = KDBXReader(data)
 
     do {
-        let content = try kdbxReader.parse(unlockData: unlockData)
+        let content = try kdbxReader.parse(
+            unlockData: unlockData,
+            retainsXMLForDiagnostics: retainsXMLForDiagnostics
+        )
         return .success(content, kdbxReader)
     } catch {
         switch error {
