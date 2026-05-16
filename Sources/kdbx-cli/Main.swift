@@ -18,6 +18,7 @@ struct App: ParsableCommand {
             DB.self,
             Entry.self,
             Group.self,
+            Attach.self,
         ]
     )
 }
