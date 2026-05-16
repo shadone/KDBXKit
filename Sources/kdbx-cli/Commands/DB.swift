@@ -13,6 +13,7 @@ struct DB: ParsableCommand {
         subcommands: [
             Info.self,
             XML.self,
+            Validate.self,
         ],
         defaultSubcommand: Info.self
     )
