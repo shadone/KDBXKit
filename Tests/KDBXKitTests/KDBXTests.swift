@@ -223,6 +223,10 @@ struct KDBXTests {
             // exercises the recursive parseGroup walk against real
             // (non-synthetic) input.
             (file: "Resources/kpxc-deep-groups", password: "123"),
+            // A trashed entry: KeePassXC moved it to an auto-created
+            // "Recycle Bin" group (the entry got PreviousParentGroup set
+            // to the original root). Built via `keepassxc-cli rm`.
+            (file: "Resources/kpxc-recycle", password: "123"),
         ]
     )
     func fixturesProduceNoParserWarnings(fixture: (file: String, password: String)) async throws {
@@ -324,6 +328,33 @@ struct KDBXTests {
         let work = root.groups.first { $0.name == "Work" }
         #expect(work?.tags == ["infrastructure"])
 
+        #expect(content.parserWarnings.isEmpty)
+    }
+
+    @Test("Recycle-bin fixture: trashed entry lives in the Recycle Bin group with PreviousParentGroup set")
+    func kpxcRecycle_structuralExpectations() throws {
+        let path = Bundle.module.path(forResource: "Resources/kpxc-recycle", ofType: "kdbx")!
+        let data = try Data(contentsOf: URL(filePath: path))
+        let content = try KDBXReader.parse(data, unlockData: .init(masterPassword: "123"))
+        let root = content.database.root.group
+
+        // RecycleBinEnabled + RecycleBinUUID pointing at a real (non-zero) group.
+        #expect(content.database.meta.recycleBinEnabled == true)
+        let binID = content.database.meta.recycleBinUUID
+        #expect(binID != nil)
+        #expect(binID?.isZero == false)
+
+        // The pointed-at group exists and is named "Recycle Bin".
+        let bin = root.groups.first { $0.uuid == binID }
+        #expect(bin?.name == "Recycle Bin")
+
+        // The trashed entry lives inside, with PreviousParentGroup
+        // pointing at the original root.
+        let trashed = bin?.entries.first { entry in
+            entry.strings.first(where: { $0.key == "Title" })?.value.bytes.withRevealedString { $0 } == "ToBeTrashed"
+        }
+        #expect(trashed != nil)
+        #expect(trashed?.previousParentGroup == root.uuid)
         #expect(content.parserWarnings.isEmpty)
     }
 
