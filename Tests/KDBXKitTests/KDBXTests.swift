@@ -199,6 +199,31 @@ struct KDBXTests {
         #expect(readAgain == reference)
     }
 
+    @Test(
+        "Real-world KDBX fixtures parse without dropping unknown elements",
+        arguments: [
+            (file: "Resources/simple-aes256-aes256", password: "123"),
+            (file: "Resources/simple-argon2d-aes256", password: "123"),
+            (file: "Resources/simple-argon2id-aes256", password: "123"),
+            (file: "Resources/Format400", password: "t"),
+        ]
+    )
+    func fixturesProduceNoParserWarnings(fixture: (file: String, password: String)) async throws {
+        // Regression net for silent data loss on round-trips: every element /
+        // attribute that the XML reader drops gets accumulated into
+        // `KDBXContent.parserWarnings`. The bundled fixtures were written by
+        // KeePass / KeePassXC and represent the shape of data we actually
+        // encounter; if a future KeePassXC version emits something we don't
+        // model, we want a loud test failure here rather than silent loss.
+        let path = Bundle.module.path(forResource: fixture.file, ofType: "kdbx")!
+        let data = try Data(contentsOf: URL(filePath: path))
+        let content = try KDBXReader.parse(data, unlockData: .init(masterPassword: fixture.password))
+        #expect(
+            content.parserWarnings.isEmpty,
+            "Unexpected parser warnings on \(fixture.file).kdbx: \(content.parserWarnings)"
+        )
+    }
+
     @Test
     func Format400_Argon2d_ChaCha20_readThenWriteThenReadAgain() async throws {
         // KDF: argon2d

@@ -383,12 +383,14 @@ public struct KDBXReader: Sendable {
         self.xmlDocument = xmlDocument
 
         let database: KDBX
+        var parserWarnings: [String] = []
         do {
             let xmlDocumentReader = XMLDocumentReader(
                 xmlDocument: xmlDocument,
                 keystreamSource: innerHeader.makeKeystreamSource()
             )
             database = try xmlDocumentReader.parse()
+            parserWarnings = xmlDocumentReader.collectedWarnings
         } catch {
             switch error {
             case let .corrupted(reason):
@@ -405,6 +407,6 @@ public struct KDBXReader: Sendable {
             self.xmlDocument = nil
         }
 
-        return .init(database: database, header: header, innerHeader: innerHeader)
+        return .init(database: database, header: header, innerHeader: innerHeader, parserWarnings: parserWarnings)
     }
 }

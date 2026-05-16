@@ -332,6 +332,74 @@ struct XMLDocumentTests {
         #expect(meta.masterKeyChangeForce == .never)
     }
 
+    // MARK: Parser warnings (unknown elements / attributes)
+
+    @Test
+    func parser_unknownElementProducesWarning() throws {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <KeePassFile>
+            <Meta>
+                <SomeFutureKeePassXCField>hello</SomeFutureKeePassXCField>
+            </Meta>
+            <Root>
+                <Group>
+                    <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                </Group>
+            </Root>
+        </KeePassFile>
+        """
+        let reader = XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
+        _ = try reader.parse()
+        #expect(reader.collectedWarnings.contains { $0.contains("SomeFutureKeePassXCField") })
+    }
+
+    @Test
+    func parser_unknownAttributeProducesWarning() throws {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <KeePassFile>
+            <Meta/>
+            <Root>
+                <Group>
+                    <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                    <Entry>
+                        <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                        <String>
+                            <Key>Title</Key>
+                            <Value SomeUnknownAttr="x">hi</Value>
+                        </String>
+                    </Entry>
+                </Group>
+            </Root>
+        </KeePassFile>
+        """
+        let reader = XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
+        _ = try reader.parse()
+        #expect(reader.collectedWarnings.contains { $0.contains("SomeUnknownAttr") })
+    }
+
+    @Test
+    func parser_cleanInputProducesNoWarnings() throws {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <KeePassFile>
+            <Meta>
+                <Generator>KDBXKit</Generator>
+                <DatabaseName>x</DatabaseName>
+            </Meta>
+            <Root>
+                <Group>
+                    <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                </Group>
+            </Root>
+        </KeePassFile>
+        """
+        let reader = XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
+        _ = try reader.parse()
+        #expect(reader.collectedWarnings.isEmpty)
+    }
+
     // MARK: Tags parsing
 
     private func parseGroupTagsXML(_ tagsBody: String) throws -> [String] {
