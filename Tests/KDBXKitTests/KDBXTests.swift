@@ -227,6 +227,12 @@ struct KDBXTests {
             // "Recycle Bin" group (the entry got PreviousParentGroup set
             // to the original root). Built via `keepassxc-cli rm`.
             (file: "Resources/kpxc-recycle", password: "123"),
+            // AutoType-with-Associations fixture. Built by writing a
+            // minimal hand-crafted XML (with two `<Association>` blocks
+            // and a non-trivial DefaultSequence), importing it to KDBX 3.1,
+            // and then `keepassxc-cli merge`-ing into a 4.x base — only
+            // path to land real Association elements via the CLI.
+            (file: "Resources/kpxc-autotype", password: "123"),
         ]
     )
     func fixturesProduceNoParserWarnings(fixture: (file: String, password: String)) async throws {
@@ -327,6 +333,32 @@ struct KDBXTests {
         // Group-level Tags survive.
         let work = root.groups.first { $0.name == "Work" }
         #expect(work?.tags == ["infrastructure"])
+
+        #expect(content.parserWarnings.isEmpty)
+    }
+
+    @Test("AutoType fixture: Associations with window + keystroke survive")
+    func kpxcAutoType_structuralExpectations() throws {
+        let path = Bundle.module.path(forResource: "Resources/kpxc-autotype", ofType: "kdbx")!
+        let data = try Data(contentsOf: URL(filePath: path))
+        let content = try KDBXReader.parse(data, unlockData: .init(masterPassword: "123"))
+
+        let entry = findEntry(in: content.database.root.group, titled: "WithAutoType")
+        let autoType = entry?.autoType
+        #expect(autoType?.enabled == true)
+        #expect(autoType?.defaultSequence == "{USERNAME}{TAB}{PASSWORD}{ENTER}")
+
+        let assoc = autoType?.association ?? []
+        #expect(assoc.count == 2)
+
+        let github = assoc.first { $0.window == "GitHub*" }
+        #expect(github != nil)
+        // Empty KeystrokeSequence: covered by the parser's empty-content
+        // tolerance fix earlier in this session.
+        #expect(github?.keystrokeSequence == "")
+
+        let gitlab = assoc.first { $0.window == "*GitLab*" }
+        #expect(gitlab?.keystrokeSequence == "{USERNAME}{TAB}{TAB}{PASSWORD}")
 
         #expect(content.parserWarnings.isEmpty)
     }
