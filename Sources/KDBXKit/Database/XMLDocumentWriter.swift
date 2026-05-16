@@ -113,6 +113,9 @@ struct XMLDocumentWriter {
         if let generator = meta.generator {
             node.addElement("Generator").addText(generator)
         }
+        if let headerHash = meta.headerHash {
+            node.addElement("HeaderHash").addText(headerHash)
+        }
         if let settingsChanged = meta.settingsChanged {
             node.addElement("SettingsChanged").addText(encode(settingsChanged))
         }

@@ -26,6 +26,7 @@ private let mockDate = Date(secondsSinceDotNetEpoch: 63_884_389_441)
 let reference = KDBX(
     meta: .init(
         generator: "KDBXKit",
+        headerHash: "FAdfQAm3M0qP06JqYWj1d2J+IB5GVDPDLY3jKHzsh1k=",
         settingsChanged: mockDate,
         databaseName: "Test Database",
         databaseNameChanged: mockDate,
