@@ -34,6 +34,27 @@ struct StaticReaderAPITests {
         #expect(header.publicCustomData.isEmpty)
     }
 
+    @Test("KDBX 3.1 input is rejected with a typed unsupportedFormatVersion error")
+    func kdbx31_rejectedWithTypedError() throws {
+        // `keepassxc-cli db-create` writes KDBX 3.1 by default (no CLI flag
+        // bumps to 4.x). We intentionally don't support reading 3.1 since
+        // its XML dialect differs (ISO-8601 dates, <Binaries> in <Meta>);
+        // surface a typed rejection rather than silent corruption.
+        let path = Bundle.module.path(forResource: "Resources/kpxc-kdbx31-default", ofType: "kdbx")!
+        let data = try Data(contentsOf: URL(filePath: path))
+        do {
+            _ = try KDBXReader.parse(data, unlockData: .init(masterPassword: "test"))
+            Issue.record("Expected .unsupportedFormatVersion")
+        } catch {
+            if case let .unsupportedFormatVersion(major, minor) = error {
+                #expect(major == 3)
+                #expect(minor == 1)
+            } else {
+                Issue.record("Wrong error: \(error)")
+            }
+        }
+    }
+
     @Test("parse with wrong password throws .wrongCredentials")
     func wrongPasswordSurfacesStructuredError() throws {
         let path = Bundle.module.path(forResource: "Resources/simple-argon2id-aes256", ofType: "kdbx")!
