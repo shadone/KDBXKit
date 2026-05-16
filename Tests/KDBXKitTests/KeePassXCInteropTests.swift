@@ -80,6 +80,41 @@ struct KeePassXCInteropTests {
         #expect(output.contains("汉字"))
     }
 
+    @Test(
+        "Our writer's keyfile-protected output is readable by keepassxc-cli",
+        .enabled(if: KeePassXCInteropTests.cliAvailable, "KeePassXC CLI not installed")
+    )
+    func ourKeyfileOutput_readableByKeePassXC() throws {
+        // Take the bundled kpxc-keyfile.kdbx + .key (which keepassxc-cli
+        // itself generated), read it with our reader, write it back with
+        // our writer using the same credentials, and hand the result back
+        // to keepassxc-cli. Catches keyfile-related encoding regressions
+        // end-to-end through both directions.
+        let dbPath = Bundle.module.path(forResource: "Resources/kpxc-keyfile", ofType: "kdbx")!
+        let kfPath = Bundle.module.path(forResource: "Resources/kpxc-keyfile", ofType: "key")!
+        let data = try Data(contentsOf: URL(filePath: dbPath))
+        let keyFile = try Data(contentsOf: URL(filePath: kfPath))
+        let unlock = UnlockData(masterPassword: "123", keyFile: keyFile)
+
+        var reader = KDBXReader(data)
+        let content = try reader.parse(unlockData: unlock)
+
+        let outPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kdbxkit-interop-\(UUID().uuidString).kdbx").path
+        defer { try? FileManager.default.removeItem(atPath: outPath) }
+
+        let outputStream = OutputStream(toFileAtPath: outPath, append: false)!
+        outputStream.open()
+        try KDBXWriter(to: outputStream).write(content, unlockData: unlock)
+        outputStream.close()
+
+        let output = try runCLI(["ls", "-k", kfPath, outPath], stdin: "123\n")
+        // Just need a non-error response from KeePassXC on a keyfile +
+        // password unlock of our output.
+        #expect(!output.contains("Error"))
+        #expect(!output.contains("Invalid credentials"))
+    }
+
     private func runCLI(_ args: [String], stdin: String) throws -> String {
         let process = Process()
         process.executableURL = URL(filePath: Self.cliPath)
