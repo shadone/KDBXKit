@@ -210,6 +210,19 @@ struct KDBXTests {
             // unicode/emoji in fields, edit history, and a binary attachment
             // — built via keepassxc-cli on top of simple-argon2id-aes256.
             (file: "Resources/kpxc-rich", password: "123"),
+            // KeePassXC 2.7.10 KDBX 4.1 fixture with extras the CLI alone
+            // can't produce — TOTP `otp` field, custom string keys
+            // (API_TOKEN, Backup Codes, KPH:*), comma-separated tags,
+            // ForegroundColor / BackgroundColor, AutoType Association with
+            // window matching, entry-level CustomData (KPRPC_JSON), and a
+            // group with EnableSearching=False. Built by exporting
+            // kpxc-rich to XML, surgically editing it, and re-importing
+            // via `keepassxc-cli import`.
+            (file: "Resources/kpxc-extras", password: "test"),
+            // 30 levels of nested groups, well under our 100-level cap;
+            // exercises the recursive parseGroup walk against real
+            // (non-synthetic) input.
+            (file: "Resources/kpxc-deep-groups", password: "123"),
         ]
     )
     func fixturesProduceNoParserWarnings(fixture: (file: String, password: String)) async throws {
@@ -271,6 +284,58 @@ struct KDBXTests {
 
         // No silent drops.
         #expect(content.parserWarnings.isEmpty)
+    }
+
+    @Test("KeePassXC-extras fixture: custom fields + tags + autotype survive")
+    func kpxcExtras_structuralExpectations() throws {
+        let path = Bundle.module.path(forResource: "Resources/kpxc-extras", ofType: "kdbx")!
+        let data = try Data(contentsOf: URL(filePath: path))
+        let content = try KDBXReader.parse(data, unlockData: .init(masterPassword: "test"))
+        let root = content.database.root.group
+
+        let github = findEntry(in: root, titled: "GitHub")
+        #expect(github != nil)
+
+        // Custom string fields preserved.
+        let keys = Set(github?.strings.map(\.key) ?? [])
+        #expect(keys.contains("API_TOKEN"))
+        #expect(keys.contains("Backup Codes"))
+        #expect(keys.contains("KPH: example.com"))
+        #expect(keys.contains("otp"))
+
+        // TOTP URI survives intact through the protected-string round-trip.
+        let otp = github?.strings.first(where: { $0.key == "otp" })?.value.bytes.withRevealedString { $0 }
+        #expect(otp?.hasPrefix("otpauth://totp/") == true)
+        #expect(otp?.contains("secret=JBSWY3DPEHPK3PXP") == true)
+
+        // KeePassXC writes comma-separated tags; our reader splits on
+        // either `;` or `,` (KeePassXC normalizes + sorts).
+        #expect(github?.tags == ["2fa", "login", "work"])
+
+        // Custom entry colors.
+        #expect(github?.foregroundColor == .color(red: 0xFF, green: 0x00, blue: 0x00))
+        #expect(github?.backgroundColor == .color(red: 0xFF, green: 0xFF, blue: 0xCC))
+
+        // Entry-level CustomData (e.g. KPRPC plugin data).
+        let cd = github?.customData ?? []
+        #expect(cd.contains { $0.key == "KPRPC_JSON" })
+
+        // Group-level Tags survive.
+        let work = root.groups.first { $0.name == "Work" }
+        #expect(work?.tags == ["infrastructure"])
+
+        #expect(content.parserWarnings.isEmpty)
+    }
+
+    private func findEntry(in group: KDBX.Group, titled title: String) -> KDBX.Entry? {
+        for entry in group.entries {
+            let t = entry.strings.first { $0.key == "Title" }?.value.bytes.withRevealedString { $0 }
+            if t == title { return entry }
+        }
+        for sub in group.groups {
+            if let found = findEntry(in: sub, titled: title) { return found }
+        }
+        return nil
     }
 
     @Test("KeePassXC-rich fixture: read → write → read round-trip is stable")
