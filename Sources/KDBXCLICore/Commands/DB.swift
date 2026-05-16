@@ -18,6 +18,7 @@ struct DB: ParsableCommand {
             SetKDF.self,
             SetCipher.self,
             SetCompression.self,
+            Create.self,
         ],
         defaultSubcommand: Info.self
     )
