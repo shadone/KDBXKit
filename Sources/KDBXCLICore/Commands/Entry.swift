@@ -13,6 +13,10 @@ struct Entry: ParsableCommand {
         subcommands: [
             Ls.self,
             Show.self,
+            Add.self,
+            Entry.Set.self,
+            Rm.self,
+            Mv.self,
         ],
         defaultSubcommand: Ls.self
     )
