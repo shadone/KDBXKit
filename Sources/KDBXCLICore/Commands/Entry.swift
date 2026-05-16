@@ -17,6 +17,7 @@ struct Entry: ParsableCommand {
             Entry.Set.self,
             Rm.self,
             Mv.self,
+            History.self,
         ],
         defaultSubcommand: Ls.self
     )
