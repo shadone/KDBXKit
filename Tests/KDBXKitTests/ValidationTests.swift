@@ -81,4 +81,97 @@ struct ValidationTests {
         }
         #expect(mentionsCollision)
     }
+
+    // MARK: Zero UUID semantics
+    //
+    // Per the KDBX 4.1 XSD and KeePass conventions, the zero UUID acts as
+    // a "no reference" sentinel for most reference fields (CustomIconUUID,
+    // PreviousParentGroup, LastTopVisibleEntry, etc.). It must not be
+    // reported as a dangling reference.
+
+    private static let zeroUUID = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+
+    @Test("Zero CustomIconUUID on a Group is not flagged")
+    func zeroCustomIconUUIDOnGroup_silent() {
+        let rootGroup = KDBX.Group(uuid: UUID(), name: "Root", customIconUUID: Self.zeroUUID, isExpanded: true)
+        let database = KDBX(meta: KDBX.Meta(generator: "Test"), root: KDBX.Root(group: rootGroup, deletedObjects: []))
+
+        let failures = database.validate()
+        #expect(!failures.contains { $0.message.contains("CustomIcon") })
+    }
+
+    @Test("Zero CustomIconUUID on an Entry is not flagged")
+    func zeroCustomIconUUIDOnEntry_silent() {
+        let entry = KDBX.Entry(uuid: UUID(), customIconUUID: Self.zeroUUID)
+        let rootGroup = KDBX.Group(uuid: UUID(), name: "Root", isExpanded: true, entries: [entry])
+        let database = KDBX(meta: KDBX.Meta(generator: "Test"), root: KDBX.Root(group: rootGroup, deletedObjects: []))
+
+        let failures = database.validate()
+        #expect(!failures.contains { $0.message.contains("CustomIcon") })
+    }
+
+    @Test("Non-zero dangling CustomIconUUID is still flagged")
+    func danglingCustomIconUUID_warns() {
+        let ghost = UUID()
+        let rootGroup = KDBX.Group(uuid: UUID(), name: "Root", customIconUUID: ghost, isExpanded: true)
+        let database = KDBX(meta: KDBX.Meta(generator: "Test"), root: KDBX.Root(group: rootGroup, deletedObjects: []))
+
+        let failures = database.validate()
+        #expect(failures.contains { $0.message.contains("CustomIcon") && $0.message.contains(ghost.uuidString) })
+    }
+
+    @Test("Zero PreviousParentGroup on a Group is not flagged")
+    func zeroPreviousParentGroupOnGroup_silent() {
+        let child = KDBX.Group(uuid: UUID(), name: "Child", previousParentGroup: Self.zeroUUID)
+        let rootGroup = KDBX.Group(uuid: UUID(), name: "Root", isExpanded: true, groups: [child])
+        let database = KDBX(meta: KDBX.Meta(generator: "Test"), root: KDBX.Root(group: rootGroup, deletedObjects: []))
+
+        let failures = database.validate()
+        #expect(!failures.contains { $0.message.contains("PreviousParentGroup") })
+    }
+
+    @Test("Zero PreviousParentGroup on an Entry is not flagged")
+    func zeroPreviousParentGroupOnEntry_silent() {
+        let entry = KDBX.Entry(uuid: UUID(), previousParentGroup: Self.zeroUUID)
+        let rootGroup = KDBX.Group(uuid: UUID(), name: "Root", isExpanded: true, entries: [entry])
+        let database = KDBX(meta: KDBX.Meta(generator: "Test"), root: KDBX.Root(group: rootGroup, deletedObjects: []))
+
+        let failures = database.validate()
+        #expect(!failures.contains { $0.message.contains("PreviousParentGroup") })
+    }
+
+    @Test("Zero LastTopVisibleEntry on a Group is not flagged")
+    func zeroLastTopVisibleEntry_silent() {
+        let rootGroup = KDBX.Group(uuid: UUID(), name: "Root", isExpanded: true, lastTopVisibleEntry: Self.zeroUUID)
+        let database = KDBX(meta: KDBX.Meta(generator: "Test"), root: KDBX.Root(group: rootGroup, deletedObjects: []))
+
+        let failures = database.validate()
+        #expect(!failures.contains { $0.message.contains("LastTopVisibleEntry") })
+    }
+
+    @Test("PreviousParentGroup pointing forward to a later sibling is not flagged")
+    func forwardPreviousParentGroup_silent() {
+        // Reproduces the old in-walk bug: child A's previousParentGroup pointed at
+        // sibling B, which only enters `allGroups` later in the traversal. The
+        // post-walk-only check used here must accept this.
+        let siblingB = UUID()
+        let childA = KDBX.Group(uuid: UUID(), name: "A", previousParentGroup: siblingB)
+        let childB = KDBX.Group(uuid: siblingB, name: "B")
+        let rootGroup = KDBX.Group(uuid: UUID(), name: "Root", isExpanded: true, groups: [childA, childB])
+        let database = KDBX(meta: KDBX.Meta(generator: "Test"), root: KDBX.Root(group: rootGroup, deletedObjects: []))
+
+        let failures = database.validate()
+        #expect(!failures.contains { $0.message.contains("PreviousParentGroup") })
+    }
+
+    @Test("Non-zero dangling PreviousParentGroup is still flagged")
+    func danglingPreviousParentGroup_warns() {
+        let ghost = UUID()
+        let entry = KDBX.Entry(uuid: UUID(), previousParentGroup: ghost)
+        let rootGroup = KDBX.Group(uuid: UUID(), name: "Root", isExpanded: true, entries: [entry])
+        let database = KDBX(meta: KDBX.Meta(generator: "Test"), root: KDBX.Root(group: rootGroup, deletedObjects: []))
+
+        let failures = database.validate()
+        #expect(failures.contains { $0.message.contains("PreviousParentGroup") && $0.message.contains(ghost.uuidString) })
+    }
 }
