@@ -59,6 +59,15 @@ struct CredentialOptions: ParsableArguments {
     )
     var keyFilePath: String?
 
+    /// Resolve credentials, requiring a non-nil result. Use for commands that
+    /// can't operate header-only. Throws when nothing is supplied and stdin
+    /// isn't a TTY.
+    func resolveRequired() throws -> UnlockData {
+        // resolve(requireUnlock: true) never returns nil — every path either
+        // returns a value or throws. Force-unwrap is safe.
+        try resolve(requireUnlock: true)!
+    }
+
     /// Resolve credentials. Returns nil when no source was supplied AND
     /// `requireUnlock` is false (e.g. header-only inspection).
     func resolve(requireUnlock: Bool) throws -> UnlockData? {

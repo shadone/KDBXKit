@@ -15,6 +15,9 @@ struct DB: ParsableCommand {
             XML.self,
             Validate.self,
             Rekey.self,
+            SetKDF.self,
+            SetCipher.self,
+            SetCompression.self,
         ],
         defaultSubcommand: Info.self
     )

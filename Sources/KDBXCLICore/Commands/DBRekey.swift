@@ -25,7 +25,7 @@ extension DB {
         var backupOptions: BackupOptions
 
         mutating func run() throws {
-            let oldUnlock = try commonOptions.credentials.resolve(requireUnlock: true)
+            let oldUnlock = try commonOptions.credentials.resolveRequired()
             guard
                 case let .success(content, _) = try read(from: commonOptions.filepath, unlockData: oldUnlock)
             else {
