@@ -188,13 +188,33 @@ struct XMLDocumentTests {
 
         // The fixture has no protected strings, so the keystream source's
         // key/nonce never actually run — a benign InnerHeader is enough.
-        let reader = XMLDocumentReader(xmlDocument: xmlDocument, keystreamSource: Self.mockKeystream())
+        let reader = try XMLDocumentReader(xmlDocument: xmlDocument, keystreamSource: Self.mockKeystream())
         let database = try reader.parse()
 
         #expect(database.meta.generator == "KeePassXC")
         #expect(database.meta.databaseName == "test3")
         #expect(database.meta.databaseNameChanged == Date(timeIntervalSince1970: 1_747_996_682))
         #expect(database.meta.maintenanceHistoryDays == 365)
+    }
+
+    @Test("Malformed XML input throws a typed error, not a crash")
+    func malformedXMLThrowsTypedError() {
+        // Reaches the XML layer only when decryption succeeds but the
+        // payload is garbage — formerly fatal because the init used `try!`.
+        let garbage = "<KeePassFile><Meta><Generator>oops"
+        #expect(throws: XMLDocumentReader.Error.self) {
+            _ = try XMLDocumentReader(xmlDocument: garbage, keystreamSource: Self.mockKeystream())
+        }
+    }
+
+    @Test("Non-UTF-8-shaped string still rejected without crashing")
+    func nonXMLInputThrowsTypedError() {
+        #expect(throws: XMLDocumentReader.Error.self) {
+            _ = try XMLDocumentReader(xmlDocument: "", keystreamSource: Self.mockKeystream())
+        }
+        #expect(throws: XMLDocumentReader.Error.self) {
+            _ = try XMLDocumentReader(xmlDocument: "not xml at all", keystreamSource: Self.mockKeystream())
+        }
     }
 
     // Note: a "write then read with MockCryptor (identity)" test used
@@ -222,7 +242,7 @@ struct XMLDocumentTests {
         let data = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
         let xmlDocument = String(validating: data, as: UTF8.self)!
 
-        let reader = XMLDocumentReader(
+        let reader = try XMLDocumentReader(
             xmlDocument: xmlDocument,
             keystreamSource: innerHeader.makeKeystreamSource()
         )
@@ -251,7 +271,7 @@ struct XMLDocumentTests {
             </Root>
         </KeePassFile>
         """
-        let reader = XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
+        let reader = try XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
         return try reader.parse().meta
     }
 
@@ -268,7 +288,7 @@ struct XMLDocumentTests {
             </Root>
         </KeePassFile>
         """
-        let reader = XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
+        let reader = try XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
         return try reader.parse().root.group.times
     }
 
@@ -380,7 +400,7 @@ struct XMLDocumentTests {
             </Root>
         </KeePassFile>
         """
-        let reader = XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
+        let reader = try XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
         return try reader.parse().root.group.entries.first?.autoType?.association.first
     }
 
@@ -418,7 +438,7 @@ struct XMLDocumentTests {
     }
 
     @Test
-    func parser_missingAssociationElement_throws() {
+    func parser_missingAssociationElement_throws() throws {
         // Element entirely missing is still a corruption — per XSD both
         // sub-elements are required (just allowed to be empty).
         let xml = """
@@ -440,7 +460,7 @@ struct XMLDocumentTests {
             </Root>
         </KeePassFile>
         """
-        let reader = XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
+        let reader = try XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
         #expect(throws: XMLDocumentReader.Error.self) {
             _ = try reader.parse()
         }
@@ -474,15 +494,15 @@ struct XMLDocumentTests {
         // Lower the cap so we can exercise the boundary at depths the
         // XML parser handles trivially. Real production cap is 100.
         let xml = buildNestedGroupsXML(depth: 5)
-        var reader = XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
+        var reader = try XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
         reader.maxGroupNestingDepth = 10
         _ = try reader.parse()
     }
 
     @Test
-    func parser_groupNestingOverCap_throws() {
+    func parser_groupNestingOverCap_throws() throws {
         let xml = buildNestedGroupsXML(depth: 15)
-        var reader = XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
+        var reader = try XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
         reader.maxGroupNestingDepth = 10
         #expect(throws: XMLDocumentReader.Error.self) {
             _ = try reader.parse()
@@ -506,7 +526,7 @@ struct XMLDocumentTests {
             </Root>
         </KeePassFile>
         """
-        let reader = XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
+        let reader = try XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
         _ = try reader.parse()
         #expect(reader.collectedWarnings.contains { $0.contains("SomeFutureKeePassXCField") })
     }
@@ -531,7 +551,7 @@ struct XMLDocumentTests {
             </Root>
         </KeePassFile>
         """
-        let reader = XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
+        let reader = try XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
         _ = try reader.parse()
         #expect(reader.collectedWarnings.contains { $0.contains("SomeUnknownAttr") })
     }
@@ -552,7 +572,7 @@ struct XMLDocumentTests {
             </Root>
         </KeePassFile>
         """
-        let reader = XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
+        let reader = try XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
         _ = try reader.parse()
         #expect(reader.collectedWarnings.isEmpty)
     }
@@ -572,7 +592,7 @@ struct XMLDocumentTests {
             </Root>
         </KeePassFile>
         """
-        let reader = XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
+        let reader = try XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
         return try reader.parse().root.group.tags
     }
 

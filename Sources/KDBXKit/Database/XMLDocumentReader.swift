@@ -76,8 +76,17 @@ struct XMLDocumentReader {
     /// or repaired.
     var collectedWarnings: [String] { warnings.messages }
 
-    init(xmlDocument: String, keystreamSource: KeystreamSource) {
-        document = try! Document(string: xmlDocument)
+    init(xmlDocument: String, keystreamSource: KeystreamSource) throws(Error) {
+        do {
+            document = try Document(string: xmlDocument)
+        } catch let parseError {
+            switch parseError {
+            case let .malformed(reason, line, column):
+                throw .corrupted(reason: "Malformed XML at line \(line), column \(column): \(reason)")
+            case let .nestingTooDeep(line, column):
+                throw .corrupted(reason: "XML nesting exceeds \(Document.maxNestingDepth) at line \(line), column \(column)")
+            }
+        }
         self.keystreamSource = keystreamSource
     }
 
