@@ -332,6 +332,95 @@ struct XMLDocumentTests {
         #expect(meta.masterKeyChangeForce == .never)
     }
 
+    // MARK: AutoType Association — empty fields tolerated
+
+    private func parseAutoTypeAssociationXML(window: String, keystrokeSequence: String) throws -> KDBX.AutoType.Association? {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <KeePassFile>
+            <Meta/>
+            <Root>
+                <Group>
+                    <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                    <Entry>
+                        <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                        <AutoType>
+                            <Association>
+                                \(window)
+                                \(keystrokeSequence)
+                            </Association>
+                        </AutoType>
+                    </Entry>
+                </Group>
+            </Root>
+        </KeePassFile>
+        """
+        let reader = XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
+        return try reader.parse().root.group.entries.first?.autoType?.association.first
+    }
+
+    @Test
+    func parser_emptyAssociationFields_parseAsEmptyStrings() throws {
+        // KeePass / KeePassXC commonly emit empty `<Window/>` /
+        // `<KeystrokeSequence/>` when the user leaves the field blank
+        // (meaning "use parent default"). Must not throw.
+        let assoc = try parseAutoTypeAssociationXML(
+            window: "<Window></Window>",
+            keystrokeSequence: "<KeystrokeSequence></KeystrokeSequence>"
+        )
+        #expect(assoc?.window == "")
+        #expect(assoc?.keystrokeSequence == "")
+    }
+
+    @Test
+    func parser_selfClosingAssociationFields_parseAsEmptyStrings() throws {
+        let assoc = try parseAutoTypeAssociationXML(
+            window: "<Window/>",
+            keystrokeSequence: "<KeystrokeSequence/>"
+        )
+        #expect(assoc?.window == "")
+        #expect(assoc?.keystrokeSequence == "")
+    }
+
+    @Test
+    func parser_populatedAssociationFields_preserved() throws {
+        let assoc = try parseAutoTypeAssociationXML(
+            window: "<Window>chrome*</Window>",
+            keystrokeSequence: "<KeystrokeSequence>{USERNAME}{TAB}{PASSWORD}{ENTER}</KeystrokeSequence>"
+        )
+        #expect(assoc?.window == "chrome*")
+        #expect(assoc?.keystrokeSequence == "{USERNAME}{TAB}{PASSWORD}{ENTER}")
+    }
+
+    @Test
+    func parser_missingAssociationElement_throws() {
+        // Element entirely missing is still a corruption — per XSD both
+        // sub-elements are required (just allowed to be empty).
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <KeePassFile>
+            <Meta/>
+            <Root>
+                <Group>
+                    <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                    <Entry>
+                        <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                        <AutoType>
+                            <Association>
+                                <Window>chrome*</Window>
+                            </Association>
+                        </AutoType>
+                    </Entry>
+                </Group>
+            </Root>
+        </KeePassFile>
+        """
+        let reader = XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
+        #expect(throws: XMLDocumentReader.Error.self) {
+            _ = try reader.parse()
+        }
+    }
+
     // MARK: Group nesting depth cap
 
     private func buildNestedGroupsXML(depth: Int) -> String {

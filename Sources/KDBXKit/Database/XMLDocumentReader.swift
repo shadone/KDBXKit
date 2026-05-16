@@ -1016,10 +1016,15 @@ struct XMLDocumentReader {
         for child in node.children {
             switch child.name {
             case "Window":
-                window = text(in: child)
+                // XSD: `xs:string`. Empty content is valid (KeePass emits an
+                // empty `<Window/>` and `<KeystrokeSequence/>` when the user
+                // leaves the field blank — meaning "use parent default").
+                // Distinguish "element present but empty" (→ "") from
+                // "element missing" (→ nil → throw below).
+                window = text(in: child) ?? ""
 
             case "KeystrokeSequence":
-                keyStrokeSequence = text(in: child)
+                keyStrokeSequence = text(in: child) ?? ""
 
             default:
                 record("Unexpected element \(child.fullyQualifiedName)")
