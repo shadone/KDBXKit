@@ -12,6 +12,7 @@ struct Entry: ParsableCommand {
         abstract: "Read and manipulate individual entries.",
         subcommands: [
             Ls.self,
+            Show.self,
         ],
         defaultSubcommand: Ls.self
     )
