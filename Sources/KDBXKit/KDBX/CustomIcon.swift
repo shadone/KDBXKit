@@ -12,5 +12,12 @@ public extension KDBX {
         public let data: Data
         public let name: String?
         public let lastModificationTime: Date?
+
+        public init(uuid: UUID, data: Data, name: String?, lastModificationTime: Date?) {
+            self.uuid = uuid
+            self.data = data
+            self.name = name
+            self.lastModificationTime = lastModificationTime
+        }
     }
 }
