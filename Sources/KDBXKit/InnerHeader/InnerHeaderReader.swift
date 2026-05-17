@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
+import CryptoKit
 import Foundation
 
 /// Overview of a KDBX file:
@@ -138,5 +139,99 @@ struct InnerHeaderReader {
         )
 
         return (header: header, length: pos)
+    }
+
+    /// Metadata-only variant of `parse()`. Walks the inner header the
+    /// same way but for each binary captures `(offset, length, hash,
+    /// protected)` into `BinaryMetadata` instead of holding the bytes
+    /// on the returned `InnerHeader.binaryContent`. The returned
+    /// `InnerHeader` has `binaryContent: []` by construction.
+    ///
+    /// Offsets are relative to the start of the decompressed
+    /// inner-header buffer that this reader was initialized with — so
+    /// `streamBinary` can reopen the source, replay decrypt +
+    /// decompress, seek to `decompressedOffset`, and read
+    /// `decompressedLength` bytes.
+    mutating func parseMetadata() throws(Error) -> (header: InnerHeader, binaries: [BinaryMetadata], length: Int) {
+        var encryptionAlgorithm: InnerHeader.EncryptionAlgorithm?
+        var encryptionKey: Data?
+        var binaries: [BinaryMetadata] = []
+
+        var done = false
+        while !done {
+            // Capture the offset of the *value* bytes before reading
+            // them — we'll need this to locate the binary payload
+            // within the decompressed stream. The TLV is:
+            //   type (1) | length (4) | value (length)
+            // For binary content, value is: flags (1) | bytes (length - 1).
+            // So the binary bytes start at (pos_after_length_read + 1)
+            // i.e. valueStart + 1 relative to the buffer.
+            let type = try readUInt8()
+            let valueLength = try readInt32()
+            let valueStart = pos // index into `data` where value bytes begin
+            let valueData = try readData(length: Int(valueLength))
+
+            guard let fieldType = InnerHeaderFieldType(rawValue: type) else {
+                KDBXLog.innerHeader.debug("Unknown inner header field type: \(type)")
+                continue
+            }
+
+            switch fieldType {
+            case .endOfHeader:
+                done = true
+
+            case .encryptionAlgorithm:
+                guard
+                    let algorithmValue = valueData.asInt32LE(),
+                    let algorithm = InnerHeader.EncryptionAlgorithm(rawValue: algorithmValue)
+                else {
+                    throw Error.corrupted(reason: "Invalid inner header encryption algorithm. bytes: \(valueData.hexString)")
+                }
+                encryptionAlgorithm = algorithm
+
+            case .encryptionKey:
+                encryptionKey = valueData
+
+            case .binaryContent:
+                let flags = valueData[valueData.startIndex]
+                let isProtected = (flags == 0x01)
+                let binaryBytesOffset = valueStart + 1                   // skip flags byte
+                let binaryBytesLength = max(0, Int(valueLength) - 1)
+                let binaryBytes: Data
+                if binaryBytesLength > 0 {
+                    let s = data.startIndex + binaryBytesOffset
+                    let e = s + binaryBytesLength
+                    binaryBytes = data.subdata(in: s..<e)
+                } else {
+                    binaryBytes = Data()
+                }
+                let hash = Data(SHA256.hash(data: binaryBytes))
+                binaries.append(.init(
+                    sizeBytes: binaryBytesLength,
+                    isProtected: isProtected,
+                    contentHash: hash,
+                    decompressedOffset: binaryBytesOffset,
+                    decompressedLength: binaryBytesLength
+                ))
+            }
+        }
+
+        guard let encryptionAlgorithm else {
+            throw Error.corrupted(reason: "Missing encryption algorithm")
+        }
+        guard let encryptionKey else {
+            throw Error.corrupted(reason: "Missing encryption key")
+        }
+
+        // Build an InnerHeader with the cipher parameters but no
+        // binary payloads. Callers that need byte access go through
+        // the lazy stream path.
+        let header = InnerHeader(
+            encryptionAlgorithm: encryptionAlgorithm,
+            encryptionKey: encryptionKey,
+            binaryContent: []
+        )
+
+        return (header: header, binaries: binaries, length: pos)
     }
 }
