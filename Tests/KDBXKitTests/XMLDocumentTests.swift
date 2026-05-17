@@ -120,7 +120,7 @@ let reference = KDBX(
                     ],
                     binaries: [
                         .init(key: "RefBinary", value: .ref(0)),
-                        .init(key: "InlineBinary", value: .inline(Data([1, 2, 3]))),
+                        .init(key: "InlineBinary", value: .inline(Data([1, 2, 3]), protected: false)),
                     ],
                     autoType: .init(
                         enabled: true,
@@ -249,6 +249,134 @@ struct XMLDocumentTests {
         let parsed = try reader.parse()
 
         #expect(parsed == reference)
+    }
+
+    // MARK: Inline binary Protected attribute round-trip
+    //
+    // KDBX 3.1 carries the binary protection flag inline on the
+    // entry's `<Value Protected="True">base64</Value>` element. KDBX
+    // 4 typically uses pool refs (`<Value Ref="N"/>`), where the flag
+    // lives on the inner header. Inline binaries can still appear in
+    // KDBX 4 files written by clients that choose not to use the
+    // pool; faithful round-trip means the writer emits the attribute
+    // and the reader reads it back.
+
+    private func parseInlineBinaryXML(valueElement: String) throws -> KDBX.ProtectedBinary {
+        let xml = """
+        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+        <KeePassFile>
+            <Meta/>
+            <Root>
+                <Group>
+                    <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                    <Entry>
+                        <UUID>BBBBBBBBBBBBBBBBBBBBBA==</UUID>
+                        <Binary>
+                            <Key>secret.bin</Key>
+                            \(valueElement)
+                        </Binary>
+                    </Entry>
+                </Group>
+            </Root>
+        </KeePassFile>
+        """
+        let reader = try XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
+        let parsed = try reader.parse()
+        let entry = parsed.root.group.entries.first!
+        return entry.binaries.first!
+    }
+
+    @Test("Reader parses <Value Protected=\"True\">…</Value> on inline binary")
+    func parser_inlineBinary_protectedTrue() throws {
+        let bin = try parseInlineBinaryXML(valueElement: #"<Value Protected="True">AQID</Value>"#)
+        guard case let .inline(data, protected) = bin.value else {
+            Issue.record("Expected inline value, got \(bin.value)")
+            return
+        }
+        #expect(data == Data([1, 2, 3]))
+        #expect(protected == true)
+    }
+
+    @Test("Reader parses <Value>…</Value> with no attribute as protected=false")
+    func parser_inlineBinary_noProtectedAttr() throws {
+        let bin = try parseInlineBinaryXML(valueElement: "<Value>AQID</Value>")
+        guard case let .inline(data, protected) = bin.value else {
+            Issue.record("Expected inline value, got \(bin.value)")
+            return
+        }
+        #expect(data == Data([1, 2, 3]))
+        #expect(protected == false)
+    }
+
+    @Test("Reader parses Protected=\"False\" explicitly")
+    func parser_inlineBinary_protectedFalseExplicit() throws {
+        let bin = try parseInlineBinaryXML(valueElement: #"<Value Protected="False">AQID</Value>"#)
+        guard case let .inline(_, protected) = bin.value else {
+            Issue.record("Expected inline value")
+            return
+        }
+        #expect(protected == false)
+    }
+
+    @Test("Writer emits Protected=\"True\" when inline binary is protected")
+    func writer_inlineBinary_emitsProtectedAttribute() throws {
+        // Build a minimal KDBX with one entry carrying a single protected
+        // inline binary. Round-trip through writer → string → reader and
+        // confirm the protected flag survives plus the XML contains the
+        // attribute literally.
+        let kdbx = KDBX(
+            meta: .init(generator: "test"),
+            root: .init(
+                group: .init(
+                    uuid: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+                    name: "Root",
+                    entries: [
+                        .init(
+                            uuid: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
+                            binaries: [
+                                .init(key: "p.bin", value: .inline(Data([9, 8, 7]), protected: true)),
+                                .init(key: "u.bin", value: .inline(Data([1, 2, 3]), protected: false)),
+                            ]
+                        )
+                    ]
+                ),
+                deletedObjects: []
+            )
+        )
+
+        let outputStream = OutputStream(toMemory: ())
+        outputStream.open()
+        let innerHeader = InnerHeader(
+            encryptionAlgorithm: .ChaCha20,
+            encryptionKey: Data(repeating: 7, count: 64),
+            binaryContent: []
+        )
+        let writer = XMLDocumentWriter(to: outputStream, encryptor: innerHeader.makeEncryptor())
+        try writer.write(kdbx)
+        let data = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
+        let xml = String(validating: data, as: UTF8.self)!
+
+        // Literal-string check: protected attribute is on p.bin's Value,
+        // absent on u.bin's Value. Brittle but explicit — guards against
+        // the writer silently dropping the attribute.
+        #expect(xml.contains(#"<Value Protected="True">CQgH</Value>"#))
+        #expect(xml.contains("<Value>AQID</Value>"))
+
+        // Round-trip: re-read and confirm flags survived.
+        let reader = try XMLDocumentReader(
+            xmlDocument: xml,
+            keystreamSource: innerHeader.makeKeystreamSource()
+        )
+        let parsed = try reader.parse()
+        let bins = parsed.root.group.entries.first!.binaries
+        guard case let .inline(_, p1) = bins[0].value, p1 == true else {
+            Issue.record("p.bin lost its protected flag")
+            return
+        }
+        guard case let .inline(_, p2) = bins[1].value, p2 == false else {
+            Issue.record("u.bin gained a protected flag")
+            return
+        }
     }
 
     // MARK: Lenient parsing of negative integer fields

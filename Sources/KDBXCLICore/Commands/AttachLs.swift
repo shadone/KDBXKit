@@ -66,13 +66,13 @@ struct AttachmentListSnapshot: Encodable {
         entryUUID = entry.uuid.uuidString
         attachments = entry.binaries.map { binary in
             switch binary.value {
-            case let .inline(data):
+            case let .inline(data, protected):
                 return Attachment(
                     key: binary.key,
                     source: .inline,
                     size: data.count,
                     ref: nil,
-                    protectedOnDisk: false
+                    protectedOnDisk: protected
                 )
             case let .ref(idx):
                 let element = innerHeader.binaryContent[Int(idx)]

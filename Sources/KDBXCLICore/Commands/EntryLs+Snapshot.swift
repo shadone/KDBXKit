@@ -147,7 +147,7 @@ struct BinarySnapshot: Encodable {
     init(binary: KDBX.ProtectedBinary, innerHeader: InnerHeader) {
         key = binary.key
         switch binary.value {
-        case let .inline(data):
+        case let .inline(data, _):
             source = .inline
             size = data.count
             ref = nil

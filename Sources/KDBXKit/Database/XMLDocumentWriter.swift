@@ -380,7 +380,12 @@ struct XMLDocumentWriter {
                 (name: "Ref", value: String(ref)),
             ]
 
-        case let .inline(data):
+        case let .inline(data, protected):
+            if protected {
+                valueNode.attributes = [
+                    (name: "Protected", value: "True"),
+                ]
+            }
             valueNode.addText(encode(data))
         }
     }

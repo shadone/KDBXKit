@@ -9,9 +9,16 @@ import Foundation
 public extension KDBX {
     struct ProtectedBinary: Sendable, Equatable {
         public enum Value: Sendable, Equatable {
-            /// Inline binary data
-            case inline(Data)
+            /// Inline binary data. The `protected` flag mirrors the
+            /// `Protected="True"` attribute on the `<Value>` element
+            /// in the entry XML — present in KDBX 3.1 binaries and in
+            /// any KDBX 4 entry that chose inline storage rather than
+            /// a pool reference.
+            case inline(Data, protected: Bool)
             /// Reference to a binary content stored in the inner header (KDBX file) or in the Meta/Binaries element (unencrypted XML file).
+            /// The protected status for a ref lives on the pool entry's
+            /// `shouldBeProtected` flag, not here — refs are pointers,
+            /// not data.
             case ref(UInt32)
         }
 

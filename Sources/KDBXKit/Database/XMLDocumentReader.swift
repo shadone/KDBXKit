@@ -907,6 +907,7 @@ struct XMLDocumentReader {
         var key: String?
         var rawValue: String?
         var ref: UInt32?
+        var protected: Bool = false
 
         for child in node.children {
             switch child.name {
@@ -922,6 +923,20 @@ struct XMLDocumentReader {
                             throw .corrupted(reason: "Failed to parse Ref attribute: '\(value)'")
                         }
                         ref = refValue
+
+                    case "Protected":
+                        // Inline binaries in KDBX 3.1 (and any KDBX 4
+                        // inline binary) can carry Protected="True"
+                        // exactly like ProtectedString — same XSD
+                        // shape. The flag has no meaning on a ref;
+                        // for refs the pool entry's
+                        // `shouldBeProtected` is the source of truth.
+                        switch value.lowercased() {
+                        case "true":  protected = true
+                        case "false": protected = false
+                        default:
+                            record("Unexpected Protected value '\(value)' in Binary in \(child.fullyQualifiedName)")
+                        }
 
                     default:
                         record("Unexpected attribute '\(name)' in Binary in \(child.fullyQualifiedName)")
@@ -948,7 +963,7 @@ struct XMLDocumentReader {
             guard let data = Data(base64Encoded: rawValue) else {
                 throw .corrupted(reason: "Failed to parse base64 inline data in ProtectedBinary in \(node.fullyQualifiedName)")
             }
-            value = .inline(data)
+            value = .inline(data, protected: protected)
         } else {
             preconditionFailure()
         }

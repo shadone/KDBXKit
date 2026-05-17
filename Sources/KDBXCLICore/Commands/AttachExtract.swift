@@ -53,7 +53,7 @@ extension Attach {
 
             let bytes: Data
             switch binary.value {
-            case let .inline(data):
+            case let .inline(data, _):
                 bytes = data
             case let .ref(idx):
                 guard Int(idx) < content.innerHeader.binaryContent.count else {
