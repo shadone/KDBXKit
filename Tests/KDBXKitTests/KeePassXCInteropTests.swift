@@ -151,6 +151,56 @@ struct KeePassXCInteropTests {
         #expect(!output.contains("Invalid credentials"))
     }
 
+    @Test(
+        "Meta.customData with our `passie:` keys survives a round-trip through keepassxc-cli",
+        .enabled(if: KeePassXCInteropTests.cliAvailable, "KeePassXC CLI not installed")
+    )
+    func customData_survivesKeePassXCRoundTrip() throws {
+        // Write a vault carrying a synthetic passie:vaultID, then have
+        // keepassxc-cli mutate it (add an entry — forces a re-encrypt
+        // through KeePassXC's writer), then reopen with KDBXKit and
+        // assert the customData entry survived. KDBX 4.1 spec says
+        // unknown CustomData round-trips; this test pins KeePassXC to
+        // that promise so a future version that silently drops unknown
+        // keys would surface as a build failure here.
+        let unlock = UnlockData(masterPassword: "interop")
+        var content = KDBXContent.makeEmpty(databaseName: "Interop", kdf: .fast)
+        let vaultID = UUID().uuidString
+        let now = Date()
+        content.database.meta.customData.append(.init(
+            key: "passie:vaultID",
+            value: vaultID,
+            lastModificationTime: now
+        ))
+
+        let outPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kdbxkit-customdata-\(UUID().uuidString).kdbx").path
+        defer { try? FileManager.default.removeItem(atPath: outPath) }
+        let outputStream = OutputStream(toFileAtPath: outPath, append: false)!
+        outputStream.open()
+        try KDBXWriter(to: outputStream).write(content, unlockData: unlock)
+        outputStream.close()
+
+        // Force KeePassXC to write the file. `add` is the smallest
+        // re-encrypting mutation we can drive non-interactively.
+        // Password prompt is read twice on add: master + new-entry.
+        let addOut = try runCLI(
+            ["add", "-p", outPath, "/InteropProbe"],
+            stdin: "interop\nentry-pw\n"
+        )
+        // Sanity — the add succeeded; bail loudly if it didn't so the
+        // next assertion isn't measuring the wrong thing.
+        #expect(!addOut.contains("Error"), "keepassxc-cli add failed: \(addOut)")
+
+        // Reopen via KDBXKit. The customData entry should still be there.
+        let data = try Data(contentsOf: URL(filePath: outPath))
+        let roundTripped = try KDBXReader.parse(data, unlockData: unlock)
+        let preserved = roundTripped.database.meta.customData.first {
+            $0.key == "passie:vaultID"
+        }
+        #expect(preserved?.value == vaultID, "passie:vaultID was dropped by keepassxc-cli round-trip")
+    }
+
     private func runCLI(_ args: [String], stdin: String) throws -> String {
         let process = Process()
         process.executableURL = URL(filePath: Self.cliPath)
