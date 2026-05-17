@@ -5,7 +5,6 @@
 //
 
 import Foundation
-import Nodal
 
 /// Overview of a KDBX file:
 ///
@@ -77,8 +76,17 @@ struct XMLDocumentReader {
     /// or repaired.
     var collectedWarnings: [String] { warnings.messages }
 
-    init(xmlDocument: String, keystreamSource: KeystreamSource) {
-        document = try! Document(string: xmlDocument)
+    init(xmlDocument: String, keystreamSource: KeystreamSource) throws(Error) {
+        do {
+            document = try Document(string: xmlDocument)
+        } catch let parseError {
+            switch parseError {
+            case let .malformed(reason, line, column):
+                throw .corrupted(reason: "Malformed XML at line \(line), column \(column): \(reason)")
+            case let .nestingTooDeep(line, column):
+                throw .corrupted(reason: "XML nesting exceeds \(Document.maxNestingDepth) at line \(line), column \(column)")
+            }
+        }
         self.keystreamSource = keystreamSource
     }
 
@@ -188,15 +196,15 @@ struct XMLDocumentReader {
     // MARK: Public API
 
     func parse() throws(Error) -> KDBX {
-        guard let documentElement = document.documentElement else {
-            throw .corrupted(reason: "Missig root element")
+        guard let rootElement = document.root else {
+            throw .corrupted(reason: "Missing root element")
         }
 
-        guard documentElement.name == "KeePassFile" else {
-            throw .corrupted(reason: "Invalid root element: \(documentElement.name)")
+        guard rootElement.name == "KeePassFile" else {
+            throw .corrupted(reason: "Invalid root element: \(rootElement.name)")
         }
 
-        let (meta, root) = try parseKeepassFile(documentElement)
+        let (meta, root) = try parseKeepassFile(rootElement)
         return .init(meta: meta, root: root)
     }
 
@@ -553,10 +561,10 @@ struct XMLDocumentReader {
     /// corrupt or hostile.
     ///
     /// Settable so tests can lower it; production callers use the default.
-    /// Note that the underlying XML parser (Nodal) has its own recursion
-    /// limit which is platform-dependent and likely lower than wide ints —
-    /// in practice a malicious input is more likely to be rejected by the
-    /// XML layer first.
+    /// The XML parser itself is recursive-descent with no explicit cap, so
+    /// a pathologically deep document would blow the thread stack before
+    /// reaching this layer. In practice 100 levels is well under either
+    /// bound and well past anything a real vault produces.
     var maxGroupNestingDepth = 100
 
     func parseGroup(_ node: Node, depth: Int = 0) throws(Error) -> KDBX.Group {

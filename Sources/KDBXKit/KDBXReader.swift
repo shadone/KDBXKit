@@ -408,7 +408,7 @@ public struct KDBXReader: Sendable {
         let database: KDBX
         var parserWarnings: [String] = []
         do {
-            let xmlDocumentReader = XMLDocumentReader(
+            let xmlDocumentReader = try XMLDocumentReader(
                 xmlDocument: xmlDocument,
                 keystreamSource: innerHeader.makeKeystreamSource()
             )
