@@ -347,7 +347,7 @@ public struct KDBXWriter {
     /// salt, encryption nonce, and KDF salt. Per KDBX spec these must be
     /// regenerated on every save — leaving them stale across saves weakens
     /// confidentiality (same key + same plaintext → same ciphertext).
-    private static func regeneratingSalts(in content: KDBXContent) -> KDBXContent {
+    internal static func regeneratingSalts(in content: KDBXContent) -> KDBXContent {
         let header = content.header
 
         // Nonce length depends on the cipher.
