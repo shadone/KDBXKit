@@ -78,6 +78,19 @@ For vaults where the eager path's "every byte resident from unlock to lock" memo
 - **`BinarySource`** has two implementations: **`DataBinarySource`** (in-memory bytes, for fresh attachments awaiting their first save) and **`LazyBinarySource`** (re-streams a pool entry from a `LazyKDBXContent` — typical for unchanged attachments during a save where most binaries are still referenced by entries that didn't get edited).
 - **Gzip implementation detail**: `Compression.OutputFilter(.compress, using: .zlib, …)` emits raw DEFLATE bytes (despite the algorithm being named `.zlib` — that's the library identifier, not the wrapper format). `GzipStreamWriter` prepends the 10-byte gzip header and appends an 8-byte CRC32+length trailer on top of the DEFLATE stream. CRC32 is computed incrementally over the uncompressed bytes via the small table in `CRC32.swift`.
 
+### Legacy format (KDBX 3.1) support
+
+KDBXKit reads KDBX 3.1 and migrates it to 4.1 on save. **The writer only ever emits 4.x bytes.** 3.0 is rejected at the version gate with `.unsupportedFormatVersion(3, 0)` (the ArcFour-variant inner stream isn't worth implementing).
+
+- **Read dispatch**: `KDBXReader.parse` peeks the format major version, routes 3.x to `parse3x` in `KDBXReader+Legacy3x.swift`. The 3.x pipeline is a separate file because the framing layer (UInt16 field lengths, `StreamStartBytes` integrity instead of HMAC, hashed block stream, inline XML binary pool) genuinely diverges from 4.x — interleaving them under version branches would force readers to load both specs to follow either path.
+- **Synthesis for uniformity**: `Header3xReader` synthesizes `KDFParameters.aes(...)` from the dedicated `TransformSeed` / `TransformRounds` fields, and `parse3x` synthesizes an `InnerHeader` (Salsa20 + `ProtectedStreamKey` + binary pool harvested from `<Meta><Binaries>`) — so downstream code (KDF derivation, keystream, entry-ref resolution) is version-agnostic.
+- **Migration signal**: `KDBXContent.legacyFormatNotice` is `.willMigrate(from: .v3_1)` for files opened from 3.x and `nil` otherwise. UI callers pattern-match the enum to present a banner before save; do not parse `parserWarnings` strings.
+- **KDF upgrade is opt-in**: `KDBXContent.upgradeToArgon2id(profile:)` (or the general `upgradeKDF(to:)`) swaps the source AES-KDF for Argon2id before save. The library preserves the source KDF by default — apps that want the upgrade (Passie does) call the helper explicitly. The same master password keeps working because the writer derives a new unlock key against the new KDF parameters at save time.
+- **Writer clamp is mandatory**: `KDBXWriter.clampingFormatVersionToWritable` upgrades the in-memory `formatVersion` to `.v4_1` before any version-dependent serialization. There's no opt-out — writing 4.x framing under a 3.x version number would yield a file no compliant reader (including ours) could parse.
+- **Lazy path is 4.x-only**: `KDBXReader.openMetadataOnly` on a 3.x source throws `.unsupportedFormatVersion(3, _)`. KDBX 3.x stores binaries inline in the (decompressed) XML body, so lazy / re-stream semantics have no analog — callers fall back to eager `parse`, observe `legacyFormatNotice`, and the problem resolves itself on first save.
+- **XML dialect**: `XMLDocumentReader.DateFormat` (`.dotNetTicksBase64` default / `.iso8601` for 3.x) picks once at construction. Producers don't mix dialects within a file; no silent fallback between formats — a cross-dialect mismatch throws.
+- **CLI**: `kdbx db info` surfaces a legacy-format notice line. `kdbx db migrate <path>` is the explicit migration entry point (default: upgrades KDF to Argon2id `.balanced`; `--keep-kdf` preserves AES-KDF; no-op on 4.x files).
+
 ### Format dialects we round-trip
 
 - **Tags separator**: KeePassXC writes `,`-separated, KeePass 2 (.NET) writes `;`. Reader splits on either; writer emits `;` (matches the official KDBX 4.1 XSD). Tag values containing `;` or `,` round-trip lossily.
