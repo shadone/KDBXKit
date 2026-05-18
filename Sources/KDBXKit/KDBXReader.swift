@@ -115,12 +115,16 @@ public struct KDBXReader: Sendable {
     /// The header of the `.kdbx` file.
     ///
     /// - note: This is for debug purposes, for accessing the value even if the parsing failed due to e.g. invalid master password.
-    public private(set) var header: Header?
+    ///
+    /// Setter is `internal(set)` so the per-format pipeline extensions
+    /// (``parse3x`` for legacy 3.x, the inline 4.x path here) can write
+    /// it. From outside the module it remains read-only.
+    public internal(set) var header: Header?
 
     /// The inner header of the `.kdbx` file.
     ///
     /// - note: This is for debug purposes, for accessing the value even if the parsing failed due to e.g. corrupted content.
-    public private(set) var innerHeader: InnerHeader?
+    public internal(set) var innerHeader: InnerHeader?
 
     /// The raw decrypted XML document (with the inner-stream-cipher protected
     /// strings still base64-encoded — those are decrypted further into the
@@ -135,12 +139,12 @@ public struct KDBXReader: Sendable {
     ///
     /// - parse fails after decryption (helps diagnose the XML-level failure)
     /// - the caller used `parse(unlockData:retainsXMLForDiagnostics: true)`
-    public private(set) var xmlDocument: String?
+    public internal(set) var xmlDocument: String?
 
     /// The size of the each blocks of the HMAC-protected block stream.
     ///
     /// - note: This is for debug purposes.
-    public private(set) var blockSizes: [Int32] = []
+    public internal(set) var blockSizes: [Int32] = []
 
     public init(_ data: Data) {
         self.data = data
@@ -188,6 +192,20 @@ public struct KDBXReader: Sendable {
 
     // MARK: Read <token> helpers
 
+    /// Read the format major version (without advancing `pos`). Returns
+    /// `0` for files too short to contain a version header — the caller
+    /// then falls through to the regular 4.x parser, which surfaces the
+    /// same input as either `invalidFileSignature` or `unexpectedEOF`.
+    ///
+    /// 12-byte prefix layout: signature1 (UInt32 LE), signature2 (UInt32
+    /// LE), version (UInt32 LE: low 16 = minor, high 16 = major).
+    private func peekFormatMajor() throws(Error) -> UInt16 {
+        guard data.count >= 12 else { return 0 }
+        let versionData = data.subdata(in: data.startIndex.advanced(by: 8)..<data.startIndex.advanced(by: 12))
+        guard let raw = versionData.asUInt32LE() else { return 0 }
+        return UInt16(raw >> 16)
+    }
+
     private mutating func readInt32() throws(Error) -> Int32 {
         try readData(length: 4).asInt32LE()! // safe to force unwrap as we guaranteed to read enough bytes
     }
@@ -214,6 +232,19 @@ public struct KDBXReader: Sendable {
         retainsXMLForDiagnostics: Bool = false,
         maxDecompressedPayloadSize: Int = KDBXReader.maxDecompressedPayloadSize
     ) throws(Error) -> KDBXContent {
+        // Peek the format major version before committing to a header
+        // parser. KDBX 3.x and 4.x diverge starting at the first header
+        // field (UInt16 vs UInt32 lengths), so the two readers cannot
+        // share state beyond the 12-byte signature+version prefix.
+        let formatMajor = try peekFormatMajor()
+        if formatMajor == 3 {
+            return try parse3x(
+                unlockData: unlockData,
+                retainsXMLForDiagnostics: retainsXMLForDiagnostics,
+                maxDecompressedPayloadSize: maxDecompressedPayloadSize
+            )
+        }
+
         let header: Header
         let headerLength: Int
 
