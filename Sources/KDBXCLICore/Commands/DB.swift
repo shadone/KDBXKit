@@ -20,6 +20,7 @@ struct DB: ParsableCommand {
             SetCompression.self,
             Create.self,
             EmptyRecycleBin.self,
+            Migrate.self,
         ],
         defaultSubcommand: Info.self
     )

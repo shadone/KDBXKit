@@ -76,6 +76,30 @@ struct EndToEndTests {
 
     // MARK: - Entry add / set / mv / rm
 
+    @Test("db migrate on a 4.x vault is a clean no-op")
+    func dbMigrate_onModernVaultIsNoOp() throws {
+        let sb = try makeSandbox()
+        defer { sb.cleanup() }
+
+        // makeSandbox() produces a fresh 4.1 vault via
+        // KDBXContent.makeEmpty. `db migrate` must recognize the
+        // already-modern format and exit without touching the file —
+        // safe to run over a directory of mixed-vintage vaults.
+        let before = try Data(contentsOf: sb.vault)
+
+        try run(["db", "migrate", sb.vault.path, "--key-file", sb.keyFile.path])
+
+        let after = try Data(contentsOf: sb.vault)
+        // Exact-byte equality: the no-op path takes the don't-rewrite
+        // branch, so we don't even pay the salt-regeneration cost.
+        #expect(before == after)
+
+        // Vault is still openable and reports 4.1 — pins that
+        // `migrate` doesn't somehow corrupt non-target files.
+        let content = try reopen(sb)
+        #expect(content.header.formatVersion == .v4_1)
+    }
+
     @Test("entry add inserts under the named group with a fresh UUID and stamped Times")
     func entryAddInsertsUnderGroup() throws {
         let sb = try makeSandbox()
