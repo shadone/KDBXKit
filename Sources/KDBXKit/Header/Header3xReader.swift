@@ -132,10 +132,13 @@ struct Header3xReader: Sendable {
 
         let formatVersionValue = try readUInt32LE()
         let formatVersion = Header.FormatVersion(rawValue: formatVersionValue)
-        let supportedFormatVersions: [Header.FormatVersion] = [
-            .v3_0,
-            .v3_1,
-        ]
+        // KDBX 3.1 is the only pre-4 version we support. 3.0 (KeePass
+        // 2.10–2.19) is rejected here rather than later in the field
+        // walk — 3.0's default inner stream cipher was the ArcFour
+        // variant we'd otherwise reject downstream with a
+        // .corrupted("Unsupported inner random stream ID") that's less
+        // informative than an upfront version-level rejection.
+        let supportedFormatVersions: [Header.FormatVersion] = [.v3_1]
         if !supportedFormatVersions.contains(formatVersion) {
             throw .unsupportedFormatVersion(major: formatVersion.major, minor: formatVersion.minor)
         }

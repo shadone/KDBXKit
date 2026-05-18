@@ -77,6 +77,41 @@ struct StaticReaderAPITests {
         #expect(revealed == "secret123")
     }
 
+    @Test("KDBX 3.0 input is rejected with typed unsupportedFormatVersion (3.1 is the only supported 3.x)")
+    func kdbx30_rejectedWithTypedError() throws {
+        // KDBX 3.0 (KeePass 2.10–2.19) used the ArcFour-variant inner
+        // stream cipher as its default. We don't ship a working
+        // ArcFour-variant keystream and have no plans to — the format
+        // is ~15 years old and effectively unused in the wild. Rejecting
+        // it at the version gate gives callers a precise typed error
+        // (.unsupportedFormatVersion(3, 0)) instead of an opaque
+        // .corruptedHeader("Unsupported inner random stream ID: 1").
+        //
+        // The fixture is built by surgically flipping the minor-version
+        // byte of the 3.1 fixture in memory — the rest of the file is
+        // structurally a 3.1 file, but the version field reads 3.0.
+        // That's the failure shape we'd see if a user handed us an
+        // actual 3.0 file: rejected before any cipher / KDF work.
+        let path = Bundle.module.path(forResource: "Resources/kpxc-kdbx31-default", ofType: "kdbx")!
+        var data = try Data(contentsOf: URL(filePath: path))
+        // File layout: signature1 (4) + signature2 (4) + version (4 LE,
+        // low UInt16 minor + high UInt16 major). Byte 8 is the low byte
+        // of `minor` — flip 3.1 → 3.0 in place.
+        data[8] = 0x00
+
+        do {
+            _ = try KDBXReader.parse(data, unlockData: .init(masterPassword: "test"))
+            Issue.record("Expected .unsupportedFormatVersion")
+        } catch let error as KDBXReader.Error {
+            if case let .unsupportedFormatVersion(major, minor) = error {
+                #expect(major == 3)
+                #expect(minor == 0)
+            } else {
+                Issue.record("Wrong error: \(error)")
+            }
+        }
+    }
+
     @Test("Wrong password on a KDBX 3.1 file surfaces .wrongCredentials via StreamStartBytes")
     func kdbx31_wrongPasswordSurfacesStructuredError() throws {
         // KDBX 3.x has no header HMAC; the wrong-credentials signal is
