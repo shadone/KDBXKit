@@ -49,7 +49,6 @@ enum RecycleBinManager {
         if content.database.meta.recycleBinEnabled == nil {
             content.database.meta.recycleBinEnabled = true
         }
-        content.database.meta.touch(at: now)
         return binUUID
     }
 }
