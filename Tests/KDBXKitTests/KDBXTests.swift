@@ -241,6 +241,13 @@ struct KDBXTests {
             // ISO-8601 dates, inline `<Meta><Binaries>` (empty pool in
             // this fixture; a separate fixture covers populated pools).
             (file: "Resources/kpxc-kdbx31-default", password: "test"),
+            // KDBX 3.1 with a populated inline binary pool — same
+            // shape kpxc-kdbx31-default exercises plus an entry with
+            // two `<Binary Ref>` references and two `<Meta><Binaries>`
+            // pool entries (one compressible / one incompressible) so
+            // the pool's gunzip and Protected-attribute paths are
+            // covered by the regression net.
+            (file: "Resources/kpxc-kdbx31-attachments", password: "test"),
         ]
     )
     func fixturesProduceNoParserWarnings(fixture: (file: String, password: String)) async throws {
