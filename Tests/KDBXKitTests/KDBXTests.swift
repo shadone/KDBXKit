@@ -233,6 +233,14 @@ struct KDBXTests {
             // and then `keepassxc-cli merge`-ing into a 4.x base — only
             // path to land real Association elements via the CLI.
             (file: "Resources/kpxc-autotype", password: "123"),
+            // KeePassXC db-create defaults to KDBX 3.1 — the legacy
+            // format read pipeline must produce zero parser warnings on
+            // a stock kpxc output, same invariant we hold 4.x fixtures
+            // to. Differences exercised: UInt16 header field lengths,
+            // hashed (not HMAC) block stream, Salsa20 inner cipher,
+            // ISO-8601 dates, inline `<Meta><Binaries>` (empty pool in
+            // this fixture; a separate fixture covers populated pools).
+            (file: "Resources/kpxc-kdbx31-default", password: "test"),
         ]
     )
     func fixturesProduceNoParserWarnings(fixture: (file: String, password: String)) async throws {
