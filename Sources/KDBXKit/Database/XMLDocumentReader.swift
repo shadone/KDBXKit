@@ -39,9 +39,34 @@ private final class ParserWarnings {
     func add(_ message: String) { messages.append(message) }
 }
 
+/// Mutable collector for the `<Meta><Binaries>` pool harvested during a
+/// KDBX 3.x parse. Class-backed for the same reason as ``ParserWarnings``:
+/// recursive non-mutating `parse*` helpers need to append.
+private final class InlineBinaryPoolCollector {
+    var entries: [(id: UInt32, content: InnerHeader.BinaryContent)] = []
+    func append(id: UInt32, content: InnerHeader.BinaryContent) {
+        entries.append((id: id, content: content))
+    }
+}
+
 struct XMLDocumentReader {
     enum Error: Swift.Error {
         case corrupted(reason: String)
+    }
+
+    /// XML serialization dialect for `<Times>` / `<Meta>` date fields.
+    ///
+    /// KDBX 4 packs dates as base64-encoded little-endian Int64 seconds
+    /// since the .NET epoch (`0001-01-01T00:00:00Z`). KDBX 3.x writes
+    /// ISO-8601 strings. Producers don't mix the two within one file, so
+    /// the reader picks once at construction rather than format-sniffing
+    /// per field.
+    enum DateFormat: Sendable {
+        /// Base64-encoded little-endian `Int64` seconds since 0001-01-01.
+        /// KDBX 4 default.
+        case dotNetTicksBase64
+        /// ISO-8601 string (e.g. `"2020-01-15T10:00:00Z"`). KDBX 3.x.
+        case iso8601
     }
 
     let document: Document
@@ -52,6 +77,25 @@ struct XMLDocumentReader {
     /// Random-access keystream — the reader records each protected
     /// node's keystream offset instead of decrypting in line.
     let keystreamSource: KeystreamSource
+
+    /// Date serialization dialect — set once at init based on the file's
+    /// outer format version. See ``DateFormat``.
+    private let dateFormat: DateFormat
+
+    /// Binary pool harvested from `<Meta><Binaries>`. Empty for KDBX 4
+    /// files (which store binaries in the inner header instead). The 3.x
+    /// read pipeline migrates these into a synthesized
+    /// ``InnerHeader.binaryContent`` so downstream code stays uniform.
+    private let inlineBinaries = InlineBinaryPoolCollector()
+
+    /// Binary pool extracted from the XML body. Ordered by the `ID`
+    /// attribute on each `<Binary>` element so callers can rely on the
+    /// index as the entry-side `<Value Ref="N"/>` target.
+    var inlineBinaryPool: [InnerHeader.BinaryContent] {
+        inlineBinaries.entries
+            .sorted { $0.id < $1.id }
+            .map(\.content)
+    }
 
     /// Running offset into the inner-cipher keystream, boxed in a class
     /// so the recursive `parse*` walk can advance it without every
@@ -76,7 +120,11 @@ struct XMLDocumentReader {
     /// or repaired.
     var collectedWarnings: [String] { warnings.messages }
 
-    init(xmlDocument: String, keystreamSource: KeystreamSource) throws(Error) {
+    init(
+        xmlDocument: String,
+        keystreamSource: KeystreamSource,
+        dateFormat: DateFormat = .dotNetTicksBase64
+    ) throws(Error) {
         do {
             document = try Document(string: xmlDocument)
         } catch let parseError {
@@ -88,6 +136,7 @@ struct XMLDocumentReader {
             }
         }
         self.keystreamSource = keystreamSource
+        self.dateFormat = dateFormat
     }
 
     /// Records a parser diagnostic. Both surfaces it via the os logger
@@ -102,13 +151,124 @@ struct XMLDocumentReader {
     // MARK: Parse <datatype> helpers
 
     private func parseDate(_ string: String, node: Node) throws(Error) -> Date {
-        guard
-            let secondsSinceDotnetEpoch = Data(base64Encoded: string)?.asInt64LE()
-        else {
-            throw .corrupted(reason: "Failed to parse date '\(string)' from \(node.fullyQualifiedName)")
-        }
+        switch dateFormat {
+        case .dotNetTicksBase64:
+            guard
+                let secondsSinceDotnetEpoch = Data(base64Encoded: string)?.asInt64LE()
+            else {
+                throw .corrupted(reason: "Failed to parse date '\(string)' from \(node.fullyQualifiedName)")
+            }
+            return Date(secondsSinceDotNetEpoch: secondsSinceDotnetEpoch)
 
-        return Date(secondsSinceDotNetEpoch: secondsSinceDotnetEpoch)
+        case .iso8601:
+            if let date = parseISO8601(string) {
+                return date
+            }
+            throw .corrupted(reason: "Failed to parse ISO-8601 date '\(string)' from \(node.fullyQualifiedName)")
+        }
+    }
+
+    /// Parse the ISO-8601 dialect KDBX 3.x writers use. KeePass / KeePassXC
+    /// emit `YYYY-MM-DDThh:mm:ssZ`; we also accept fractional seconds and
+    /// numeric offsets so a file produced by a less-canonical writer
+    /// doesn't bomb the entire parse.
+    private func parseISO8601(_ string: String) -> Date? {
+        if let date = XMLDocumentReader.iso8601Plain.date(from: string) {
+            return date
+        }
+        if let date = XMLDocumentReader.iso8601Fractional.date(from: string) {
+            return date
+        }
+        return nil
+    }
+
+    /// `Z`-suffixed or `±HH:MM` ISO-8601 with second precision.
+    // `ISO8601DateFormatter` is documented thread-safe by Apple (the
+    // `DateFormatter` family explicitly says formatters are safe to share
+    // across threads once configured), but Swift 6 strict concurrency
+    // can't see the framework annotation. `nonisolated(unsafe)` asserts
+    // the property we know to hold — cheaper than rebuilding a formatter
+    // for every date in the file (a populated vault has thousands).
+    nonisolated(unsafe) private static let iso8601Plain: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }()
+
+    /// Same as above but accepts fractional seconds.
+    nonisolated(unsafe) private static let iso8601Fractional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+
+    /// Parse a `<Meta><Binaries>` pool into ``collectedInlineBinaries``.
+    ///
+    /// Layout:
+    /// ```xml
+    /// <Binaries>
+    ///   <Binary ID="0" Compressed="True">base64...</Binary>
+    ///   <Binary ID="1" Protected="False">base64...</Binary>
+    /// </Binaries>
+    /// ```
+    /// `Compressed="True"` means the decoded bytes are gzipped — we
+    /// inflate so the in-memory pool always carries the raw payload, the
+    /// same shape the 4.x inner-header pool uses. `Protected` follows the
+    /// same convention as ``InnerHeader.BinaryContent.shouldBeProtected``.
+    private func parseInlineBinariesPool(_ node: Node) throws(Error) {
+        for child in node.children {
+            guard child.name == "Binary" else {
+                record("Unexpected element \(child.fullyQualifiedName)")
+                continue
+            }
+
+            var id: UInt32?
+            var compressed = false
+            var protected = false
+
+            for (name, value) in child.attributes {
+                switch name {
+                case "ID":
+                    guard let parsed = UInt32(value) else {
+                        throw .corrupted(reason: "Invalid Binary ID '\(value)' in \(child.fullyQualifiedName)")
+                    }
+                    id = parsed
+                case "Compressed":
+                    compressed = (value.lowercased() == "true")
+                case "Protected":
+                    protected = (value.lowercased() == "true")
+                default:
+                    record("Unexpected attribute '\(name)' in Binary in \(child.fullyQualifiedName)")
+                }
+            }
+
+            guard let id else {
+                throw .corrupted(reason: "Missing ID attribute on Binary in \(child.fullyQualifiedName)")
+            }
+
+            // The text content is base64. Empty payload is legal (an
+            // intentionally empty attachment) and decodes to zero bytes.
+            let base64 = text(in: child) ?? ""
+            guard let decoded = Data(base64Encoded: base64, options: .ignoreUnknownCharacters) else {
+                throw .corrupted(reason: "Invalid base64 in Binary ID=\(id) in \(child.fullyQualifiedName)")
+            }
+
+            let payload: Data
+            if compressed, !decoded.isEmpty {
+                do {
+                    payload = try LegacyBinaryDecompressor.gunzip(decoded)
+                } catch {
+                    throw .corrupted(reason: "Failed to gunzip Binary ID=\(id): \(error)")
+                }
+            } else {
+                payload = decoded
+            }
+
+            inlineBinaries.append(
+                id: id,
+                content: .init(shouldBeProtected: protected, data: payload)
+            )
+        }
     }
 
     private func parseNumber<T: FixedWidthInteger>(_ string: String, node: Node) throws(Error) -> T {
@@ -356,6 +516,15 @@ struct XMLDocumentReader {
 
             case "CustomData":
                 meta.customData = try parseCustomDataWithTimesList(child)
+
+            case "Binaries":
+                // KDBX 3.x inline binary pool. KDBX 4 writers don't emit
+                // this — binaries live in the inner header pool — so any
+                // 4.x file reaching this branch is either hand-crafted or
+                // a 3.x-flavoured edit. Either way the schema is the
+                // same: harvest into `collectedInlineBinaries` and let
+                // the caller decide what to do with the pool.
+                try parseInlineBinariesPool(child)
 
             default:
                 record("Unexpected element \(child.fullyQualifiedName)")
