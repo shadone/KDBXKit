@@ -675,6 +675,81 @@ struct KeePassXCInteropTests {
         }
     }
 
+    @Test(
+        "KDBX 3.1 vault migrated to 4.1 (default KDF preservation) is readable by keepassxc-cli",
+        .enabled(if: KeePassXCInteropTests.cliAvailable, "KeePassXC CLI not installed")
+    )
+    func kdbx31_migratedTo4x_readableByKeePassXC() throws {
+        // The internal round-trip test (StaticReaderAPITests) proves
+        // we can re-read our own output. This proves the migrated
+        // file is a spec-compliant 4.x file the canonical kpxc binary
+        // can decrypt — the only test that catches KDBX-format-spec
+        // divergences in our writer when the source was 3.x.
+        let path = Bundle.module.path(forResource: "Resources/kpxc-kdbx31-default", ofType: "kdbx")!
+        let data = try Data(contentsOf: URL(filePath: path))
+        let unlock = UnlockData(masterPassword: "test")
+
+        let content = try KDBXReader.parse(data, unlockData: unlock)
+        #expect(content.header.formatVersion == .v3_1, "fixture sanity: source must be 3.x")
+
+        let outPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kdbxkit-3x-migrated-\(UUID().uuidString).kdbx").path
+        defer { try? FileManager.default.removeItem(atPath: outPath) }
+
+        let outputStream = OutputStream(toFileAtPath: outPath, append: false)!
+        outputStream.open()
+        try KDBXWriter(to: outputStream).write(content, unlockData: unlock)
+        outputStream.close()
+
+        let output = try runCLI(["show", "-s", outPath, "Example Login"], stdin: "test\n")
+        #expect(output.contains("Title: Example Login"))
+        #expect(output.contains("UserName: alice"))
+        #expect(output.contains("URL: https://example.com"))
+        // The protected Password field must decrypt under kpxc — proves
+        // the ChaCha20-aware inner-cipher serialization path emits
+        // bytes whose XOR layout kpxc reads correctly. (The migrated
+        // file inherits the 3.x Salsa20 inner cipher, which kpxc
+        // accepts as a valid 4.x option.)
+        #expect(output.contains("Password: secret123"))
+    }
+
+    @Test(
+        "KDBX 3.1 vault migrated to Argon2id is readable by keepassxc-cli",
+        .enabled(if: KeePassXCInteropTests.cliAvailable, "KeePassXC CLI not installed")
+    )
+    func kdbx31_upgradedToArgon2id_readableByKeePassXC() throws {
+        // The Argon2id upgrade is the migration Passie applies to 3.x
+        // vaults on first save — it's the user-facing point of
+        // supporting 3.x at all. This test proves the upgraded file
+        // is structurally valid: header, KDF identity, and the
+        // serialized Argon2id VariantDictionary all pass kpxc's
+        // stricter parser, and the user's original master password
+        // still unlocks it after the KDF swap.
+        let path = Bundle.module.path(forResource: "Resources/kpxc-kdbx31-default", ofType: "kdbx")!
+        let data = try Data(contentsOf: URL(filePath: path))
+        let unlock = UnlockData(masterPassword: "test")
+
+        var content = try KDBXReader.parse(data, unlockData: unlock)
+        // `.fast` keeps the unlock under ~500 ms — this test runs the
+        // KDF twice (write + kpxc decrypt), don't burn 8 seconds on
+        // .balanced just to prove the migration is well-formed.
+        content.upgradeToArgon2id(profile: .fast)
+
+        let outPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kdbxkit-3x-argon2id-\(UUID().uuidString).kdbx").path
+        defer { try? FileManager.default.removeItem(atPath: outPath) }
+
+        let outputStream = OutputStream(toFileAtPath: outPath, append: false)!
+        outputStream.open()
+        try KDBXWriter(to: outputStream).write(content, unlockData: unlock)
+        outputStream.close()
+
+        let output = try runCLI(["show", "-s", outPath, "Example Login"], stdin: "test\n")
+        #expect(output.contains("Title: Example Login"))
+        #expect(output.contains("Password: secret123"),
+                "kpxc must accept Argon2id-derived unlock key against the unchanged master password")
+    }
+
     /// Deterministic-enough random bytes for tests — uses
     /// `SystemRandomNumberGenerator` because we only need uniqueness
     /// within a single test invocation, not across runs.
