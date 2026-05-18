@@ -31,7 +31,19 @@ public extension KDBXWriter {
         unlockData: UnlockData,
         regenerateSalts: Bool = true
     ) throws {
-        let prepared = regenerateSalts ? KDBXWriter.regeneratingSalts(in: content) : content
+        var prepared = regenerateSalts ? KDBXWriter.regeneratingSalts(in: content) : content
+        // The streaming writer is the production save path for the
+        // Passie iOS / macOS apps. It must clamp the format version
+        // to 4.1 for the same reason the eager `write(_:unlockData:…)`
+        // path does: this writer only emits KDBX 4 framing (UInt32
+        // header field lengths, HMAC-protected block stream, inner-
+        // header binary pool). A KDBXContent carrying formatVersion
+        // 3.1 reaches here when a user imports a KeePassXC-default
+        // vault; without the clamp the resulting file would carry
+        // 4.x bytes under a 3.x version header — unparseable, with
+        // post-write verification reporting a malformed cipher UUID
+        // because the reader is parsing UInt16-length fields.
+        prepared = KDBXWriter.clampingFormatVersionToWritable(prepared)
         let headerData = try serializeHeaderBlock(prepared.header)
         let unlockKey = try deriveUnlockKey(prepared: prepared, unlockData: unlockData)
         let mainContentKey: SecureBytes = MainKey.make(
