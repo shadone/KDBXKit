@@ -30,6 +30,17 @@ public extension KDBXReader {
     ///
     /// Peak memory during this call: ~the decompressed payload size
     /// (binary bytes + XML). After return: metadata + XML state only.
+    ///
+    /// - important: KDBX 3.x files cannot be opened in metadata-only
+    ///   mode. The 3.x on-disk layout stores binaries inline in the
+    ///   decompressed XML body, not in an inner-header pool that
+    ///   `streamBinary` could re-slice. Lazy / streaming semantics
+    ///   would have to materialize every binary anyway. Calls on a
+    ///   3.x source throw ``KDBXReader/Error/unsupportedFormatVersion(major:minor:)``
+    ///   with `major == 3`. Callers should fall back to
+    ///   ``KDBXReader/parse(_:unlockData:)``, observe
+    ///   ``KDBXContent/legacyFormatNotice``, and prompt the user to
+    ///   save (which migrates the file to 4.1).
     static func openMetadataOnly(
         from source: KDBXSource,
         unlockData: UnlockData,
