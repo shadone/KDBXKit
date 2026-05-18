@@ -77,6 +77,25 @@ struct StaticReaderAPITests {
         #expect(revealed == "secret123")
     }
 
+    @Test("Wrong password on a KDBX 3.1 file surfaces .wrongCredentials via StreamStartBytes")
+    func kdbx31_wrongPasswordSurfacesStructuredError() throws {
+        // KDBX 3.x has no header HMAC; the wrong-credentials signal is
+        // the constant-time compare of the first 32 plaintext bytes
+        // after AES-CBC decrypt against the cleartext-header
+        // StreamStartBytes value. A wrong key produces structurally
+        // random plaintext that almost-never collides with the
+        // sentinel, so the right credential-rejection path is
+        // .wrongCredentials — not .corruptedXML / .corruptedHeader
+        // (which would surface only if the bad plaintext happened to
+        // pass the StreamStartBytes check and then fail downstream).
+        let path = Bundle.module.path(forResource: "Resources/kpxc-kdbx31-default", ofType: "kdbx")!
+        let data = try Data(contentsOf: URL(filePath: path))
+
+        #expect(throws: KDBXReader.Error.wrongCredentials) {
+            _ = try KDBXReader.parse(data, unlockData: .init(masterPassword: "wrong"))
+        }
+    }
+
     @Test("KDBX 3.1 file round-trips through the writer as KDBX 4.1")
     func kdbx31_writerMigratesToV4_1() throws {
         let path = Bundle.module.path(forResource: "Resources/kpxc-kdbx31-default", ofType: "kdbx")!
