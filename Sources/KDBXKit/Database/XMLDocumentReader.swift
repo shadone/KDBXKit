@@ -395,127 +395,161 @@ struct XMLDocumentReader {
     }
 
     func parseMeta(_ node: Node) throws(Error) -> KDBX.Meta {
-        var meta = KDBX.Meta()
+        // Accumulate parsed values into locals and assemble the Meta
+        // in a single `init(...)` call at the end. Direct field
+        // mutation (`meta.databaseName = ...`) would fire the field's
+        // `didSet` observer and clobber `settingsChanged` with `Date()`,
+        // losing the on-disk timestamp. The initial assignments inside
+        // `KDBX.Meta.init(...)` don't fire didSet, so this is the only
+        // path that preserves parsed timestamps verbatim.
+        var generator: String?
+        var headerHash: String?
+        var settingsChanged: Date?
+        var databaseName: String?
+        var databaseNameChanged: Date?
+        var databaseDescription: String?
+        var databaseDescriptionChanged: Date?
+        var defaultUserName: String?
+        var defaultUserNameChanged: Date?
+        var maintenanceHistoryDays: UInt32?
+        var color: KDBX.Color?
+        var masterKeyChanged: Date?
+        var masterKeyChangeRec: KDBX.ValueOrNever<UInt64>?
+        var masterKeyChangeForce: KDBX.ValueOrNever<UInt64>?
+        var masterKeyChangeForceOnce: Bool?
+        var memoryProtection: KDBX.MemoryProtectionConfig?
+        var customIcons: [KDBX.CustomIcon] = []
+        var recycleBinEnabled: Bool?
+        var recycleBinUUID: UUID?
+        var recycleBinChanged: Date?
+        var entryTemplatesGroup: UUID?
+        var entryTemplatesGroupChanged: Date?
+        var historyMaxItems: KDBX.ValueOrUnlimited<UInt32>?
+        var historyMaxSize: KDBX.ValueOrUnlimited<UInt64>?
+        var lastSelectedGroup: UUID?
+        var lastTopVisibleGroup: UUID?
+        var customData: [KDBX.CustomDataWithTimes] = []
 
         for child in node.children {
             switch child.name {
             case "Generator":
-                meta.generator = text(in: child)
+                generator = text(in: child)
 
             case "HeaderHash":
-                meta.headerHash = text(in: child)
+                headerHash = text(in: child)
 
             case "SettingsChanged":
                 if let stringValue = text(in: child) {
-                    meta.settingsChanged = try parseDate(stringValue, node: child)
+                    settingsChanged = try parseDate(stringValue, node: child)
                 }
 
             case "DatabaseName":
-                meta.databaseName = text(in: child)
+                databaseName = text(in: child)
 
             case "DatabaseNameChanged":
                 if let stringValue = text(in: child) {
-                    meta.databaseNameChanged = try parseDate(stringValue, node: child)
+                    databaseNameChanged = try parseDate(stringValue, node: child)
                 }
 
             case "DatabaseDescription":
-                meta.databaseDescription = text(in: child)
+                databaseDescription = text(in: child)
 
             case "DatabaseDescriptionChanged":
                 if let stringValue = text(in: child) {
-                    meta.databaseDescriptionChanged = try parseDate(stringValue, node: child)
+                    databaseDescriptionChanged = try parseDate(stringValue, node: child)
                 }
+
             case "DefaultUserName":
-                meta.defaultUserName = text(in: child)
+                defaultUserName = text(in: child)
 
             case "DefaultUserNameChanged":
                 if let stringValue = text(in: child) {
-                    meta.defaultUserNameChanged = try parseDate(stringValue, node: child)
+                    defaultUserNameChanged = try parseDate(stringValue, node: child)
                 }
 
             case "MaintenanceHistoryDays":
                 if let stringValue = text(in: child) {
-                    meta.maintenanceHistoryDays = parseLenientUnsigned(stringValue, node: child)
+                    maintenanceHistoryDays = parseLenientUnsigned(stringValue, node: child)
                 }
 
             case "Color":
                 // Empty string is allowed as a special "default" color
                 let stringValue = text(in: child) ?? ""
-                meta.color = try parseColor(stringValue, node: child)
+                color = try parseColor(stringValue, node: child)
 
             case "MasterKeyChanged":
                 if let stringValue = text(in: child) {
-                    meta.masterKeyChanged = try parseDate(stringValue, node: child)
+                    masterKeyChanged = try parseDate(stringValue, node: child)
                 }
 
             case "MasterKeyChangeRec":
                 if let stringValue = text(in: child) {
-                    meta.masterKeyChangeRec = try parseValueOrNever(stringValue, node: child)
+                    masterKeyChangeRec = try parseValueOrNever(stringValue, node: child)
                 }
 
             case "MasterKeyChangeForce":
                 if let stringValue = text(in: child) {
-                    meta.masterKeyChangeForce = try parseValueOrNever(stringValue, node: child)
+                    masterKeyChangeForce = try parseValueOrNever(stringValue, node: child)
                 }
 
             case "MasterKeyChangeForceOnce":
                 if let stringValue = text(in: child) {
-                    meta.masterKeyChangeForceOnce = try parseBool(stringValue, node: child)
+                    masterKeyChangeForceOnce = try parseBool(stringValue, node: child)
                 }
 
             case "MemoryProtection":
-                meta.memoryProtection = try parseMemoryProtection(child)
+                memoryProtection = try parseMemoryProtection(child)
 
             case "CustomIcons":
-                meta.customIcons = try parseCustomIconList(child)
+                customIcons = try parseCustomIconList(child)
 
             case "RecycleBinEnabled":
                 if let stringValue = text(in: child) {
-                    meta.recycleBinEnabled = try parseBool(stringValue, node: child)
+                    recycleBinEnabled = try parseBool(stringValue, node: child)
                 }
 
             case "RecycleBinUUID":
                 if let stringValue = text(in: child) {
-                    meta.recycleBinUUID = try parseUUID(stringValue, node: child)
+                    recycleBinUUID = try parseUUID(stringValue, node: child)
                 }
 
             case "RecycleBinChanged":
                 if let stringValue = text(in: child) {
-                    meta.recycleBinChanged = try parseDate(stringValue, node: child)
+                    recycleBinChanged = try parseDate(stringValue, node: child)
                 }
 
             case "EntryTemplatesGroup":
                 if let stringValue = text(in: child) {
-                    meta.entryTemplatesGroup = try parseUUID(stringValue, node: node)
+                    entryTemplatesGroup = try parseUUID(stringValue, node: node)
                 }
 
             case "EntryTemplatesGroupChanged":
                 if let stringValue = text(in: child) {
-                    meta.entryTemplatesGroupChanged = try parseDate(stringValue, node: node)
+                    entryTemplatesGroupChanged = try parseDate(stringValue, node: node)
                 }
 
             case "HistoryMaxItems":
                 if let stringValue = text(in: child) {
-                    meta.historyMaxItems = try parseValueOrUnlimited(stringValue, node: node)
+                    historyMaxItems = try parseValueOrUnlimited(stringValue, node: node)
                 }
 
             case "HistoryMaxSize":
                 if let stringValue = text(in: child) {
-                    meta.historyMaxSize = try parseValueOrUnlimited(stringValue, node: node)
+                    historyMaxSize = try parseValueOrUnlimited(stringValue, node: node)
                 }
 
             case "LastSelectedGroup":
                 if let stringValue = text(in: child) {
-                    meta.lastSelectedGroup = try parseUUID(stringValue, node: node)
+                    lastSelectedGroup = try parseUUID(stringValue, node: node)
                 }
 
             case "LastTopVisibleGroup":
                 if let stringValue = text(in: child) {
-                    meta.lastTopVisibleGroup = try parseUUID(stringValue, node: node)
+                    lastTopVisibleGroup = try parseUUID(stringValue, node: node)
                 }
 
             case "CustomData":
-                meta.customData = try parseCustomDataWithTimesList(child)
+                customData = try parseCustomDataWithTimesList(child)
 
             case "Binaries":
                 // KDBX 3.x inline binary pool. KDBX 4 writers don't emit
@@ -531,7 +565,35 @@ struct XMLDocumentReader {
             }
         }
 
-        return meta
+        return KDBX.Meta(
+            generator: generator,
+            headerHash: headerHash,
+            settingsChanged: settingsChanged,
+            databaseName: databaseName,
+            databaseNameChanged: databaseNameChanged,
+            databaseDescription: databaseDescription,
+            databaseDescriptionChanged: databaseDescriptionChanged,
+            defaultUserName: defaultUserName,
+            defaultUserNameChanged: defaultUserNameChanged,
+            maintenanceHistoryDays: maintenanceHistoryDays,
+            color: color,
+            masterKeyChanged: masterKeyChanged,
+            masterKeyChangeRec: masterKeyChangeRec,
+            masterKeyChangeForce: masterKeyChangeForce,
+            masterKeyChangeForceOnce: masterKeyChangeForceOnce,
+            memoryProtection: memoryProtection,
+            customIcons: customIcons,
+            recycleBinEnabled: recycleBinEnabled,
+            recycleBinUUID: recycleBinUUID,
+            recycleBinChanged: recycleBinChanged,
+            entryTemplatesGroup: entryTemplatesGroup,
+            entryTemplatesGroupChanged: entryTemplatesGroupChanged,
+            historyMaxItems: historyMaxItems,
+            historyMaxSize: historyMaxSize,
+            lastSelectedGroup: lastSelectedGroup,
+            lastTopVisibleGroup: lastTopVisibleGroup,
+            customData: customData
+        )
     }
 
     func parseRoot(_ node: Node) throws(Error) -> KDBX.Root {
