@@ -209,7 +209,19 @@ public struct KDBXWriter {
         // gives an attacker access to the same ciphertext for the same
         // plaintext, weakening confidentiality. Default-on; the round-trip
         // tests can opt out for exact byte-equality.
-        let preparedContent = regenerateSalts ? Self.regeneratingSalts(in: content) : content
+        var preparedContent = regenerateSalts ? Self.regeneratingSalts(in: content) : content
+
+        // ``KDBXWriter`` only emits the KDBX 4 on-disk shape — UInt32
+        // header field lengths, kdfParameters VariantDictionary,
+        // HMAC-protected block stream, inner-header binary pool. A
+        // ``KDBXContent`` carrying ``formatVersion`` 3.0 / 3.1 reaches
+        // here in two ways: it was just read from a legacy file, or a
+        // caller constructed one programmatically. In either case the
+        // safe answer is the same — clamp the version field so the
+        // bytes we produce are unambiguously identified as 4.1. Doing
+        // anything else would write the new 4.x framing under a 3.x
+        // version number and silently corrupt the file.
+        preparedContent = Self.clampingFormatVersionToWritable(preparedContent)
 
         // MARK: 1. Header
 
@@ -347,6 +359,38 @@ public struct KDBXWriter {
     /// salt, encryption nonce, and KDF salt. Per KDBX spec these must be
     /// regenerated on every save — leaving them stale across saves weakens
     /// confidentiality (same key + same plaintext → same ciphertext).
+    /// Upgrade `content.header.formatVersion` to the on-disk format the
+    /// writer actually emits when the input is from a pre-4 format.
+    ///
+    /// The writer's serializer is unconditionally 4.x — there is no
+    /// branch that emits 3.x bytes. A 3.x version number on 4.x bytes
+    /// would yield a file that no compliant reader (including ours)
+    /// could parse, so the clamp is mandatory rather than an opt-in.
+    internal static func clampingFormatVersionToWritable(_ content: KDBXContent) -> KDBXContent {
+        guard content.header.formatVersion.isLegacy3x else {
+            return content
+        }
+        let upgraded = Header(
+            formatVersion: .v4_1,
+            encryptionAlgorithm: content.header.encryptionAlgorithm,
+            compressionAlgorithm: content.header.compressionAlgorithm,
+            masterSalt: content.header.masterSalt,
+            encryptionNonce: content.header.encryptionNonce,
+            kdfParameters: content.header.kdfParameters,
+            publicCustomData: content.header.publicCustomData
+        )
+        return KDBXContent(
+            database: content.database,
+            header: upgraded,
+            innerHeader: content.innerHeader,
+            parserWarnings: content.parserWarnings,
+            // The on-disk file we're about to emit is 4.x, so the
+            // notice no longer applies. Callers reading the file back
+            // will see legacyFormatNotice == nil.
+            legacyFormatNotice: nil
+        )
+    }
+
     internal static func regeneratingSalts(in content: KDBXContent) -> KDBXContent {
         let header = content.header
 
