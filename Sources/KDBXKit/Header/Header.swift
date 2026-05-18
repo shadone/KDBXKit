@@ -36,8 +36,31 @@ public struct Header: Sendable, Equatable {
             minor = UInt16(rawValue & 0xFFFF)
         }
 
+        /// KDBX 3.0 (KeePass 2.10–2.19).
+        ///
+        /// KDBXKit supports opening 3.0 / 3.1 files; on save they are migrated
+        /// to ``v4_1``. The on-disk layout differs from 4.x in several places —
+        /// `UInt16` header field lengths, an outer-header `StreamStartBytes`
+        /// integrity scheme (no SHA-256 / HMAC trailer), a plain hashed block
+        /// stream instead of the HMAC-protected one, and binaries inlined in
+        /// XML rather than in an inner header. See ``Header3xReader``.
+        public static let v3_0: FormatVersion = .init(major: 3, minor: 0)
+
+        /// KDBX 3.1 (KeePass 2.20–2.34, KeePassXC default).
+        ///
+        /// See ``v3_0`` for the on-disk shape; 3.1 adds the inner random
+        /// stream cipher field (Salsa20) to the outer header.
+        public static let v3_1: FormatVersion = .init(major: 3, minor: 1)
+
         public static let v4_0: FormatVersion = .init(major: 4, minor: 0)
         public static let v4_1: FormatVersion = .init(major: 4, minor: 1)
+
+        /// Whether the format predates KDBX 4 (i.e. uses the 3.x on-disk
+        /// shape: `UInt16` header field lengths, `StreamStartBytes`,
+        /// hashed block stream, inline XML binaries, ISO-8601 dates).
+        public var isLegacy3x: Bool {
+            major == 3
+        }
     }
 
     /// File format version.
