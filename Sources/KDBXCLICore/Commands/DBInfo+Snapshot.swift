@@ -45,6 +45,15 @@ struct DBInfoSnapshot: Encodable {
 
     func printHuman() {
         print("Format version: \(header.formatVersion)")
+        if header.formatVersion.isLegacy3x {
+            // Pre-KDBX-4 file. The writer always emits 4.1, so any
+            // mutation that touches `db rekey` / `entry set` / etc.
+            // will silently upgrade the on-disk format. Surfacing the
+            // notice from `db info` lets users see the upgrade
+            // pending before they trigger it.
+            print("Legacy format: saving will upgrade to KDBX 4.1.")
+            print("              Run `kdbx db migrate` to upgrade explicitly.")
+        }
         print("Encryption algorithm: \(header.encryptionAlgorithm)")
         print("Compression algorithm: \(header.compressionAlgorithm.description)")
         print("Master salt/seed: \(header.masterSalt.hexString)")
@@ -120,6 +129,7 @@ struct DBInfoSnapshot: Encodable {
 
 private struct HeaderDTO: Encodable {
     let formatVersion: String
+    let legacyFormatNotice: String?
     let encryptionAlgorithm: String
     let compressionAlgorithm: String
     let masterSalt: String
@@ -129,6 +139,13 @@ private struct HeaderDTO: Encodable {
 
     init(_ header: Header) {
         formatVersion = "\(header.formatVersion.major).\(header.formatVersion.minor)"
+        // Mirrors `KDBXContent.legacyFormatNotice` for callers that
+        // parse `db info --output json`. Encoded as a short string
+        // (rather than a structured object) because the JSON
+        // consumer's job here is to display, not to dispatch.
+        legacyFormatNotice = header.formatVersion.isLegacy3x
+            ? "Saving will upgrade KDBX \(header.formatVersion) to 4.1."
+            : nil
         encryptionAlgorithm = "\(header.encryptionAlgorithm)"
         compressionAlgorithm = header.compressionAlgorithm.description
         masterSalt = header.masterSalt.hexString
