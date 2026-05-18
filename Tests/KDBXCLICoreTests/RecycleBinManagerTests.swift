@@ -51,12 +51,20 @@ struct RecycleBinManagerTests {
         #expect(content.database.meta.recycleBinUUID == nil)
 
         let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let before = Date()
         let result = RecycleBinManager.ensureBin(in: &content, now: now)
+        let after = Date()
         #expect(result != nil)
 
         let binID = try! #require(result)
         #expect(content.database.meta.recycleBinUUID == binID)
-        #expect(content.database.meta.recycleBinChanged == now)
+        // `recycleBinChanged` is stamped by `Meta.recycleBinUUID`'s
+        // `didSet` with wall-clock time — not the caller-supplied
+        // `now` (which still pins the new bin group's own `Times`).
+        // Assert it landed within the call window instead of the
+        // exact value.
+        let stamped = try! #require(content.database.meta.recycleBinChanged)
+        #expect(stamped >= before && stamped <= after)
         // recycleBinEnabled was nil before; the helper opts in.
         #expect(content.database.meta.recycleBinEnabled == true)
 

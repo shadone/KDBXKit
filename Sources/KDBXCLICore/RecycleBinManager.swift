@@ -44,8 +44,10 @@ enum RecycleBinManager {
             enableSearching: .value(false)
         )
         content.database.root.group.groups.append(bin)
+        // Assigning `recycleBinUUID` fires a `didSet` that bumps both
+        // `recycleBinChanged` and `settingsChanged` — no explicit
+        // companion writes needed.
         content.database.meta.recycleBinUUID = binUUID
-        content.database.meta.recycleBinChanged = now
         if content.database.meta.recycleBinEnabled == nil {
             content.database.meta.recycleBinEnabled = true
         }

@@ -142,11 +142,21 @@ private extension KDBX.Meta {
         )
     }
 
-    @Test("Stamping generator does NOT bump settingsChanged — writer-stamped every save")
-    func generatorDoesNotBump() {
-        var meta = KDBX.Meta()
+    @Test("Re-stamping generator with the same value does not bump settingsChanged")
+    func sameGeneratorIsNoOp() {
+        let onDisk = Date(timeIntervalSince1970: 1_700_000_000)
+        var meta = KDBX.Meta(generator: "Passie", settingsChanged: onDisk)
         meta.generator = "Passie"
-        #expect(meta.settingsChanged == nil)
+        #expect(meta.settingsChanged == onDisk)
+    }
+
+    @Test("Changing generator (cross-client save) bumps settingsChanged")
+    func generatorChangeBumpsSettings() {
+        var meta = KDBX.Meta(generator: "KeePassXC")
+        let before = Date()
+        meta.generator = "Passie"
+        let after = Date()
+        #expect((before...after).contains(meta.settingsChanged!))
     }
 
     @Test("Stamping headerHash does NOT bump settingsChanged — legacy/internal field")
@@ -180,5 +190,67 @@ private extension KDBX.Meta {
 
         #expect(parsed.database.meta.settingsChanged == onDisk)
         #expect(parsed.database.meta.databaseNameChanged == onDisk)
+    }
+
+    // MARK: - Idempotent-write guard
+    //
+    // `didSet` guards on `oldValue != current` so reassigning a field
+    // with its existing value is a true no-op (no stamp advance).
+    // Without this, defensive re-application during deserialise →
+    // re-serialise paths would falsely register as edits and lose
+    // against a real edit on the other side of a sync.
+
+    @Test("Re-assigning databaseName with the same value does not bump settingsChanged")
+    func sameValueAssignmentIsNoOp() {
+        let onDisk = Date(timeIntervalSince1970: 1_700_000_000)
+        var meta = KDBX.Meta(
+            settingsChanged: onDisk,
+            databaseName: "Wallet",
+            databaseNameChanged: onDisk
+        )
+        meta.databaseName = "Wallet"
+        #expect(meta.settingsChanged == onDisk)
+        #expect(meta.databaseNameChanged == onDisk)
+    }
+
+    @Test("Re-assigning recycleBinUUID with the same value does not bump recycleBinChanged")
+    func sameRecycleBinUUIDIsNoOp() {
+        let onDisk = Date(timeIntervalSince1970: 1_700_000_000)
+        let uuid = UUID()
+        var meta = KDBX.Meta(
+            settingsChanged: onDisk,
+            recycleBinUUID: uuid,
+            recycleBinChanged: onDisk
+        )
+        meta.recycleBinUUID = uuid
+        #expect(meta.settingsChanged == onDisk)
+        #expect(meta.recycleBinChanged == onDisk)
+    }
+
+    @Test("Re-assigning color with the same value does not bump settingsChanged")
+    func sameColorIsNoOp() {
+        let onDisk = Date(timeIntervalSince1970: 1_700_000_000)
+        let color: KDBX.Color = .color(red: 0x4F, green: 0x7E, blue: 0x62)
+        var meta = KDBX.Meta(settingsChanged: onDisk, color: color)
+        meta.color = color
+        #expect(meta.settingsChanged == onDisk)
+    }
+
+    @Test("Actually changing the value still bumps after a prior no-op write")
+    func realChangeAfterNoOpStillBumps() {
+        let onDisk = Date(timeIntervalSince1970: 1_700_000_000)
+        var meta = KDBX.Meta(
+            settingsChanged: onDisk,
+            databaseName: "Wallet",
+            databaseNameChanged: onDisk
+        )
+        meta.databaseName = "Wallet" // no-op
+        #expect(meta.settingsChanged == onDisk)
+
+        let before = Date()
+        meta.databaseName = "Banking" // real change
+        let after = Date()
+        #expect((before...after).contains(meta.settingsChanged!))
+        #expect((before...after).contains(meta.databaseNameChanged!))
     }
 }
