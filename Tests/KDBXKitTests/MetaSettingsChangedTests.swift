@@ -85,6 +85,63 @@ struct MetaSettingsChangedTests {
         #expect(meta.settingsChanged != nil)
     }
 
+    @Test("`mutating func` extension that mutates customData fires didSet on the caller's meta")
+    func mutatingFuncExtensionFiresDidSet() {
+        // Mirrors the Passie-side `Meta+Passie.swift` shape:
+        // a `mutating func` extension on KDBX.Meta whose body
+        // mutates a stored property (`customData` here) via the
+        // Array's mutating methods. Confirms that didSet on
+        // customData fires through that indirection — if it
+        // didn't, every Passie-side `setPassieVaultID` /
+        // `setTrashRetentionDays` call would land on disk with a
+        // stale settingsChanged.
+        var meta = KDBX.Meta()
+        meta._test_addCustomData(key: "demo", value: "x")
+        #expect(meta.settingsChanged != nil)
+        #expect(meta.customData.count == 1)
+    }
+
+    @Test("`mutating func` extension that mutates customIcons fires didSet")
+    func mutatingFuncExtensionOnCustomIconsFiresDidSet() {
+        var meta = KDBX.Meta()
+        meta._test_addCustomIcon()
+        #expect(meta.settingsChanged != nil)
+        #expect(meta.customIcons.count == 1)
+    }
+
+    @Test("Chained mutation through a class property still fires didSet on the inner struct")
+    func chainedClassPropertyMutationFiresDidSet() {
+        // Stand-in for `vault.meta.customIcons.append(...)` in
+        // `Vault.setCustomIcon`. `Vault` is a class; `meta` is a
+        // stored `KDBX.Meta` value-type property. Swift's
+        // materialize-inout chain has to round-trip back through
+        // the property's setter for didSet to fire.
+        let box = _MetaBox()
+        box.meta.customIcons.append(
+            KDBX.CustomIcon(uuid: UUID(), data: Data([1]), name: nil, lastModificationTime: Date())
+        )
+        #expect(box.meta.settingsChanged != nil)
+    }
+}
+
+// MARK: - Test helpers
+
+private final class _MetaBox {
+    var meta = KDBX.Meta()
+}
+
+private extension KDBX.Meta {
+    mutating func _test_addCustomData(key: String, value: String) {
+        customData.removeAll(where: { $0.key == key })
+        customData.append(.init(key: key, value: value, lastModificationTime: Date()))
+    }
+
+    mutating func _test_addCustomIcon() {
+        customIcons.append(
+            KDBX.CustomIcon(uuid: UUID(), data: Data([1]), name: nil, lastModificationTime: Date())
+        )
+    }
+
     @Test("Stamping generator does NOT bump settingsChanged — writer-stamped every save")
     func generatorDoesNotBump() {
         var meta = KDBX.Meta()
