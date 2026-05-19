@@ -20,6 +20,16 @@ public enum UnlockDataError: Error, Sendable, Equatable {
     /// upstream, so this signals either a crafted/malformed file or a
     /// validator/KDF mismatch that should be reported as a bug.
     case kdfFailed(reason: String)
+
+    /// The file's KDFParameters carry a recognised KDF (Argon2d/Argon2id)
+    /// but include an optional Argon2 parameter — secret key `K` or
+    /// associated data `A` — that this build does not forward to the
+    /// hash function. Failing here is better than silently deriving the
+    /// wrong key and surfacing as "wrong password". Such files are
+    /// vanishingly rare in practice; the upstream KDBX format
+    /// documentation does not mention `K` or `A` in the standard
+    /// parameter set.
+    case unsupportedKDFParameter(name: String)
 }
 
 /// Container for the key data needed to unlock a `.kdbx` file.
@@ -113,14 +123,16 @@ public struct UnlockData: Sendable {
         case let .aes(params, _):
             return AESKDF.derive(salt: params.salt, rounds: params.rounds, keyData)
 
-        case let .argon2d(params, _):
+        case let .argon2d(params, additional):
+            try Self.rejectUnsupportedArgon2Extras(additional)
             do {
                 return try Argon2KDF.argon2d(password: keyData, params: params)
             } catch {
                 throw UnlockDataError.kdfFailed(reason: "\(error)")
             }
 
-        case let .argon2id(params, _):
+        case let .argon2id(params, additional):
+            try Self.rejectUnsupportedArgon2Extras(additional)
             do {
                 return try Argon2KDF.argon2id(password: keyData, params: params)
             } catch {
@@ -129,6 +141,30 @@ public struct UnlockData: Sendable {
 
         case let .unknown(uuid):
             throw .unsupportedKDF(uuid)
+        }
+    }
+
+    /// Reject Argon2 KDFParameters that declare a non-empty secret key
+    /// `K` or associated data `A`. We call `argon2id_hash_raw` /
+    /// `argon2d_hash_raw`, neither of which accepts those inputs; a
+    /// file using them would silently derive a wrong key and surface
+    /// as "wrong password". Surfacing the limitation explicitly is the
+    /// honest answer until we wire `argon2_ctx`.
+    private static func rejectUnsupportedArgon2Extras(_ additional: VariantDictionary) throws(UnlockDataError) {
+        for key in ["K", "A"] {
+            guard let value = additional[key] else { continue }
+            // Per Argon2 RFC 9106 K and A are byte arrays. Be tolerant
+            // of other variant types — any non-empty value with these
+            // keys is a parameter we don't honour.
+            switch value {
+            case let .bytes(data) where !data.isEmpty:
+                throw .unsupportedKDFParameter(name: key)
+            case .bytes:
+                // Empty K/A is semantically identical to absent.
+                continue
+            default:
+                throw .unsupportedKDFParameter(name: key)
+            }
         }
     }
 

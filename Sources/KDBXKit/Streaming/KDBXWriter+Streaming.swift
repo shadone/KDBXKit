@@ -96,6 +96,8 @@ public extension KDBXWriter {
                 throw KDBXWriter.Error.unsupportedKDF(uuid)
             case let .kdfFailed(reason):
                 throw KDBXWriter.Error.encryptionFailed(reason: "KDF rejected parameters: \(reason)")
+            case let .unsupportedKDFParameter(name):
+                throw KDBXWriter.Error.encryptionFailed(reason: "Unsupported KDF parameter: \(name)")
             }
         }
     }
