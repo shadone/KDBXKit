@@ -14,11 +14,11 @@ License: BSD 2-Clause (see `LICENSE`).
   - `KDBXSource.swift` - abstraction over file / data / URL inputs
   - `Header/`, `InnerHeader/` - KDBX file format parsers
   - `KDBX/` - core data structures (`Entry`, `Group`, `Meta`, `Root`, `Times`, `AutoType`, `CustomIcon`, `ProtectedString`, `ProtectedBinary`, `DeletedObject`, etc.) plus per-type `+validate.swift`
-  - `Crypto/` - `ChaCha20`, `Salsa20`, `AES256CBC` (in parent dir), `SecureBytes` (mlock + memset_s), `SecureRandom`, `ConstantTime`, `Encryptable`/`Decryptable` protocols
-  - `KDF/` - `Argon2KDF`, `AESKDF`
+  - `Crypto/` - `ChaCha20`, `Salsa20`, `AES256CBC` (in parent dir), `SecureBytes` (mlock + `memset_s` on Apple/BSD, `explicit_bzero` on Linux), `SecureRandom`, `ConstantTime`, `Encryptable`/`Decryptable` protocols
+  - `KDF/` - `Argon2KDF` (over the in-tree `argon2` C target — see `Sources/CArgon2/`), `AESKDF`
   - `Database/` - XML schema (`KDBX_XML.xsd`) + XML-side helpers
-  - `XML/` - XML reader/writer glue (over Nodal)
-  - `Streaming/` - block-stream readers/writers
+  - `XML/` - XML reader/writer glue
+  - `Streaming/` - block-stream readers/writers; `Zlib.swift` is the push-based gzip compressor + one-shot decompressor over system zlib (`-lz`)
   - `HMACProtectedBlockStream.swift` - KDBX 4 outer block format
   - `AtomicFileWriter.swift` - write-temp + rename-into-place
   - `UnlockData.swift` - the 32-byte pre-hash representing an unlocked credential set
@@ -48,13 +48,16 @@ Harmless warning: `Sources/KDBXKit/Database/KDBX_XML.xsd` triggers "found 1 file
 ## Dependencies
 
 Declared in `Package.swift`:
-- `CryptoSwift` - AES building blocks
-- `swift-gzip` - inner XML compression
-- `Nodal` - XML
-- `argon2` - C library wrapper for Argon2 KDF
-- `swift-argument-parser` - CLI
+- `swift-crypto` (`Crypto` + `_CryptoExtras`) - SHA/HMAC, AES-CBC + single-block AES (used by `AESKDF` and the eager + streaming CBC paths). Cross-platform.
+- `swift-log` - logging facade; library code emits via `Logger(label:)`, host bootstraps a backend (os.Logger on Apple, `StreamLogHandler` on Linux).
+- `swift-argument-parser` - CLI.
 
-C++ interoperability is enabled for the crypto libraries.
+In-tree (not external):
+- `Sources/CArgon2/` - vendored P-H-C reference Argon2 (pin: upstream commit `f57e61e`, 2021-06-25). Target name `argon2`, so `import argon2` works unchanged. Sources are CC0 / Apache 2.0 dual; `LICENSE` + `UPSTREAM.md` document the pin.
+
+System libraries:
+- `zlib` (linked via `linkerSettings: [.linkedLibrary("z")]`) - gzip compress + decompress for the inner payload. `Sources/KDBXKit/Streaming/Zlib.swift` is the push-based wrapper.
+- `pthread` - transitively required by argon2's `thread.c`; auto-linked on Apple, comes via swift runtime on Linux.
 
 ## KDBX format handling - the API surface
 
@@ -73,10 +76,10 @@ For vaults where the eager path's "every byte resident from unlock to lock" memo
 
 - **`KDBXReader.openMetadataOnly(from:unlockData:maxDecompressedPayloadSize:)`** runs the full decrypt + decompress + inner-header + XML parse, captures per-binary `(offset, length, isProtected, contentHash)` into `[BinaryMetadata]`, then drops the binary bytes. The returned `LazyKDBXContent` keeps the source + unlock key for on-demand re-streaming and is `Sendable` (crosses actor hops the same way `KDBXContent` does).
 - **`KDBXReader.streamBinary(from:at:into:)`** reopens the source, replays decrypt + decompress to the target binary, and writes `length` bytes into the supplied `ByteSink`. The sink picks the destination: `DataSink` for unprotected access, `SecureBytesSink` for protected payloads (mlocked + zero-on-deinit, drain via `takeSecureBytes()`), `URLSink` for streaming straight to a destination file URL without ever materializing in `Data`.
-- **`KDBXSource`** is the input abstraction — `.data(Data)` for tests / in-memory, `.file(URL)` for production. `.file` reads via `NSFileCoordinator` (read coordinator on every access), which interoperates with iCloud Drive writers. Nesting a `.file` read coordinator inside an outer `NSFileCoordinator` write block on the same URL deadlocks — design write paths to acquire the write coordinator only briefly (e.g. for an atomic temp→destination replace) and run streaming reads outside that scope.
+- **`KDBXSource`** is the input abstraction — `.data(Data)` for tests / in-memory, `.file(URL)` for production. On Apple platforms `.file` reads via `NSFileCoordinator` (read coordinator on every access) to interoperate with iCloud Drive writers; on Linux the file is opened directly. Nesting a `.file` read coordinator inside an outer `NSFileCoordinator` write block on the same URL deadlocks (Apple only) — design write paths to acquire the write coordinator only briefly (e.g. for an atomic temp→destination replace) and run streaming reads outside that scope.
 - **`KDBXWriter.streamingWrite(to:content:binaries:unlockData:regenerateSalts:)`** is the streaming counterpart to `write`. Cleartext flows through a chain of `StreamingByteConsumer`s: `GzipStreamWriter` → `EncryptingStreamWriter` → `HMACBlockStreamWriter` → output `FileHandle`. Binaries are pulled one at a time via `[any BinarySource]`. Peak save memory is one attachment plus pipeline working buffers (~64 KB gzip + ≤16 B AES + 1 MB HMAC block), independent of total attachment bytes.
 - **`BinarySource`** has two implementations: **`DataBinarySource`** (in-memory bytes, for fresh attachments awaiting their first save) and **`LazyBinarySource`** (re-streams a pool entry from a `LazyKDBXContent` — typical for unchanged attachments during a save where most binaries are still referenced by entries that didn't get edited).
-- **Gzip implementation detail**: `Compression.OutputFilter(.compress, using: .zlib, …)` emits raw DEFLATE bytes (despite the algorithm being named `.zlib` — that's the library identifier, not the wrapper format). `GzipStreamWriter` prepends the 10-byte gzip header and appends an 8-byte CRC32+length trailer on top of the DEFLATE stream. CRC32 is computed incrementally over the uncompressed bytes via the small table in `CRC32.swift`.
+- **Gzip implementation detail**: `Streaming/Zlib.swift` wraps system zlib (`-lz`) directly. The compressor uses `deflateInit2_` with `wBits = 31` (15 + 16 = gzip wrapper, max window) so zlib emits a complete gzip stream itself — no manual header/CRC32 assembly. The decompressor uses `inflateInit2_` with `wBits = 47` (15 + 32 = autodetect gzip/zlib).
 
 ### Legacy format (KDBX 3.1) support
 
@@ -161,9 +164,10 @@ This library is consumed by `Passie/` (the iOS/macOS apps) via `.package(path: "
 
 ## Platform requirements
 
-- **Swift 6.1+** with strict concurrency enabled
-- **C++ interoperability** for crypto libraries
-- Builds for macOS, iOS 18+, and Linux (CI's responsibility - keep `#if canImport(...)` guards tight)
+- **Swift 6.1+** with strict concurrency enabled.
+- **Apple platforms**: macOS 15+, iOS 18+ (declared minima in `Package.swift`).
+- **Linux**: any distro with a Swift 6.1 toolchain and `zlib1g-dev` (or equivalent) installed. CI lane uses `swift:6.1-jammy`. Darwin-only APIs (`NSFileCoordinator`, `memset_s`) are gated with `#if canImport(Darwin)`; SecureBytes uses `explicit_bzero` on glibc/musl.
+- **No C++ interop required.** The vendored Argon2 is plain C; everything else is pure Swift.
 
 ## Type / API gotchas
 
