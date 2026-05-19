@@ -979,15 +979,28 @@ title-case.
 
 ### 10.6 UUID encoding inside the XML payload
 
-Inside the XML payload, UUIDs are base64-encoded 16-byte values
-stored in little-endian byte order (i.e., the 16 UUID bytes
-reversed — byte 15 first, byte 0 last). This matches the
-little-endian UUID convention used throughout the KDBX binary
-container (see the container spec §Conventions). It is distinct
-from the `Foundation.UUID.uuidString` "8-4-4-4-12" hyphenated
-form and from the RFC 4122 canonical big-endian byte order. Empty
-body and a UUID of all-zero bytes are treated as equivalent by
-KDBXKit's reader; both decode to `UUID(uuid: (0,0,...,0))`.
+Inside the XML payload, UUIDs are base64 of the 16 raw bytes in
+**canonical RFC 4122 byte order** — the same byte order described
+in container §Conventions. A UUID written canonically as
+`58F39727-DCA2-4F2D-A6C2-284CFB38E192` appears on disk as
+`58 F3 97 27 DC A2 4F 2D A6 C2 28 4C FB 38 E1 92`, which base64-
+encodes to `WPOXJ9yiTy2mwihM+zjhkg==`. This matches the on-disk
+encoding used for the container-level UUIDs (KDF, cipher).
+
+An empty body and a UUID of all-zero bytes are treated as
+equivalent by KDBXKit's reader; both decode to the nil UUID
+(`00000000-0000-0000-0000-000000000000`).
+
+[Implementation note: KDBXKit's Swift `UUID` values are held with
+a byte-reversed `uuid_t` tuple internally (see
+`Extensions/UUID+uint128.swift`,
+`Extensions/Data+asUUIDLE.swift`); the writer's
+`toUInt128().toDataLittleEndian().base64EncodedString()` chain
+and the reader's `asUUIDLE()` reverse this internal
+representation back into canonical RFC 4122 bytes on the wire.
+This is the same internal-only convention noted in container §6
+for KDF UUIDs and does not affect the wire format described
+above.]
 
 ### 10.7 Whitespace and indentation
 
