@@ -32,20 +32,20 @@ Byte grammars are expressed in ABNF [RFC5234]. All multi-byte integer
 fields in the KDBX container are little-endian unless explicitly stated
 otherwise.
 
-UUID values are stored on disk as the **little-endian byte serialisation
-of the 128-bit value** — equivalently, the full byte reversal of the
-RFC 4122 [RFC4122] byte sequence. This document writes each UUID in two
-forms when the distinction matters:
+UUID values are stored on disk in **RFC 4122 [RFC4122] canonical byte
+order** — i.e. the same byte order produced by reading the 8-4-4-4-12
+hex string left-to-right and emitting each octet as it appears.
+A UUID written canonically as `C9D9F39A-628A-4460-BF74-0D08C18A4FEA`
+appears on disk as `C9 D9 F3 9A 62 8A 44 60 BF 74 0D 08 C1 8A 4F EA`.
+This document quotes UUIDs in the canonical 8-4-4-4-12 form and refers
+to the on-disk bytes only when illustrating a header dump.
 
-- **Canonical form** — the 8-4-4-4-12 hex-string representation used by
-  KeePass.info, KeePassXC, and `Foundation.UUID.uuidString`. Use this to
-  cross-reference other documentation.
-- **On-disk bytes** — the 16-byte sequence as it appears in a KDBX file.
-  Use this when reading or writing the binary container directly.
-
-For example, the AES-KDF UUID is canonically
-`C9D9F39A-628A-4460-BF74-0D08C18A4FEA` and on disk is
-`EA4F8AC1 080D74BF 60448A62 9AF3D9C9`.
+Implementations using `Foundation.UUID` should note that KDBXKit's
+internal byte-tuple representation of these UUIDs is byte-reversed
+relative to RFC 4122 (see `KDFParameters.KDF.AES`,
+`Extensions/UUID+uint128.swift`, `Extensions/Data+asUUIDLE.swift`).
+This is an internal-only convention; the bytes serialised to and
+parsed from the file remain in canonical RFC 4122 order.
 
 Hexadecimal byte sequences are written in uppercase, grouped by four
 bytes, separated by single spaces (e.g. `9AA2D903 B54BFB67`). String
@@ -332,13 +332,7 @@ KDF-specific parameter keys.
 
 ### 6.1 AES-KDF
 
-- Canonical UUID: `C9D9F39A-628A-4460-BF74-0D08C18A4FEA`
-- On-disk bytes: `EA4F8AC1 080D74BF 60448A62 9AF3D9C9`
-
-Implementations comparing UUIDs MUST be explicit about which form is in
-use; the canonical form is what KeePass.info, KeePassXC, and
-`Foundation.UUID.uuidString` produce, while the on-disk form is what
-actually appears in the `$UUID` ByteArray value.
+UUID: `C9D9F39A-628A-4460-BF74-0D08C18A4FEA`
 
 Parameters:
 
@@ -361,8 +355,7 @@ sequential single-block AES-256-ECB encryptions.
 
 ### 6.2 Argon2d
 
-- Canonical UUID: `EF636DDF-8C29-444B-91F7-A9A403E30A0C`
-- On-disk bytes: `0C0AE303 A4A9F791 4B44298C DF6D63EF`
+UUID: `EF636DDF-8C29-444B-91F7-A9A403E30A0C`
 
 Parameters (Argon2 RFC 9106 [RFC9106] terminology):
 
@@ -386,8 +379,7 @@ implementation.
 
 ### 6.3 Argon2id
 
-- Canonical UUID: `9E298B19-56DB-4773-B23D-FC3EC6F0A1E6`
-- On-disk bytes: `E6A1F0C6 3EFC3DB2 7347DB56 198B299E`
+UUID: `9E298B19-56DB-4773-B23D-FC3EC6F0A1E6`
 
 Parameters and rules are identical to Argon2d (§6.2); only the variant
 selector differs. KDBXKit and the upstream KeePass clients RECOMMEND
@@ -484,8 +476,7 @@ record (Section 3.1, ID 2), a 16-byte UUID value.
 
 ### 9.1 AES-256-CBC
 
-- Canonical UUID: `31C1F2E6-BF71-4350-BE58-05216AFC5AFF`
-- On-disk bytes: `31C1F2E6 BF714350 BE580521 6AFC5AFF`
+UUID: `31C1F2E6-BF71-4350-BE58-05216AFC5AFF`
 
 - Key: `mainKey` (Section 7), 32 bytes.
 - IV: the `EncryptionNonce` header record (Section 3.1, ID 7), 16 bytes.
@@ -496,8 +487,7 @@ record (Section 3.1, ID 2), a 16-byte UUID value.
 
 ### 9.2 ChaCha20
 
-- Canonical UUID: `D6038A2B-8B6F-4CB5-A524-339A31DBB59A`
-- On-disk bytes: `D6038A2B 8B6F4CB5 A524339A 31DBB59A`
+UUID: `D6038A2B-8B6F-4CB5-A524-339A31DBB59A`
 
 - Key: `mainKey` (Section 7), 32 bytes.
 - Nonce: the `EncryptionNonce` header record, 12 bytes. KDBXKit
