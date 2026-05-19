@@ -12,7 +12,7 @@ import Testing
 func Argon2KDF_argon2id() async throws {
     let password = SecureBytes(utf8: "password")
     let salt = Data("some salt".utf8)
-    let result = Argon2KDF.argon2id(
+    let result = try Argon2KDF.argon2id(
         password: password,
         params: .init(version: .v1_3, salt: salt, iterations: 16, memory: 32768 * 1024, parallelism: 2)
     )
@@ -23,7 +23,7 @@ func Argon2KDF_argon2id() async throws {
 func Argon2KDF_argon2d() async throws {
     let password = SecureBytes(utf8: "password")
     let salt = Data("some salt".utf8)
-    let result = Argon2KDF.argon2d(
+    let result = try Argon2KDF.argon2d(
         password: password,
         params: .init(version: .v1_3, salt: salt, iterations: 16, memory: 32768 * 1024, parallelism: 2)
     )

@@ -65,6 +65,10 @@ public final class SecureBytes: @unchecked Sendable, Equatable, CustomStringConv
         var ptr: UnsafeMutableRawPointer?
         let rc = posix_memalign(&ptr, pageSize, allocated)
         guard rc == 0, let buffer = ptr else {
+            // System-level OOM. Not reachable from adversarial input —
+            // `posix_memalign` failure means the kernel refused a small
+            // page-aligned allocation, which a host process can't recover
+            // from in any useful way. Crashing here is the honest answer.
             fatalError("SecureBytes: posix_memalign failed (\(rc), requested \(allocated) bytes)")
         }
         self.buffer = buffer

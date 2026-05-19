@@ -8,11 +8,18 @@ import Crypto
 import Foundation
 
 /// Errors raised while turning a user-provided key into a vault unlock key.
-public enum UnlockDataError: Error, Sendable {
+public enum UnlockDataError: Error, Sendable, Equatable {
     /// The KDF identified by this UUID isn't implemented by KDBXKit. The
     /// reader records the UUID from the file's KDF parameters so the caller
     /// can describe what the file used.
     case unsupportedKDF(UUID)
+
+    /// The KDF rejected the parameters supplied by the file's header (for
+    /// Argon2: memory/iterations/parallelism out of range, salt too short
+    /// or too long, etc.). The header validator rejects out-of-range values
+    /// upstream, so this signals either a crafted/malformed file or a
+    /// validator/KDF mismatch that should be reported as a bug.
+    case kdfFailed(reason: String)
 }
 
 /// Container for the key data needed to unlock a `.kdbx` file.
@@ -107,10 +114,18 @@ public struct UnlockData: Sendable {
             return AESKDF.derive(salt: params.salt, rounds: params.rounds, keyData)
 
         case let .argon2d(params, _):
-            return Argon2KDF.argon2d(password: keyData, params: params)
+            do {
+                return try Argon2KDF.argon2d(password: keyData, params: params)
+            } catch {
+                throw UnlockDataError.kdfFailed(reason: "\(error)")
+            }
 
         case let .argon2id(params, _):
-            return Argon2KDF.argon2id(password: keyData, params: params)
+            do {
+                return try Argon2KDF.argon2id(password: keyData, params: params)
+            } catch {
+                throw UnlockDataError.kdfFailed(reason: "\(error)")
+            }
 
         case let .unknown(uuid):
             throw .unsupportedKDF(uuid)

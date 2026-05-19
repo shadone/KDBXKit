@@ -302,6 +302,8 @@ public struct KDBXReader: Sendable {
             switch error {
             case let .unsupportedKDF(uuid):
                 throw .unsupportedKDF(uuid)
+            case let .kdfFailed(reason):
+                throw .corruptedHeader(reason: "KDF rejected header parameters: \(reason)")
             }
         }
 
@@ -439,10 +441,19 @@ public struct KDBXReader: Sendable {
 
         let database: KDBX
         var parserWarnings: [String] = []
+        let keystreamSource: KeystreamSource
+        do {
+            keystreamSource = try innerHeader.makeKeystreamSource()
+        } catch {
+            // `makeKeystreamSource` only throws `InnerHeader.CryptorError`
+            // today; catch-all keeps the wrapping robust against future
+            // throws additions.
+            throw Error.corruptedInnerHeader(reason: "Inner-stream key derivation failed: \(error)")
+        }
         do {
             let xmlDocumentReader = try XMLDocumentReader(
                 xmlDocument: xmlDocument,
-                keystreamSource: innerHeader.makeKeystreamSource()
+                keystreamSource: keystreamSource
             )
             database = try xmlDocumentReader.parse()
             parserWarnings = xmlDocumentReader.collectedWarnings

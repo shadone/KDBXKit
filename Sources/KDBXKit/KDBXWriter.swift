@@ -240,6 +240,8 @@ public struct KDBXWriter {
             switch error {
             case let .unsupportedKDF(uuid):
                 throw .unsupportedKDF(uuid)
+            case let .kdfFailed(reason):
+                throw .encryptionFailed(reason: "KDF rejected parameters: \(reason)")
             }
         }
 
@@ -261,7 +263,13 @@ public struct KDBXWriter {
 
         // MARK: 4.b Serialize XML Document
 
-        payload += try serialize(preparedContent.database, encryptor: preparedContent.innerHeader.makeEncryptor())
+        let innerEncryptor: any Encryptable
+        do {
+            innerEncryptor = try preparedContent.innerHeader.makeEncryptor()
+        } catch {
+            throw .encryptionFailed(reason: "Inner-stream key derivation failed: \(error)")
+        }
+        payload += try serialize(preparedContent.database, encryptor: innerEncryptor)
 
         // MARK: 4.c Compress payload if needed
 

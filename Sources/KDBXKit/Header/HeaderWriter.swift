@@ -67,6 +67,10 @@ struct HeaderWriter {
             varDictOutputStream.open()
             try VariantDictionaryWriter(to: varDictOutputStream).write(vardict)
             guard let data = varDictOutputStream.property(forKey: .dataWrittenToMemoryStreamKey) as? Data else {
+                // Foundation invariant: an OutputStream(toMemory:) always
+                // exposes its written bytes via this property. Not from
+                // adversarial input — would indicate a Foundation
+                // behavior change.
                 fatalError("Failed to get output stream data for writing Variant Dictionary")
             }
             return data

@@ -216,6 +216,11 @@ extension KDFParameters {
             result["P"] = .uint32(params.parallelism)
 
         case let .unknown(uuid):
+            // Reachable only from programmer error — `KDFParameters.unknown`
+            // is constructed by the reader for KDFs we don't implement; if
+            // such a value reaches the writer, something upstream broke the
+            // "writer rejects unsupported KDFs at the parse->write boundary"
+            // invariant. Not from adversarial input.
             fatalError("Writing unsupported KDF Parameters is not implemented: \(uuid.uuidString)")
         }
 

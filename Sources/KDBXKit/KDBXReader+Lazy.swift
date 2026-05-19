@@ -75,10 +75,16 @@ public extension KDBXReader {
 
         let database: KDBX
         var parserWarnings: [String] = []
+        let keystreamSource: KeystreamSource
+        do {
+            keystreamSource = try innerHeaderResult.header.makeKeystreamSource()
+        } catch {
+            throw KDBXReader.Error.corruptedInnerHeader(reason: "Inner-stream key derivation failed: \(error)")
+        }
         do {
             let xmlDocumentReader = try XMLDocumentReader(
                 xmlDocument: xmlDocument,
-                keystreamSource: innerHeaderResult.header.makeKeystreamSource()
+                keystreamSource: keystreamSource
             )
             database = try xmlDocumentReader.parse()
             parserWarnings = xmlDocumentReader.collectedWarnings
@@ -218,6 +224,8 @@ extension KDBXReader {
             switch error {
             case let .unsupportedKDF(uuid):
                 throw KDBXReader.Error.unsupportedKDF(uuid)
+            case let .kdfFailed(reason):
+                throw KDBXReader.Error.corruptedHeader(reason: "KDF rejected header parameters: \(reason)")
             }
         }
         let headerKey = HMACProtectedBlockStream.keyForHeader(masterSalt: header.masterSalt, unlockKey: unlockKey)

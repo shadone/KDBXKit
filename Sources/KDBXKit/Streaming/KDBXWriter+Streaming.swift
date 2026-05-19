@@ -92,6 +92,8 @@ public extension KDBXWriter {
             switch kdfErr {
             case let .unsupportedKDF(uuid):
                 throw KDBXWriter.Error.unsupportedKDF(uuid)
+            case let .kdfFailed(reason):
+                throw KDBXWriter.Error.encryptionFailed(reason: "KDF rejected parameters: \(reason)")
             }
         }
     }
@@ -162,8 +164,14 @@ public extension KDBXWriter {
     ) throws {
         let xmlStream = OutputStream(toMemory: ())
         xmlStream.open()
+        let innerEncryptor: any Encryptable
         do {
-            try XMLDocumentWriter(to: xmlStream, encryptor: innerHeader.makeEncryptor()).write(database)
+            innerEncryptor = try innerHeader.makeEncryptor()
+        } catch {
+            throw KDBXWriter.Error.encryptionFailed(reason: "Inner-stream key derivation failed: \(error)")
+        }
+        do {
+            try XMLDocumentWriter(to: xmlStream, encryptor: innerEncryptor).write(database)
         } catch let err as XMLDocumentWriter.Error {
             switch err {
             case .unexpectedEOF: throw KDBXWriter.Error.unexpectedEOF

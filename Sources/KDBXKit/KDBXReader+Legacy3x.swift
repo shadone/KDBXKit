@@ -86,6 +86,8 @@ extension KDBXReader {
             switch error {
             case let .unsupportedKDF(uuid):
                 throw .unsupportedKDF(uuid)
+            case let .kdfFailed(reason):
+                throw .corruptedHeader(reason: "KDF rejected header parameters: \(reason)")
             }
         }
 
@@ -185,10 +187,16 @@ extension KDBXReader {
         let database: KDBX
         var parserWarnings: [String] = []
         let collectedBinaryPool: [InnerHeader.BinaryContent]
+        let keystreamSource: KeystreamSource
+        do {
+            keystreamSource = try innerHeader.makeKeystreamSource()
+        } catch {
+            throw .corruptedInnerHeader(reason: "Inner-stream key derivation failed: \(error)")
+        }
         do {
             let xmlDocumentReader = try XMLDocumentReader(
                 xmlDocument: xmlDocument,
-                keystreamSource: innerHeader.makeKeystreamSource(),
+                keystreamSource: keystreamSource,
                 dateFormat: .iso8601
             )
             database = try xmlDocumentReader.parse()

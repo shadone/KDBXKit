@@ -235,7 +235,7 @@ struct XMLDocumentTests {
         outputStream.open()
         let writer = XMLDocumentWriter(
             to: outputStream,
-            encryptor: innerHeader.makeEncryptor()
+            encryptor: try innerHeader.makeEncryptor()
         )
         try writer.write(reference)
 
@@ -244,7 +244,7 @@ struct XMLDocumentTests {
 
         let reader = try XMLDocumentReader(
             xmlDocument: xmlDocument,
-            keystreamSource: innerHeader.makeKeystreamSource()
+            keystreamSource: try innerHeader.makeKeystreamSource()
         )
         let parsed = try reader.parse()
 
@@ -352,7 +352,7 @@ struct XMLDocumentTests {
             encryptionKey: Data(repeating: 7, count: 64),
             binaryContent: []
         )
-        let writer = XMLDocumentWriter(to: outputStream, encryptor: innerHeader.makeEncryptor())
+        let writer = XMLDocumentWriter(to: outputStream, encryptor: try innerHeader.makeEncryptor())
         try writer.write(kdbx)
         let data = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
         let xml = String(validating: data, as: UTF8.self)!
@@ -366,7 +366,7 @@ struct XMLDocumentTests {
         // Round-trip: re-read and confirm flags survived.
         let reader = try XMLDocumentReader(
             xmlDocument: xml,
-            keystreamSource: innerHeader.makeKeystreamSource()
+            keystreamSource: try innerHeader.makeKeystreamSource()
         )
         let parsed = try reader.parse()
         let bins = parsed.root.group.entries.first!.binaries
@@ -496,7 +496,7 @@ struct XMLDocumentTests {
         )
         let outputStream = OutputStream(toMemory: ())
         outputStream.open()
-        let writer = XMLDocumentWriter(to: outputStream, encryptor: inner.makeEncryptor())
+        let writer = XMLDocumentWriter(to: outputStream, encryptor: try inner.makeEncryptor())
         try writer.write(reference)
         let data = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
         let xml = String(validating: data, as: UTF8.self)!
