@@ -569,3 +569,34 @@ one stream; block boundaries are an authentication-layer concern only.
 
 Implementation reference: `HMACProtectedBlockStream.swift`,
 `Streaming/HMACBlockStreamWriter.swift`.
+
+## 11. Optional gzip compression
+
+The plaintext output of the outer cipher (Section 9) MAY be gzip-
+compressed before being interpreted as the inner header + inner
+payload sequence (Section 12). The `CompressionAlgorithm` header
+record (Section 3.1, ID 3) selects:
+
+- `0x00000000` — no compression. The plaintext is consumed as-is.
+- `0x00000001` — gzip. The plaintext is an RFC 1952 [RFC1952] gzip
+  stream; after gunzip, the decompressed bytes are consumed as the
+  inner header + inner payload.
+
+KDBXKit writes with zlib `wBits = 31` (gzip wrapper, maximum 32 KiB
+window) and reads with zlib `wBits = 47` (autodetect gzip vs raw zlib;
+zlib-only streams MUST NOT be produced and MAY be rejected by other
+implementations). A reader implementation MAY use any compliant gzip
+decoder; window size is normative as 32 KiB for producers but a
+decoder MAY accept larger streams produced by other implementations.
+
+The CRC32 in the gzip trailer is verified by the gzip decoder
+itself; the outer HMAC layer (Section 10) already provides
+authenticity, so a CRC32 mismatch is reported but never load-bearing
+for security.
+
+Other compression values are reserved; readers MUST reject them.
+KDBXKit throws `HeaderReader.Error.unsupportedCompression(_:)` on any
+unrecognised value — this is a hard error, not a log-and-skip.
+
+Implementation reference: `Streaming/Zlib.swift` (writer and reader
+wBits choices and push-based wrapper around system zlib).
