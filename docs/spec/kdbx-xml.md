@@ -511,3 +511,137 @@ Implementation reference: `KDBX/Entry.swift`,
 `write(_:KDBX.ProtectedString:to:)`,
 `write(_:KDBX.ProtectedBinary:to:)`,
 `write(_:KDBX.AutoType:to:)`).
+
+## 6. ProtectedString and the inner stream cipher
+
+A `<Value>` element inside a `<String>` (§5.2) MAY carry an attribute
+`Protected="True"`. When present, the value's text content is the
+**base64-encoded ciphertext** of the cleartext UTF-8 bytes XOR'd
+with a slice of the inner-stream keystream. The cipher and key
+derivation are specified in container §13; this section specifies
+the XML-side mechanics.
+
+### 6.1 Encoded form
+
+A protected value:
+
+    <Value Protected="True">aGVsbG8gd29ybGQ=</Value>
+
+The text content MUST be canonical base64 (RFC 4648 §4). KDBXKit's
+writer emits no whitespace inside the body; its reader uses
+`Data(base64Encoded:)` without the `.ignoreUnknownCharacters` option
+and will reject base64 with embedded whitespace. Producers MUST NOT
+emit whitespace inside a protected value's text content.
+
+An empty cleartext MUST be encoded as `<Value Protected="True"></Value>`
+(empty body, open/close form). No keystream bytes are consumed for an
+empty value. Producers MUST NOT emit `<Value Protected="True"/>` (self-
+closing); KDBXKit's writer always emits the open/close form via an
+explicit `addText("")` call even when the encrypted result is empty.
+KDBXKit's reader treats a self-closing protected value (where no text
+node is present) as falling back to an unprotected empty string and
+does not advance the keystream cursor — consuming such a node is
+correct only because no keystream bytes are needed for an empty
+payload, but the fallback path is a reader-side accommodation, not
+intended producer behaviour.
+
+### 6.2 XOR encoding
+
+Given:
+
+- `cleartext` — the user's intended UTF-8 byte sequence (length `N`).
+- `keystream(offset, length)` — `length` bytes of the inner-stream
+  keystream starting at byte `offset` from its initialisation point.
+- `offset` — the keystream cursor before this value is processed.
+
+Then:
+
+    ciphertext = cleartext XOR keystream(offset, N)
+    valueBody  = base64(ciphertext)
+    new cursor = offset + N
+
+The cursor advances by exactly `N` — the byte length of the
+**cleartext** (equivalently, the byte length of the base64-decoded
+ciphertext). Implementations MUST NOT XOR over surrogate-pair sub-
+sequences or normalise the cleartext; the UTF-8 bytes as the user
+supplied them are authoritative.
+
+When `N` is zero, no keystream bytes are consumed and the cursor does
+not advance. The writer emits an empty base64 body; `Data([]).base64EncodedString()`
+yields an empty string, so the serialized form is
+`<Value Protected="True"></Value>`.
+
+### 6.3 Keystream consumption order
+
+The keystream is a single global byte sequence consumed across all
+protected values in the document. The traversal order is **depth-
+first, document order**: as the writer emits the XML payload, it
+visits Meta, then Root, then each Group and Entry in source order;
+within each Entry, each `<String>` element is visited in document
+order; for each protected `<Value>`, the keystream cursor advances
+by the cleartext length before the next protected value is processed.
+
+A reader MUST traverse in the same order. KDBXKit's implementation
+records `(ciphertext, cursor offset, source)` triples on parse and
+defers decryption until each value is read via `.bytes` /
+`.withRevealedString` — but the cursor advancement happens in
+document order during the parse pass, so the effective order matches
+a depth-first traversal.
+
+Implementations MUST NOT skip protected values during traversal
+(e.g. for lazy or deferred decode) by advancing the cursor only
+when the value is accessed. The cursor position when a given
+protected value is parsed MUST equal the sum of cleartext lengths
+of all earlier protected values in document order.
+
+History snapshots (§5.5) participate in the same global order: the
+writer emits a parent Entry's own `<String>` children first, then
+the `<History>` block. Within the History block, each historical
+`<Entry>` is written in full (including its own `<String>` children)
+in the order the snapshots appear. A `<History><Entry><String><Value
+Protected="True">...</Value>` is therefore visited after all of the
+parent Entry's own protected values, and after all protected values
+in any earlier History snapshot.
+
+### 6.4 Binary content NOT XOR-masked
+
+The `Protected="True"` attribute is defined for `<Value>` inside
+`<String>` only. Binary content (`<Binary>` elements, §5.3, and
+the binary pool in the inner header — container §12.2, ID 3) is NOT
+XOR-masked by the inner stream cipher, even when a pool entry's
+inner-header flag bit 0 is set. That flag is a memory-protection
+hint only — see container §12.3. KDBXKit's writer never applies the
+inner-stream encryptor to binary pool entries, and its reader never
+attempts to XOR-unmask them.
+
+### 6.5 In-memory representation (informative)
+
+KDBXKit holds the cleartext bytes of a `ProtectedString.Value` in
+`SecureBytes` (mlock'd, zero-on-deinit). Access is via a scoped
+callback (`withRevealedString { ... }` or `.bytes`); the cleartext
+is not exposed as a `Swift.String` because Swift's String storage
+cannot be securely zeroed.
+
+The reader emits `ProtectedString.Value.lazyInnerCipher(ciphertext:
+offset: source:)` for every `Protected="True"` node; decryption is
+deferred to the first `.bytes` / `.withRevealedString` call. The
+writer materialises each value through `.bytes` (running the lazy
+decrypt if needed) and re-encrypts with a fresh inner key, because
+`KDBXWriter` regenerates all salts — including the inner key — on
+every save.
+
+A consumer of this spec writing in a memory-managed language SHOULD
+apply equivalent in-process protections: keep cleartext out of
+immutable string storage that the GC may copy, zero buffers on free,
+and avoid exposing the cleartext via APIs that retain references
+beyond the caller's scope.
+
+Implementation reference: `KDBX/ProtectedString.swift`,
+`InnerHeader/InnerHeader+cryptor.swift` (cipher construction;
+the cipher derivation is specified in container §13),
+`InnerHeader/KeystreamSource.swift` (random-access keystream
+interface),
+`Database/XMLDocumentReader.swift` (`parseProtectedString`,
+Protected attribute handling, cursor advancement),
+`Database/XMLDocumentWriter.swift` (`write(_:KDBX.ProtectedString:to:)`,
+Protected attribute emission and encryptor consumption).
