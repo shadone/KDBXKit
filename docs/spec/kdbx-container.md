@@ -476,3 +476,42 @@ Implementation reference: `HMACProtectedBlockStream.swift` (block key
 derivation and `keyForHeader` using the `0xFFFFFFFFFFFFFFFF` literal),
 `KDBXReader.swift` (verify-before-decrypt invariant; constant-time
 `ConstantTime.equals` used for both `HeaderHash` and `HeaderHMAC`).
+
+## 9. Outer cipher modes
+
+The outer cipher is selected by the `EncryptionAlgorithm` header
+record (Section 3.1, ID 2), a 16-byte UUID value.
+
+### 9.1 AES-256-CBC
+
+- Canonical UUID: `31C1F2E6-BF71-4350-BE58-05216AFC5AFF`
+- On-disk bytes: `31C1F2E6 BF714350 BE580521 6AFC5AFF`
+
+- Key: `mainKey` (Section 7), 32 bytes.
+- IV: the `EncryptionNonce` header record (Section 3.1, ID 7), 16 bytes.
+- Mode: CBC.
+- Padding: PKCS#7. The encrypted payload (HMAC-protected block stream,
+  Section 10) is padded; readers MUST validate the padding when
+  decrypting.
+
+### 9.2 ChaCha20
+
+- Canonical UUID: `D6038A2B-8B6F-4CB5-A524-339A31DBB59A`
+- On-disk bytes: `D6038A2B 8B6F4CB5 A524339A 31DBB59A`
+
+- Key: `mainKey` (Section 7), 32 bytes.
+- Nonce: the `EncryptionNonce` header record, 12 bytes. KDBXKit
+  requires exactly 12; readers MUST reject other lengths.
+- Counter: starts at 0.
+- Variant: IETF ChaCha20 [RFC8439].
+
+### 9.3 Other ciphers
+
+Twofish-CBC has been used by some KeePass distributions historically
+and is reserved by the KeePass.info documentation. KDBXKit does NOT
+implement Twofish; this specification does not define its parameters.
+A reader encountering any UUID outside §9.1 and §9.2 MAY treat the
+file as unsupported and abort.
+
+Implementation reference: `AES256CBC.swift`, `Crypto/ChaCha20.swift`,
+`KDBXReader.swift` (cipher dispatch).
