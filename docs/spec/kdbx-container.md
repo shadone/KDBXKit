@@ -756,3 +756,94 @@ interface), `Database/XMLDocumentReader.swift` (cursor advancement
 during parse), `Database/XMLDocumentWriter.swift` (sequential
 encryption during write), `Crypto/ChaCha20.swift`,
 `Crypto/Salsa20.swift`.
+
+## 14. Inner payload boundary
+
+The bytes immediately following the inner-header `EndOfInnerHeader`
+record are the inner payload. The inner payload is interpreted as an
+XML document by the XML reader specified in the companion document.
+
+There is no length prefix on the inner payload. The payload ends at
+the end of the decompressed stream (Section 11). The block stream
+(Section 10) carries the authoritative end-of-stream sentinel; the
+gzip stream's natural end (Section 11) is one layer inside that.
+
+Trailing bytes beyond the close of the outermost XML element are NOT
+permitted in KDBX 4.x. KDBXKit passes the entire remaining payload
+slice to Foundation's `XMLParser` (libxml2-backed); trailing whitespace
+bytes are silently accepted by the underlying parser, while trailing
+non-whitespace bytes cause a `.corruptedXML` parse error.
+
+Implementation reference: `KDBXReader.swift` (transition from inner-
+header read to XML document construction).
+
+## Appendix A (Informative): KDBX 3.1 read path
+
+KDBX 3.1 differs from 4.x in framing, integrity, and binary storage.
+This appendix is informative; KDBXKit reads 3.1 and migrates to 4.1 on
+save but never emits 3.x.
+
+### A.1 Header
+
+The 3.x outer header is a TLV sequence with the same record structure
+EXCEPT that the length field is `UInt16-LE` (unsigned) rather than
+`UInt32-LE`. Additional 3.x-only field IDs:
+
+| ID | Name                  | Value type    | Notes                                              |
+|----|-----------------------|---------------|----------------------------------------------------|
+| 1  | Comment               | Byte[]        | unused in practice                                 |
+| 5  | TransformSeed         | Byte[32]      | AES-KDF seed (no VariantDictionary in 3.x)         |
+| 6  | TransformRounds       | UInt64-LE     | AES-KDF rounds                                     |
+| 8  | ProtectedStreamKey    | Byte[32]      | Salsa20 key material                               |
+| 9  | StreamStartBytes      | Byte[32]      | integrity sentinel (replaced by HMAC in 4.x)       |
+| 10 | InnerRandomStreamID   | UInt32-LE     | inner stream cipher ID (Salsa20 = 2)               |
+
+Field IDs 11 (KDFParameters) and 12 (PublicCustomData) MUST NOT
+appear in 3.x.
+
+### A.2 Integrity
+
+3.x has no header HMAC. Instead, the first 32 bytes of the decrypted
+payload MUST equal `StreamStartBytes`; a mismatch indicates wrong
+credentials or a corrupted file. After this 32-byte prefix the
+payload is a **hashed block stream**:
+
+    HashedBlock = Index:UInt32-LE Hash:Byte[32] Length:UInt32-LE Payload:Byte[Length]
+
+with `Length == 0` and `Hash` all-zero (conventionally) marking the
+end. SHA-256 verifies each block. Block index is informational;
+KDBXKit consumes it but does not enforce strict monotonic ordering.
+
+### A.3 Binaries
+
+KDBX 3.1 has no inner header. Binaries live inline in the XML body as
+`<Meta><Binaries><Binary ID="N" Compressed="True|False">...base64...</Binary>`
+entries; entries reference them via `<Binary Ref="N"/>` in the same
+shape as 4.x.
+
+### A.4 Inner stream cipher
+
+Salsa20 only (Section 13). KDBX 3.0 used an ArcFour-derived inner
+stream; KDBXKit rejects 3.0 at the version gate
+(`KDBXReader.Error.unsupportedFormatVersion(major: 3, minor: 0)`). A
+3.1 file that advertises ArcFour (`InnerRandomStreamID = 1`) is also
+rejected, surfacing as `.corruptedHeader(reason: "Unsupported inner
+random stream ID: 1")`.
+
+### A.5 Migration
+
+KDBXKit upgrades 3.1 to 4.1 on save: AES-KDF parameters are
+re-encoded into a VariantDictionary, the binary pool is moved from
+the XML body into the inner header, the integrity layer is replaced
+by the HMAC block stream, and the inner stream cipher is upgraded to
+ChaCha20. The user's master password and key file continue to
+authenticate the new file without re-entry.
+
+KDF upgrade is **opt-in**: the library preserves the source AES-KDF
+by default. Callers that want to switch to Argon2id (Passie does)
+invoke `KDBXContent.upgradeToArgon2id(profile:)` explicitly after
+observing `legacyFormatNotice == .willMigrate(from: .v3_1)`.
+
+Implementation reference: `Header3xReader.swift`,
+`KDBXReader+Legacy3x.swift`, `HeaderFieldType3x.swift`,
+`KDBXContent+upgradeKDF.swift` (KDF migration helper).
