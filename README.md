@@ -52,7 +52,6 @@ try bytes.write(to: url)
 | **Streaming attachments** | lazy reader + streaming writer keep binaries off the heap; peak save memory is one attachment plus pipeline buffers |
 | **Concurrency** | Swift 6 strict-concurrency clean, all public types `Sendable` |
 | **Interop** | tested against KeePassXC `keepassxc-cli` round-trips (gated suite) |
-| **License** | BSD 2-Clause |
 
 ## Requirements
 
@@ -201,8 +200,6 @@ if let password = entry.strings.first(where: { $0.key == "Password" })?.value {
 }
 ```
 
-There's no `.stringValue` getter on `ProtectedString.Value` — the closure form makes the lifetime explicit.
-
 ## Error handling
 
 `KDBXReader.Error` and `KDBXWriter.Error` are typed enums with exhaustive cases — caller-facing doc comments on each case explain when it fires:
@@ -288,14 +285,6 @@ Closer-to-CI alternative with [`act`](https://github.com/nektos/act):
 brew install act
 act -j linux            # run the workflow's Linux job locally
 ```
-
-### CI
-
-`.github/workflows/ci.yml` runs three jobs on every push / PR to `develop`:
-
-- **macOS 15** — `swift build` + `swift test`.
-- **Linux** — `swift build` + `swift test` in `swift:6.1-jammy`.
-- **SwiftFormat lint**.
 
 ## License
 
