@@ -60,6 +60,7 @@ let package = Package(
             name: "KDBXKit",
             dependencies: [
                 .product(name: "Crypto", package: "swift-crypto"),
+                .product(name: "_CryptoExtras", package: "swift-crypto"),
                 .product(name: "CryptoSwift", package: "cryptoswift"),
                 .product(name: "argon2", package: "phc-winner-argon2"),
                 .product(name: "SwiftGzip", package: "swift-gzip"),

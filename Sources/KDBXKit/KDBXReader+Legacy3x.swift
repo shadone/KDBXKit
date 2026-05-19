@@ -98,9 +98,18 @@ extension KDBXReader {
         let ciphertext = data.subdata(in: pos..<data.endIndex)
 
         let mainContentKey: SecureBytes = MainKey.make(masterSalt: header.masterSalt, unlockKey: unlockKey)
-        var plaintext = mainContentKey.withUnsafeBytes { keyPtr -> Data in
-            let keyData = Data(keyPtr.bindMemory(to: UInt8.self))
-            return AES256CBC.decrypt(iv: header.encryptionNonce, cipherText: ciphertext, keyData)
+        // KDBX 3.x has no HMAC — wrong credentials produce garbage that
+        // fails the StreamStartBytes check below. AES-CBC decrypt itself
+        // can throw on invalid PKCS7 padding (which a wrong key often
+        // triggers), so surface that as wrongCredentials.
+        let keyData = mainContentKey.withUnsafeBytes { keyPtr in
+            Data(keyPtr.bindMemory(to: UInt8.self))
+        }
+        var plaintext: Data
+        do {
+            plaintext = try AES256CBC.decrypt(iv: header.encryptionNonce, cipherText: ciphertext, keyData)
+        } catch {
+            throw KDBXReader.Error.wrongCredentials
         }
 
         // MARK: 4. StreamStartBytes — the 3.x equivalent of wrong-credentials detection

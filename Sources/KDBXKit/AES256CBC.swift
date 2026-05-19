@@ -4,49 +4,42 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
-import CommonCrypto
+import Crypto
 import Foundation
+import _CryptoExtras
 
 enum AES256CBC {
-    static func decrypt(iv: Data, cipherText: Data, _ key: Data) -> Data {
-        precondition(iv.count == kCCBlockSizeAES128, "AES256CBC: Invalid IV size \(iv.count)")
-        precondition(key.count == kCCKeySizeAES256, "AES256CBC: Invalid key size \(key.count)")
+    enum Error: Swift.Error, Sendable, Equatable {
+        case invalidIVSize(Int)
+        case invalidKeySize(Int)
+        case cryptoFailure(String)
+    }
 
-        // Lets assume the decrypted payload will not be larger than its encrypted form
-        let bufferSize = cipherText.count
-        let payloadPtr = UnsafeMutablePointer<UInt8>.allocate(capacity: bufferSize)
-        defer { payloadPtr.deallocate() }
-        var actualPayloadSize = 0
+    /// AES-256-CBC decrypt with PKCS7 padding.
+    static func decrypt(iv: Data, cipherText: Data, _ key: Data) throws(Error) -> Data {
+        guard iv.count == 16 else { throw .invalidIVSize(iv.count) }
+        guard key.count == 32 else { throw .invalidKeySize(key.count) }
 
-        let status = key.withUnsafeBytes { keyPtr in
-            iv.withUnsafeBytes { ivPtr in
-                cipherText.withUnsafeBytes { cipherTextPtr in
-                    CCCrypt(
-                        CCOperation(kCCDecrypt),
-                        CCAlgorithm(kCCAlgorithmAES),
-                        CCOptions(kCCOptionPKCS7Padding),
-                        keyPtr.baseAddress,
-                        kCCKeySizeAES256,
-                        ivPtr.baseAddress,
-                        cipherTextPtr.baseAddress,
-                        cipherText.count,
-                        payloadPtr,
-                        bufferSize,
-                        &actualPayloadSize
-                    )
-                }
-            }
+        let symKey = SymmetricKey(data: key)
+        do {
+            let civ = try AES._CBC.IV(ivBytes: iv)
+            return try AES._CBC.decrypt(cipherText, using: symKey, iv: civ)
+        } catch {
+            throw .cryptoFailure(String(describing: error))
         }
+    }
 
-        switch Int(status) {
-        case kCCSuccess:
-            return Data(bytes: payloadPtr, count: actualPayloadSize)
+    /// AES-256-CBC encrypt with PKCS7 padding.
+    static func encrypt(iv: Data, plainText: Data, _ key: Data) throws(Error) -> Data {
+        guard iv.count == 16 else { throw .invalidIVSize(iv.count) }
+        guard key.count == 32 else { throw .invalidKeySize(key.count) }
 
-        case kCCBufferTooSmall:
-            fatalError("AES256CBC: Buffer too small \(bufferSize)")
-
-        default:
-            fatalError("AES256CBC: error \(status)")
+        let symKey = SymmetricKey(data: key)
+        do {
+            let civ = try AES._CBC.IV(ivBytes: iv)
+            return try AES._CBC.encrypt(plainText, using: symKey, iv: civ)
+        } catch {
+            throw .cryptoFailure(String(describing: error))
         }
     }
 }

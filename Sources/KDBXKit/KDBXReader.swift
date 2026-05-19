@@ -368,9 +368,16 @@ public struct KDBXReader: Sendable {
 
         switch header.encryptionAlgorithm {
         case .AES256CBC:
-            payload = mainContentKey.withUnsafeBytes { keyPtr in
-                let keyData = Data(keyPtr.bindMemory(to: UInt8.self))
-                return AES256CBC.decrypt(iv: header.encryptionNonce, cipherText: payload, keyData)
+            // HMAC has already been verified above, so the ciphertext must be
+            // well-formed (block-aligned, valid PKCS7 padding). A failure here
+            // would indicate a swift-crypto bug, not file corruption.
+            let keyData = mainContentKey.withUnsafeBytes { keyPtr in
+                Data(keyPtr.bindMemory(to: UInt8.self))
+            }
+            do {
+                payload = try AES256CBC.decrypt(iv: header.encryptionNonce, cipherText: payload, keyData)
+            } catch {
+                throw Error.corruptedHMAC(reason: "AES-256-CBC decrypt failed after HMAC verification: \(error)")
             }
 
         case .ChaCha20:

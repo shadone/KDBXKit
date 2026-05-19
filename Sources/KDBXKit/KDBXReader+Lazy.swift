@@ -320,9 +320,13 @@ internal extension KDBXReader {
         let mainContentKey: SecureBytes = MainKey.make(masterSalt: header.masterSalt, unlockKey: unlockKey)
         switch header.encryptionAlgorithm {
         case .AES256CBC:
-            payload = mainContentKey.withUnsafeBytes { keyPtr in
-                let keyData = Data(keyPtr.bindMemory(to: UInt8.self))
-                return AES256CBC.decrypt(iv: header.encryptionNonce, cipherText: payload, keyData)
+            let keyData = mainContentKey.withUnsafeBytes { keyPtr in
+                Data(keyPtr.bindMemory(to: UInt8.self))
+            }
+            do {
+                payload = try AES256CBC.decrypt(iv: header.encryptionNonce, cipherText: payload, keyData)
+            } catch {
+                throw KDBXReader.Error.corruptedHMAC(reason: "AES-256-CBC decrypt failed after HMAC verification: \(error)")
             }
         case .ChaCha20:
             let chaCha20: ChaCha20
