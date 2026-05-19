@@ -40,6 +40,10 @@ swift run kdbx --help              # Run CLI tool
 mint run swiftformat .             # Format (run from this dir)
 mint bootstrap                     # Install mint-managed tools (SwiftFormat)
 
+swift package generate-documentation --target KDBXKit  # Build the DocC archive.
+                                   # Catches broken symbol links + missing summaries
+                                   # before CI does. Output: .build/plugins/Swift-DocC/outputs/.
+
 ./scripts/test-linux.sh            # Build + test in the swift:6.1-jammy container CI uses.
                                    # Linux artifacts land in .build-linux (gitignored) so
                                    # macOS .build stays untouched. Forwards extra args to
@@ -178,7 +182,12 @@ This library is consumed by `Passie/` (the iOS/macOS apps) via `.package(path: "
 ## Type / API gotchas
 
 - `TypedIdentifier<T, V>` constructs via `init(rawValue:)`, e.g. `Vault.Identifier(rawValue: "id")` - there's no `.init()`. `TypedIdentifier` is not `Identifiable`.
+- **DocC summary = first paragraph** (up to first blank line). Lead with a complete sentence — `"A buffer that\n\n1. does X"` renders as the fragment `"A buffer that"` in the symbol index.
+- **DocC symbol paths**: top-level types (`Header`, `InnerHeader`, `KDFParameters`) live at `/KDBXKit/Type`; nested KDBX types at `/KDBXKit/KDBX/Type`. From a top-level type, cross-reference KDBX-namespaced symbols with the full `` ``KDBX/Entry`` `` form; siblings use just `` ``TypeName`` ``.
+- **DocC links to internal/private symbols** emit warnings — use plain backticks (not `` `` ``) for non-public symbols like `Header3xReader`, `parse3x`.
+- **Typed throws inside a `rethrows`-over-untyped-closure doesn't propagate.** `SecureBytes.withUnsafeBytes` is `rethrows` over an untyped `throws -> R` — functions that throw from inside it must use untyped `throws`, not `throws(E)`. Catch with bare `catch { … }` and re-wrap at the call site.
 
 ## Tooling
 
 - **Trust `swift build` / `swift test` over SourceKit `<new-diagnostics>`.** SourceKit reports phantom "Cannot find X in scope" errors on intra-module references that compile fine. The build is authoritative.
+- **SwiftFormat `hoistTry` is disabled in `.swiftformat`.** The rule mangles Swift Testing's `#expect(try X)` into `#expecttry (X)` (lifts `try` out of the macro argument but doesn't add a space). Keep disabled until upstream handles macro calls.
