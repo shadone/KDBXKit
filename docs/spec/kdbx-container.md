@@ -600,3 +600,66 @@ unrecognised value — this is a hard error, not a log-and-skip.
 
 Implementation reference: `Streaming/Zlib.swift` (writer and reader
 wBits choices and push-based wrapper around system zlib).
+
+## 12. Inner header
+
+The decompressed plaintext (Section 11) begins with the inner header,
+followed by the inner payload (Section 14). The inner header is a
+sequence of TLV records using the same shape as the outer header but
+with a distinct field-ID set and a 4-byte length field that is a
+**signed** little-endian 32-bit integer (`Int32-LE`), not `UInt32`.
+
+### 12.1 Grammar
+
+    InnerHeaderRecord = Type:UInt8 Length:Int32-LE Value:Byte[Length]
+    InnerHeader       = InnerHeaderRecord+ EndRecord
+    EndRecord         = Type:0x00 Length:Int32-LE = 0
+
+The end record's length is zero; there is no `0D0A0D0A` terminator
+(unlike the outer header). The end record MUST appear exactly once; no
+inner-header record MAY follow it.
+
+Unknown field IDs are silently skipped with a debug-level log entry;
+they are NOT a hard error. A reader MUST advance past `Length` bytes
+of value data before continuing to the next record, so that the stream
+position remains correct after an unknown field.
+
+### 12.2 Defined inner-header records
+
+| ID | Name                | Swift field name       | Value                                                                               |
+|----|---------------------|------------------------|-------------------------------------------------------------------------------------|
+| 0  | EndOfInnerHeader    | `endOfHeader`          | empty                                                                               |
+| 1  | InnerStreamCipherID | `encryptionAlgorithm`  | Int32-LE; see Section 13                                                            |
+| 2  | InnerStreamKey      | `encryptionKey`        | ByteArray; key material for the inner stream cipher                                 |
+| 3  | Binary              | `binaryContent`        | `Flags:UInt8 Bytes:Byte[Length-1]`; one record per attachment, ordered, zero-indexed |
+
+`InnerStreamCipherID` and `InnerStreamKey` MUST each appear exactly
+once. `Binary` records MAY appear zero or more times and define the
+binary pool indexed by `<Binary Ref="N"/>` elements in the XML
+payload; the first `Binary` record is index 0, the second is index 1,
+and so on.
+
+### 12.3 Binary record flags
+
+The first byte of a `Binary` record's value is a flags byte:
+
+    bit 0 (0x01) — protected. Bytes are XOR-masked by the inner stream
+                   cipher (Section 13) at the position determined by
+                   the inner stream's per-payload progression.
+    bits 1-7    — reserved; MUST be zero on emit; readers MAY tolerate
+                   non-zero values for forward compatibility.
+
+KDBXKit interprets the flags byte with an exact-equality check
+(`flags == 0x01`) when setting the `shouldBeProtected` property; bits
+1-7 are therefore currently treated as part of the opaque flags byte
+rather than isolated. Writers MUST emit `0x00` (unprotected) or
+`0x01` (protected) for this byte.
+
+Unprotected binaries are stored verbatim. Protected binaries are
+XOR'd with keystream bytes drawn from the inner stream cipher in the
+same global order as protected XML strings (Section 13 details the
+ordering rule).
+
+Implementation reference: `InnerHeaderFieldType.swift`,
+`InnerHeader.swift`, `InnerHeaderReader.swift`,
+`InnerHeaderWriter.swift`.
