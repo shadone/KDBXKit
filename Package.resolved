@@ -1,15 +1,6 @@
 {
-  "originHash" : "88a7e19b0ecee2bbf8ccb6654ee8ecd46b5f4a1d742e28b9fd6b93d64be2a033",
+  "originHash" : "3bf6405cd2485ea025d44956a95dfcf23beaefbc3bb2b089f15244a5432362ec",
   "pins" : [
-    {
-      "identity" : "phc-winner-argon2",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/P-H-C/phc-winner-argon2.git",
-      "state" : {
-        "branch" : "master",
-        "revision" : "f57e61e19229e23c4445b85494dbf7c07de721cb"
-      }
-    },
     {
       "identity" : "swift-argument-parser",
       "kind" : "remoteSourceControl",
