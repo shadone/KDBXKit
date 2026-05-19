@@ -1115,3 +1115,333 @@ format version is determined entirely by the binary container header
 binary-level version. Readers determine which 4.1 additions to
 expect by inspecting the binary header's major/minor version fields,
 not by probing for the presence of 4.1 elements in the XML.
+
+## Appendix B (Normative): Test vectors
+
+All vectors are reproducible from fixtures in
+`KDBXKit/Tests/KDBXKitTests/Resources/`. The XML fragments are
+quoted verbatim from the named files (decrypted form). Element
+ordering and whitespace reflect the producer's actual output, not
+the canonical form prescribed by this document — see §10.7 and
+§10.8 for producer-vs-consumer expectations.
+
+For encrypted `.kdbx` fixtures the decrypted XML can be obtained
+with:
+
+```
+KDBX_PASSWORD=123 swift run kdbx db xml <fixture>.kdbx
+```
+
+All `kpxc-*` fixtures use the password `123`; `kpxc-extras.kdbx`
+uses `test`.
+
+---
+
+### B.1 Minimal database structure
+
+**Source:** `Tests/KDBXKitTests/Resources/database-encrypted-empty.xml`
+(pre-decrypted; produced by KeePassXC, KDBX 4.1).
+This file is the smallest well-formed `KeePassFile` document with
+no entries: a single root `<Group>` containing no children and an
+empty `<DeletedObjects/>` element.
+
+See §3 for the top-level structure and §4.1 for group fields.
+
+```xml
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<KeePassFile>
+	<Meta>
+		<Generator>KeePassXC</Generator>
+		<DatabaseName>test3</DatabaseName>
+		<DatabaseNameChanged>CurE3w4AAAA=</DatabaseNameChanged>
+		<DatabaseDescription/>
+		<DatabaseDescriptionChanged>COrE3w4AAAA=</DatabaseDescriptionChanged>
+		<DefaultUserName/>
+		<DefaultUserNameChanged>COrE3w4AAAA=</DefaultUserNameChanged>
+		<MaintenanceHistoryDays>365</MaintenanceHistoryDays>
+		<Color/>
+		<MasterKeyChanged>NerE3w4AAAA=</MasterKeyChanged>
+		<MasterKeyChangeRec>-1</MasterKeyChangeRec>
+		<MasterKeyChangeForce>-1</MasterKeyChangeForce>
+		<MemoryProtection>
+			<ProtectTitle>False</ProtectTitle>
+			<ProtectUserName>False</ProtectUserName>
+			<ProtectPassword>True</ProtectPassword>
+			<ProtectURL>False</ProtectURL>
+			<ProtectNotes>False</ProtectNotes>
+		</MemoryProtection>
+		<CustomIcons/>
+		<RecycleBinEnabled>True</RecycleBinEnabled>
+		<RecycleBinUUID>AAAAAAAAAAAAAAAAAAAAAA==</RecycleBinUUID>
+		<RecycleBinChanged>COrE3w4AAAA=</RecycleBinChanged>
+		<EntryTemplatesGroup>AAAAAAAAAAAAAAAAAAAAAA==</EntryTemplatesGroup>
+		<EntryTemplatesGroupChanged>COrE3w4AAAA=</EntryTemplatesGroupChanged>
+		<LastSelectedGroup>AAAAAAAAAAAAAAAAAAAAAA==</LastSelectedGroup>
+		<LastTopVisibleGroup>AAAAAAAAAAAAAAAAAAAAAA==</LastTopVisibleGroup>
+		<HistoryMaxItems>10</HistoryMaxItems>
+		<HistoryMaxSize>6291456</HistoryMaxSize>
+		<SettingsChanged>cBHF3w4AAAA=</SettingsChanged>
+		<!-- CustomData omitted for brevity -->
+	</Meta>
+	<Root>
+		<Group>
+			<UUID>yNCyIsK0RECvhzYeNr8gNg==</UUID>
+			<Name>Root</Name>
+			<Notes/>
+			<IconID>48</IconID>
+			<Times>
+				<LastModificationTime>COrE3w4AAAA=</LastModificationTime>
+				<CreationTime>COrE3w4AAAA=</CreationTime>
+				<LastAccessTime>COrE3w4AAAA=</LastAccessTime>
+				<ExpiryTime>COrE3w4AAAA=</ExpiryTime>
+				<Expires>False</Expires>
+				<UsageCount>0</UsageCount>
+				<LocationChanged>COrE3w4AAAA=</LocationChanged>
+			</Times>
+			<IsExpanded>True</IsExpanded>
+			<DefaultAutoTypeSequence/>
+			<EnableAutoType>null</EnableAutoType>
+			<EnableSearching>null</EnableSearching>
+			<LastTopVisibleEntry>AAAAAAAAAAAAAAAAAAAAAA==</LastTopVisibleEntry>
+		</Group>
+		<DeletedObjects/>
+	</Root>
+</KeePassFile>
+```
+
+Key observations:
+- `<RecycleBinUUID>` is the nil UUID (`AAAA…AA==`, 16 zero bytes)
+  because no recycle bin group has been created yet (§5.6).
+- `<EnableAutoType>null</EnableAutoType>` and
+  `<EnableSearching>null</EnableSearching>` carry the literal string
+  `null` to signal "inherit from parent" (§4.1).
+- `<DeletedObjects/>` is self-closing; a consumer MUST treat an
+  absent element and a self-closing element identically (§9).
+
+---
+
+### B.2 Entry with the five standard strings
+
+**Source:** `Tests/KDBXKitTests/Resources/simple-argon2id-aes256.xml`
+(pre-decrypted; produced by KeePassXC, KDBX 4.1, Argon2id + AES-256-CBC).
+The database has exactly one entry. The `<Password>` value is
+protected (keystream-encrypted and Base64-encoded); the remaining
+four strings are stored in the clear.
+
+See §5 for the full entry schema and §6 for the protected-string
+mechanism.
+
+```xml
+<Entry>
+	<UUID>pU2GYYk8SpiT/CeWYClPFw==</UUID>
+	<IconID>0</IconID>
+	<ForegroundColor/>
+	<BackgroundColor/>
+	<OverrideURL/>
+	<Tags/>
+	<Times>
+		<LastModificationTime>PenE3w4AAAA=</LastModificationTime>
+		<CreationTime>J+nE3w4AAAA=</CreationTime>
+		<LastAccessTime>PenE3w4AAAA=</LastAccessTime>
+		<ExpiryTime>J+nE3w4AAAA=</ExpiryTime>
+		<Expires>False</Expires>
+		<UsageCount>0</UsageCount>
+		<LocationChanged>PenE3w4AAAA=</LocationChanged>
+	</Times>
+	<String>
+		<Key>Notes</Key>
+		<Value/>
+	</String>
+	<String>
+		<Key>Password</Key>
+		<Value Protected="True">pVXQV6Re1DQe2w==</Value>
+	</String>
+	<String>
+		<Key>Title</Key>
+		<Value>hello</Value>
+	</String>
+	<String>
+		<Key>URL</Key>
+		<Value>https://example.org</Value>
+	</String>
+	<String>
+		<Key>UserName</Key>
+		<Value>myusername</Value>
+	</String>
+	<AutoType>
+		<Enabled>True</Enabled>
+		<DataTransferObfuscation>0</DataTransferObfuscation>
+		<DefaultSequence/>
+	</AutoType>
+	<History/>
+</Entry>
+```
+
+Key observations:
+- The five standard keys appear in alphabetical order here because
+  KeePassXC emits them that way; the spec does not mandate any
+  particular order (§5.3).
+- `<Notes>` has an empty `<Value/>` rather than being omitted.
+  Consumers MUST treat an absent `<String>` for a standard key the
+  same as one with an empty value (§5.3).
+- `<History/>` is self-closing, meaning zero history snapshots
+  (§5.7).
+
+---
+
+### B.3 Protected vs unprotected string values
+
+**Source:** `Tests/KDBXKitTests/Resources/simple-argon2id-aes256.xml`
+(same file as B.2).
+
+The two `<String>` elements below appear consecutively in the file.
+`Password` carries `Protected="True"`; `Title` does not.
+
+See §6 for the full protected-string mechanism.
+
+```xml
+	<String>
+		<Key>Password</Key>
+		<Value Protected="True">pVXQV6Re1DQe2w==</Value>
+	</String>
+	<String>
+		<Key>Title</Key>
+		<Value>hello</Value>
+	</String>
+```
+
+**Keystream cursor:** The Password value `pVXQV6Re1DQe2w==` decodes
+to 10 bytes. Because this is the first protected value in the
+document, the keystream cursor is at offset 0 before decryption and
+advances to offset 10 after. The Title string does not carry
+`Protected="True"`, so it does not advance the cursor.
+
+The cleartext of `pVXQV6Re1DQe2w==` is the entry's password; the
+actual cleartext depends on the inner random stream key derived from
+this specific file's inner header (§6.1). A consumer verifying
+this vector must:
+1. Derive the inner random stream key from the inner header of
+   `simple-argon2id-aes256.kdbx`.
+2. Initialise the ChaCha20 keystream (inner stream ID `3`) at
+   offset 0.
+3. XOR the 10 decoded bytes against the first 10 keystream bytes to
+   recover the cleartext password.
+
+---
+
+### B.4 Group recursion
+
+**Source:** `Tests/KDBXKitTests/Resources/kpxc-deep-groups.kdbx`
+(KDBX 4.1; decrypt with password `123`).
+The fixture contains the Root group, one entry at the root level,
+and a sub-group `L1` which in turn contains a sub-group `L2` (and
+so on, ten levels deep). The fragment below shows Root > L1 > L2,
+truncated to demonstrate the recursive pattern.
+
+See §4 for group nesting rules and §4.2 for sibling order
+(KeePassXC places entries before sub-groups within a group).
+
+```xml
+<Group>
+	<UUID>WPOXJ9yiTy2mwihM+zjhkg==</UUID>
+	<Name>Root</Name>
+	<!-- Times and other fields omitted for brevity -->
+	<Entry>
+		<UUID>pU2GYYk8SpiT/CeWYClPFw==</UUID>
+		<!-- Entry fields omitted for brevity -->
+	</Entry>
+	<Group>
+		<UUID>RohyLCpgTUiNF6ZXi/FhlQ==</UUID>
+		<Name>L1</Name>
+		<Notes/>
+		<IconID>48</IconID>
+		<Times>
+			<LastModificationTime>5D+a4Q4AAAA=</LastModificationTime>
+			<CreationTime>5D+a4Q4AAAA=</CreationTime>
+			<LastAccessTime>5D+a4Q4AAAA=</LastAccessTime>
+			<ExpiryTime>5D+a4Q4AAAA=</ExpiryTime>
+			<Expires>False</Expires>
+			<UsageCount>0</UsageCount>
+			<LocationChanged>5D+a4Q4AAAA=</LocationChanged>
+		</Times>
+		<IsExpanded>True</IsExpanded>
+		<DefaultAutoTypeSequence/>
+		<EnableAutoType>null</EnableAutoType>
+		<EnableSearching>null</EnableSearching>
+		<LastTopVisibleEntry>AAAAAAAAAAAAAAAAAAAAAA==</LastTopVisibleEntry>
+		<Group>
+			<UUID>t71/zMo4RrK1hn47UGT8vg==</UUID>
+			<Name>L2</Name>
+			<Notes/>
+			<IconID>48</IconID>
+			<Times>
+				<LastModificationTime>5D+a4Q4AAAA=</LastModificationTime>
+				<CreationTime>5D+a4Q4AAAA=</CreationTime>
+				<LastAccessTime>5D+a4Q4AAAA=</LastAccessTime>
+				<ExpiryTime>5D+a4Q4AAAA=</ExpiryTime>
+				<Expires>False</Expires>
+				<UsageCount>0</UsageCount>
+				<LocationChanged>5D+a4Q4AAAA=</LocationChanged>
+			</Times>
+			<IsExpanded>True</IsExpanded>
+			<DefaultAutoTypeSequence/>
+			<EnableAutoType>null</EnableAutoType>
+			<EnableSearching>null</EnableSearching>
+			<LastTopVisibleEntry>AAAAAAAAAAAAAAAAAAAAAA==</LastTopVisibleEntry>
+			<!-- L3 … L10 follow the same pattern, each nested one level deeper -->
+		</Group>
+	</Group>
+</Group>
+```
+
+Key observations:
+- The `<Entry>` child appears before the `<Group>` child within
+  Root. This is the sibling order KeePassXC uses (entries before
+  sub-groups); KDBXKit preserves and emits the same order on
+  round-trip (§4.2).
+- Each group carries its own `<Times>` block. Sub-groups do not
+  inherit timestamps from their parent.
+- `<EnableAutoType>null</EnableAutoType>` propagates to all nested
+  groups created without an explicit override.
+
+---
+
+### B.5 DeletedObjects tombstone
+
+**Source:** Derived from
+`Tests/KDBXKitTests/Resources/simple-argon2id-aes256.kdbx`
+by running:
+
+```
+cp simple-argon2id-aes256.kdbx /tmp/test-with-deleted.kdbx
+KDBX_PASSWORD=123 swift run kdbx entry rm \
+    /tmp/test-with-deleted.kdbx --path /hello --permanent
+```
+
+The `--permanent` flag hard-deletes the entry and records a
+`<DeletedObject>` sync entry instead of moving it to a recycle-bin
+group. The resulting `<DeletedObjects>` block is:
+
+```xml
+	<DeletedObjects>
+		<DeletedObject>
+			<UUID>pU2GYYk8SpiT/CeWYClPFw==</UUID>
+			<DeletionTime>d3+h4Q4AAAA=</DeletionTime>
+		</DeletedObject>
+	</DeletedObjects>
+```
+
+The `<UUID>` matches the entry UUID from B.2, confirming that the
+tombstone references the deleted object's original UUID. The
+`<DeletionTime>` is encoded in the standard .NET-ticks-Base64
+format (§7.1). On sync merge, a compliant consumer uses this
+tombstone to identify and remove the object from a peer replica
+that still carries it (§9).
+
+Key observations:
+- An entry moved to the recycle-bin group (soft delete) does NOT
+  produce a `<DeletedObject>`; tombstones are recorded only on
+  permanent (hard) deletion and on sync-merge of hard-deleted items.
+- The `<DeletedObjects>` element is always present in a well-formed
+  document; when there are no tombstones it appears as
+  `<DeletedObjects/>` (self-closing), as seen in B.1.
