@@ -749,3 +749,88 @@ entry-side `<Binary>` elements; `parseInlineBinariesPool` for the
 `KDBXContent+validate.swift` (out-of-range `Ref` validation),
 `KDBXCLICore/Commands/AttachAdd.swift` (content-equality dedup at
 attach-add time).
+
+## 8. Times element and date dialects
+
+`<Times>` carries five timestamps for the parent Group or Entry,
+plus a boolean expiry flag and a usage counter.
+
+### 8.1 Child elements
+
+| Element              | Swift type | Cardinality | Notes |
+|----------------------|------------|-------------|-------|
+| CreationTime         | `Date?`    | 0 or 1      | When the entry/group was originally created. |
+| LastModificationTime | `Date?`    | 0 or 1      | Updated on any change to the item's fields. |
+| LastAccessTime       | `Date?`    | 0 or 1      | Updated on user-visible reads; UI-dependent — treat as a soft hint. |
+| ExpiryTime           | `Date?`    | 0 or 1      | Only meaningful when `Expires=True`. |
+| Expires              | `Bool?`    | 0 or 1      | If `True`, the parent is considered expired at `ExpiryTime`. |
+| UsageCount           | `UInt64?`  | 0 or 1      | Incremented on auto-type or password reveal; updated inconsistently across clients. |
+| LocationChanged      | `Date?`    | 0 or 1      | When the parent was last moved within the group tree. Used by sync/merge tools to determine authoritative location. |
+
+All seven children are optional in the XML schema.  KDBXKit's reader
+treats a `<Times>` element that is missing any child as that child
+being absent rather than as an error.
+
+`LocationChanged` is a child of `<Times>`, not a field on the parent
+`<Group>` or `<Entry>` element.  It appears alongside the other six
+children and is parsed by the same `parseTimes` routine.
+
+### 8.2 Date dialects
+
+Two date encodings are used, never mixed within a single document:
+
+**KDBX 4.x — seconds-base64.**  The on-wire value is a Base64-encoded
+8-byte little-endian `Int64` carrying the number of **whole seconds**
+elapsed since `0001-01-01T00:00:00Z` (the .NET `DateTime` epoch,
+also known as `DateTime.MinValue`).  The value is rounded to the
+nearest second; sub-second precision is not preserved.  The XSD type
+`TDateTime` restricts the base type to `xs:base64Binary` with a fixed
+length of 8 bytes.
+
+**KDBX 3.x — ISO 8601.**  The on-wire value is an ISO 8601 date-time
+string.  The canonical form emitted by KeePass 2 and KeePassXC is
+`YYYY-MM-DDTHH:MM:SSZ`.  KDBXKit's reader also accepts fractional
+seconds and numeric UTC offsets to tolerate less-canonical producers,
+but it converts the result to UTC before storing.
+
+The dialect is selected once at the document level, not per-element.
+KDBXKit's `XMLDocumentReader` captures this choice as
+`XMLDocumentReader.DateFormat` (`.dotNetTicksBase64` for KDBX 4.x,
+`.iso8601` for KDBX 3.x) and passes it at construction time;
+thereafter every `<Time>` element in the document is decoded through
+the same `parseDate` helper without per-field fallback logic.
+
+The writer (`XMLDocumentWriter`) always emits the 4.x seconds-base64
+dialect, consistent with the rule that KDBXKit only ever writes KDBX
+4.x files (§ legacy-format migration note in CLAUDE.md).  Producers
+MUST NOT mix dialects within a file.
+
+### 8.3 Empty and absent values
+
+An empty `<Time>` element body — e.g.
+`<LastAccessTime></LastAccessTime>` — MUST be treated as absent /
+unset.  KDBXKit's reader guards on `text(in: child)` returning
+non-`nil` before calling `parseDate`, so both an empty element and a
+missing element produce `nil` in the `KDBX.Times` struct.  Producers
+SHOULD omit the element entirely when the timestamp is unset rather
+than emitting an empty element.
+
+### 8.4 Time zones
+
+KDBX timestamps are always UTC.  The seconds-base64 form is an
+integer offset from a fixed UTC epoch, so no time-zone qualifier
+appears in the encoded value.  The ISO 8601 form MUST carry a
+trailing `Z` or an explicit `+00:00` offset; producers MUST NOT emit
+local-zone offsets.  A reader receiving a non-UTC ISO 8601 string
+MUST convert to UTC before storing the value.  KDBXKit's
+`ISO8601DateFormatter` configuration (`withInternetDateTime`) enforces
+UTC on parse.
+
+Implementation reference: `KDBX/Times.swift`,
+`Extensions/Date+dotnet.swift` (epoch constant and
+`secondsSinceDotNetEpoch` / `init(secondsSinceDotNetEpoch:)`
+helpers),
+`Database/XMLDocumentReader.swift` (`DateFormat` enum, `parseDate`,
+`parseTimes`, `parseISO8601`),
+`Database/XMLDocumentWriter.swift` (`encode(_:Date)`, `write(_:Times:to:)`),
+`Database/KDBX_XML.xsd` (`TDateTime` type definition).
