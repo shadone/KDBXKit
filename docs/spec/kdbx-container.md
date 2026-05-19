@@ -401,3 +401,78 @@ consumed by Sections 7 and 8.
 Implementation reference: `KDFParameters.swift` (UUID dispatch and key
 names), `AESKDF.swift` (AES-KDF derivation), `Argon2KDF.swift` (Argon2
 derivation via the in-tree `argon2` C target).
+
+## 7. Main key and HMAC seed
+
+Given the master salt (Section 3.1, ID 4) and the transformed key
+(Section 6), two values are derived:
+
+    mainKey  = SHA-256( masterSalt || transformedKey )
+    hmacSeed = SHA-512( masterSalt || transformedKey || 0x01 )
+
+`mainKey` is 32 bytes and is the symmetric key fed to the outer cipher
+(Section 9). `hmacSeed` is 64 bytes and is the input to per-block HMAC
+key derivation (Section 10) and to header authentication (Section 8).
+
+The byte `0x01` trailing the SHA-512 input is normative. A reader that
+omits or alters it will produce a wrong HMAC seed and reject all
+correctly-encoded files.
+
+[Implementation note: KDBXKit does not materialise `hmacSeed` as a
+named value. The formula `SHA-512(masterSalt || transformedKey || 0x01)`
+appears as the inner hash computed inside `HMACProtectedBlockStream.keyForBlock`,
+which builds the buffer inline before hashing it. The factored form
+above is correct but is a logical description of the intermediate step,
+not a stored variable.]
+
+Implementation reference: `MainKey.swift` (main key derivation),
+`HMACProtectedBlockStream.swift` (HMAC seed inline computation).
+
+## 8. Header authentication
+
+KDBX 4.x authenticates the dynamic header (Sections 1–3, i.e. all
+bytes from offset 0 through the end of the `EndOfHeader` value
+inclusive) with an HMAC-SHA-256 keyed by a value derived from
+`hmacSeed`.
+
+### 8.1 Layout
+
+Immediately after `EndOfHeader`'s value, the file contains:
+
+    HeaderHash:Byte[32]   ; SHA-256(headerBytes) — integrity check;
+                          ; readers MUST verify (see below)
+    HeaderHMAC:Byte[32]   ; the authenticated MAC
+
+[Implementation note: KDBXKit verifies `HeaderHash` using
+`ConstantTime.equals` before proceeding and throws
+`.corruptedHeaderDigest` on a mismatch. The source comment notes that
+`SHA-256` is not a secret comparison so short-circuiting `!=` would be
+technically fine, but `ConstantTime.equals` is used for consistency.
+The spec text above reflects this behaviour.]
+
+### 8.2 HMAC key derivation
+
+The HMAC key for the header is derived from `hmacSeed` using the same
+block-key formula used for the HMAC-protected block stream (Section 10),
+but with a reserved block index:
+
+    blockKey(index) = SHA-512( UInt64-LE(index) || hmacSeed )
+    headerHmacKey   = blockKey( 0xFFFFFFFFFFFFFFFF )
+
+`0xFFFFFFFFFFFFFFFF` (the literal used in the source; equivalently
+UInt64 max, all-ones little-endian) is the block index reserved for
+the header HMAC. Block indices `0, 1, 2, ...` are reserved for the
+HMAC-protected block stream (Section 10).
+
+### 8.3 Verification rule
+
+A reader MUST verify the header HMAC BEFORE invoking the outer cipher
+on any subsequent byte. A mismatch MUST be reported as an
+authentication error, distinct from the parse-time errors raised by
+Sections 1–3. Implementations MUST use a constant-time comparator for
+the HMAC tag.
+
+Implementation reference: `HMACProtectedBlockStream.swift` (block key
+derivation and `keyForHeader` using the `0xFFFFFFFFFFFFFFFF` literal),
+`KDBXReader.swift` (verify-before-decrypt invariant; constant-time
+`ConstantTime.equals` used for both `HeaderHash` and `HeaderHMAC`).
