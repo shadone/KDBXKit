@@ -1,15 +1,6 @@
 {
-  "originHash" : "f00d51fc3c442bc50f00504fd3d29cde461e4c32a32dda6742499dc5727672db",
+  "originHash" : "213fc089f9ca41e4d7ce8cab474c1e5f02103269567809d91eeea58942df6d63",
   "pins" : [
-    {
-      "identity" : "cryptoswift",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/krzyzanowskim/CryptoSwift.git",
-      "state" : {
-        "revision" : "729e01bc9b9dab466ac85f21fb9ee2bc1c61b258",
-        "version" : "1.8.4"
-      }
-    },
     {
       "identity" : "phc-winner-argon2",
       "kind" : "remoteSourceControl",

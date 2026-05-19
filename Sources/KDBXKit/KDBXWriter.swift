@@ -5,7 +5,6 @@
 //
 
 import Crypto
-import CryptoSwift
 import Foundation
 import SwiftGzip
 
@@ -285,15 +284,15 @@ public struct KDBXWriter {
 
         switch preparedContent.header.encryptionAlgorithm {
         case .AES256CBC:
+            let keyData = mainContentKey.withUnsafeBytes { keyPtr in
+                Data(keyPtr.bindMemory(to: UInt8.self))
+            }
             do {
-                let cipher = try mainContentKey.withUnsafeBytes { keyPtr -> CryptoSwift.AES in
-                    try CryptoSwift.AES(
-                        key: Array(keyPtr.bindMemory(to: UInt8.self)),
-                        blockMode: CBC(iv: Array(preparedContent.header.encryptionNonce)),
-                        padding: .pkcs7
-                    )
-                }
-                payload = try Data(cipher.encrypt(Array(payload)))
+                payload = try AES256CBC.encrypt(
+                    iv: preparedContent.header.encryptionNonce,
+                    plainText: payload,
+                    keyData
+                )
             } catch {
                 throw .encryptionFailed(reason: "AES-256-CBC: \(error)")
             }
