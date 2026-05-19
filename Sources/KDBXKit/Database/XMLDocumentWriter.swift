@@ -249,7 +249,10 @@ struct XMLDocumentWriter {
             node.addElement("PreviousParentGroup").addText(encode(previousParentGroup))
         }
         if !group.tags.isEmpty {
-            node.addElement("Tags").addText(group.tags.joined(separator: ";"))
+            // KeePassXC writes `,`-separated; the KDBX 4.1 XSD nominally
+            // says `;`, but both KeePass 2 (.NET) and KeePassXC accept
+            // either on read. Emit `,` to match KeePassXC's preferred form.
+            node.addElement("Tags").addText(group.tags.joined(separator: ","))
         }
         if !group.customData.isEmpty {
             let customDataNode = node.addElement("CustomData")
@@ -291,7 +294,10 @@ struct XMLDocumentWriter {
             node.addElement("QualityCheck").addText(encode(qualityCheck))
         }
         if !entry.tags.isEmpty {
-            node.addElement("Tags").addText(entry.tags.joined(separator: ";"))
+            // KeePassXC writes `,`-separated; the KDBX 4.1 XSD nominally
+            // says `;`, but both KeePass 2 (.NET) and KeePassXC accept
+            // either on read. Emit `,` to match KeePassXC's preferred form.
+            node.addElement("Tags").addText(entry.tags.joined(separator: ","))
         }
         if let previousParentGroup = entry.previousParentGroup {
             node.addElement("PreviousParentGroup").addText(encode(previousParentGroup))

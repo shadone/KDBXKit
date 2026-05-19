@@ -67,8 +67,9 @@ public extension KDBX {
         public var qualityCheck: Bool?
 
         /// User-applied tags on the entry. The KDBX 4.1 XSD specifies
-        /// `;`-separated on disk; the reader also accepts `,` for
-        /// KeePassXC interop and the writer emits `;`.
+        /// `;`-separated on disk; the reader accepts either `;` or `,`,
+        /// and the writer emits `,` to match KeePassXC's preferred
+        /// form. Tag values containing `;` or `,` round-trip lossily.
         /// See <https://keepass.info/help/v2/entry.html#tags>.
         public var tags: [String]
 

@@ -106,7 +106,7 @@ KDBXKit reads KDBX 3.1 and migrates it to 4.1 on save. **The writer only ever em
 
 ### Format dialects we round-trip
 
-- **Tags separator**: KeePassXC writes `,`-separated, KeePass 2 (.NET) writes `;`. Reader splits on either; writer emits `;` (matches the official KDBX 4.1 XSD). Tag values containing `;` or `,` round-trip lossily.
+- **Tags separator**: KeePassXC writes `,`-separated, KeePass 2 (.NET) writes `;`. Reader splits on either; writer emits `,` (matches KeePassXC; the KDBX 4.1 XSD nominally says `;` but both clients accept either form). Tag values containing `;` or `,` round-trip lossily.
 
 ## Security primitives
 
