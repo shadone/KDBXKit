@@ -532,7 +532,7 @@ The HMAC key for block `i` (zero-indexed) is:
 
     blockKey(i) = SHA-512( UInt64-LE(i) || hmacSeed )
 
-where `hmacSeed = SHA-512( masterSalt || unlockKey || 0x01 )`.
+where `hmacSeed = SHA-512( masterSalt || transformedKey || 0x01 )`.
 
 The MAC value is:
 
@@ -744,9 +744,9 @@ instruction. Binary data in the inner-header pool is stored
 verbatim in both KDBXKit's reader and writer; no keystream bytes are
 consumed for binary pool entries.
 
-Note: the claim in Section 12.3 that "Protected binaries are XOR'd
-with keystream bytes" reflects the KDBX format specification's stated
-intent but does not match KDBXKit's current implementation.
+Note: the upstream KDBX format specification's stated intent is that
+protected binaries should be XOR-masked with keystream bytes, but this
+does not match KDBXKit's current implementation.
 Interoperability against other KDBX clients for the protected-binary
 case has not been tested.
 
