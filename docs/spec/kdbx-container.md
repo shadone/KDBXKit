@@ -77,3 +77,43 @@ literals in field values are UTF-8 unless explicitly stated otherwise.
 15. Appendix A (informative): KDBX 3.1 read path
 16. Appendix B (normative): Test vectors
 17. References
+
+## 1. File signature
+
+A KDBX 4.x file MUST begin with the 12-byte sequence:
+
+    9AA2D903 B54BFB67 <minor:UInt16> <major:UInt16>
+
+The first two 32-bit words are the file-identifier signature (little-endian
+written as `03 D9 A2 9A` and `67 FB 4B B5` respectively on disk; written
+above in their value form for readability). The two trailing 16-bit fields
+are the format version, minor first.
+
+Implementations MUST reject a file whose first 8 bytes do not match this
+signature with a parse-time error. They MUST NOT attempt heuristic recovery.
+
+Implementation reference: `Header.swift` (signature constants),
+`KDBXReader.swift` (signature check at parse entry).
+
+## 2. Format version
+
+The minor and major version fields are unsigned 16-bit little-endian
+integers. Defined values:
+
+- `3.1` — KDBX 3.1. Read-only support is OPTIONAL; producers MUST NOT
+  emit 3.x. See Appendix A for the read path.
+- `4.0` — KDBX 4.0. Variant dictionary KDF parameters, HMAC-protected
+  block stream, inner header.
+- `4.1` — KDBX 4.1. Adds custom-data timestamps, custom-icon names and
+  modified times, and tag and override-URL fields on Group; does not
+  change the container layout described in this document.
+
+A reader MUST reject 3.0 (the ArcFour inner-stream variant) with a
+parse-time error. A reader MUST reject any major version greater than the
+highest it implements. A reader MAY accept any minor version of a major
+version it implements, parsing fields it does not recognise as no-ops if
+the document map permits (it does not — see Section 3 for the closed
+record set).
+
+Implementation reference: `KDBXReader.swift` (version dispatch),
+`Header.swift §FormatVersion` enum.
