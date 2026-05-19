@@ -154,3 +154,85 @@ Implementation reference: `Database/XMLDocumentWriter.swift`
 `Database/XMLDocumentReader.swift`
 (`KeePassFile` element check and root dispatch),
 `Database/KDBX_XML.xsd` (schema).
+
+## 2. Meta element
+
+The Meta element carries database-wide configuration, custom icons,
+custom data, and (in KDBX 3.x only) the binary pool. Its children
+MAY appear in any order; KDBXKit emits them in the order defined by
+`XMLDocumentWriter`. A reader MUST NOT rely on element order.
+
+### 2.1 Defined child elements
+
+| Element                    | Type                      | Cardinality | Since | Notes |
+|----------------------------|---------------------------|-------------|-------|-------|
+| Generator                  | String                    | 0 or 1      | 4.0   | Writer identifier (e.g. "KeePassXC", "KDBXKit"). Informational. |
+| HeaderHash                 | Base64                    | 0 or 1      | 3.1   | KDBX 3.1 only; 4.x readers MUST ignore (the binary header HMAC supersedes it). Stored as a raw Base64 string; Swift type is `String?`. |
+| SettingsChanged            | Time                      | 0 or 1      | 4.0   | When any Meta-level setting last changed. See §8 for the date encoding. |
+| DatabaseName               | String                    | 0 or 1      | 4.0   | Human-readable vault name. |
+| DatabaseNameChanged        | Time                      | 0 or 1      | 4.0   | When `DatabaseName` was last edited. |
+| DatabaseDescription        | String                    | 0 or 1      | 4.0   | Free-form vault description. |
+| DatabaseDescriptionChanged | Time                      | 0 or 1      | 4.0   | When `DatabaseDescription` was last edited. |
+| DefaultUserName            | String                    | 0 or 1      | 4.0   | Pre-fill value for new entries' UserName field. |
+| DefaultUserNameChanged     | Time                      | 0 or 1      | 4.0   | When `DefaultUserName` was last edited. |
+| MaintenanceHistoryDays     | UInt32                    | 0 or 1      | 4.0   | Days until history entries are deleted in a maintenance pass. |
+| Color                      | Color hex                 | 0 or 1      | 4.0   | UI accent color (`#RRGGBB`). Empty string = unset. See §10. |
+| MasterKeyChanged           | Time                      | 0 or 1      | 4.0   | Last credential change timestamp. |
+| MasterKeyChangeRec         | Int64 (min -1)            | 0 or 1      | 4.0   | Recommended max days before a master-key change; -1 = disabled. Swift: `ValueOrNever<UInt64>`. |
+| MasterKeyChangeForce       | Int64 (min -1)            | 0 or 1      | 4.0   | Forced max days before a master-key change; -1 = disabled. Swift: `ValueOrNever<UInt64>`. |
+| MasterKeyChangeForceOnce   | Bool                      | 0 or 1      | 4.0   | Force one credential change at the next unlock. |
+| MemoryProtection           | MemoryProtectionConfig    | 0 or 1      | 4.0   | Per-field "should be protected in process memory" hints. See §2.2. |
+| CustomIcons                | CustomIcon[]              | 0 or 1      | 4.0   | Container; zero or more `<Icon>` children. See §2.3. |
+| RecycleBinEnabled          | Bool                      | 0 or 1      | 4.0   | Whether the recycle-bin workflow is active. |
+| RecycleBinUUID             | UUID                      | 0 or 1      | 4.0   | UUID of the recycle-bin group; all-zero UUID = create on demand. |
+| RecycleBinChanged          | Time                      | 0 or 1      | 4.0   | When the recycle-bin pointer was last changed. |
+| EntryTemplatesGroup        | UUID                      | 0 or 1      | 4.0   | UUID of the entry-templates group; all-zero UUID = disabled. |
+| EntryTemplatesGroupChanged | Time                      | 0 or 1      | 4.0   | When `EntryTemplatesGroup` was last changed. |
+| HistoryMaxItems            | Int32 (min -1)            | 0 or 1      | 4.0   | Max history entries per entry; -1 = unlimited. Swift: `ValueOrUnlimited<UInt32>`. |
+| HistoryMaxSize             | Int64 (min -1)            | 0 or 1      | 4.0   | Max estimated in-memory history size in bytes; -1 = unlimited. Swift: `ValueOrUnlimited<UInt64>`. |
+| LastSelectedGroup          | UUID                      | 0 or 1      | 4.0   | UI state: which group was selected on last view. |
+| LastTopVisibleGroup        | UUID                      | 0 or 1      | 4.0   | UI state: which group was at the top of the tree on last view. |
+| Binaries                   | Binary[]                  | 0 or 1      | 3.1   | KDBX 3.1 inline binary pool. KDBXKit reads but never writes this element; 4.x writers MUST NOT emit it (binaries live in the inner header — see container §12.2). |
+| CustomData                 | CustomDataWithTimes[]     | 0 or 1      | 4.0   | Vault-level custom key/value items with per-item modification timestamps. See §9. |
+
+### 2.2 MemoryProtection child
+
+`<MemoryProtection>` carries per-default-field flags advising the
+application which fields in newly-created entries should be marked
+`Protected="True"`. Its children:
+
+| Element         | Type | Default |
+|-----------------|------|---------|
+| ProtectTitle    | Bool | False   |
+| ProtectUserName | Bool | False   |
+| ProtectPassword | Bool | True    |
+| ProtectURL      | Bool | False   |
+| ProtectNotes    | Bool | False   |
+
+These are advisory: the per-entry `Protected` attribute on each
+String element (§6) is authoritative for whether a given value's
+bytes are XOR-masked by the inner stream cipher. The KDBX spec notes
+that KeePass resets these settings to their defaults after opening a
+database; treat them as informational hints only.
+
+### 2.3 CustomIcons child
+
+`<CustomIcons>` is a container element holding zero or more `<Icon>`
+children. Each `<Icon>` carries:
+
+| Element              | Type    | Cardinality | Since | Notes |
+|----------------------|---------|-------------|-------|-------|
+| UUID                 | UUID    | 1           | 4.0   | Stable identifier referenced by Group/Entry `CustomIconUUID`. |
+| Data                 | Base64  | 1           | 4.0   | Raw icon bytes (PNG, typically; JPEG and ICO also accepted by most clients). |
+| Name                 | String  | 0 or 1      | 4.1   | Optional human-readable name. |
+| LastModificationTime | Time    | 0 or 1      | 4.1   | When the icon was last edited; used by sync/merge tooling. |
+
+A 4.0 reader MUST ignore `Name` and `LastModificationTime` and MUST
+NOT reject a 4.1 file that carries them. A 4.1 writer SHOULD emit
+both when the in-memory representation has them.
+
+Implementation reference: `KDBX/Meta.swift`,
+`KDBX/MemoryProtectionConfig.swift`, `KDBX/CustomIcon.swift`,
+`Database/XMLDocumentReader.swift` (Meta parsing dispatch at
+`parseMeta`), `Database/XMLDocumentWriter.swift` (Meta emission
+order in `write(_:KDBX.Meta:to:)`).
