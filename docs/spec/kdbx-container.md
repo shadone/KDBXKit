@@ -118,3 +118,53 @@ record set).
 Implementation reference: `KDBXReader.swift` (version dispatch),
 `Header.swift §FormatVersion` (struct with `static let` members
 `v3_1`, `v4_0`, `v4_1`).
+
+## 3. Dynamic outer header
+
+The dynamic header is a sequence of TLV (type-length-value) records
+beginning immediately after the 12-byte signature/version prefix.
+
+Each record has the structure:
+
+    HeaderRecord = type:UInt8 length:UInt32-LE value:Byte[length]
+
+The header is terminated by a record of type `0x00` (`EndOfHeader`)
+whose value MUST be the 4-byte sequence `0D 0A 0D 0A`. No header record
+MAY appear after `EndOfHeader`. The total length of the header,
+including the signature, is the byte offset of the first byte after
+`EndOfHeader`'s value; this length is the input to the header HMAC
+(Section 8).
+
+### 3.1 Defined header records (KDBX 4.x)
+
+| ID | Name                  | Value type          | Cardinality | Notes |
+|----|-----------------------|---------------------|-------------|-------|
+| 0  | EndOfHeader           | Byte[4] = 0D0A0D0A  | exactly 1   | terminator |
+| 2  | EncryptionAlgorithm   | UUID                | exactly 1   | outer cipher; see Section 9 |
+| 3  | CompressionAlgorithm  | UInt32-LE           | exactly 1   | 0 = none, 1 = gzip |
+| 4  | MasterSalt            | Byte[32]            | exactly 1   | regenerated on save |
+| 7  | EncryptionNonce       | Byte[]              | exactly 1   | 16 bytes for AES-CBC; 12 bytes for ChaCha20; regenerated on save |
+| 11 | KDFParameters         | VariantDictionary   | exactly 1   | see Section 4 |
+| 12 | PublicCustomData      | VariantDictionary   | 0 or 1      | plugins only; readable without credentials |
+
+IDs `1, 5, 6, 8, 9, 10` are reserved for legacy KDBX 3.x fields (see
+Appendix A) and MUST NOT appear in KDBX 4.x files. IDs not listed
+above are unknown. KDBXKit logs unknown IDs at debug level and skips
+them; a strict reader MAY reject them with a parse error.
+
+A KDBX 4.x writer MUST emit each `exactly 1` record exactly once. A
+KDBX 4.x reader MUST reject a header with any required record missing
+or any required record duplicated.
+
+### 3.2 Record ordering
+
+The dynamic header records (excluding `EndOfHeader`, which is always
+last) MAY appear in any order. Compliant readers MUST NOT rely on
+specific ordering. KDBXKit emits records in the order
+`EncryptionAlgorithm, CompressionAlgorithm, MasterSalt,
+EncryptionNonce, KDFParameters, PublicCustomData, EndOfHeader`; this
+ordering is informative.
+
+Implementation reference: `HeaderFieldType.swift` (record IDs and value
+types), `HeaderReader.swift` (parsing loop and rejection rules),
+`HeaderWriter.swift` (emission order).
