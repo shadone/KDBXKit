@@ -51,8 +51,6 @@ act -j linux                       # Same idea via nektos/act: runs the actual C
 
 **Swift Testing**, not XCTest. Use `@Suite("...")`, `@Test("...")`, `#expect(...)`.
 
-Harmless warning: `Sources/KDBXKit/Database/KDBX_XML.xsd` triggers "found 1 file(s) which are unhandled" on every `swift build`.
-
 ## Dependencies
 
 Declared in `Package.swift`:
