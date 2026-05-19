@@ -5,6 +5,10 @@
 //
 
 import Foundation
+#if canImport(FoundationXML)
+// On swift-corelibs-foundation (Linux) XMLParser lives in FoundationXML.
+import FoundationXML
+#endif
 
 /// `<?xml version="..." encoding="..." standalone="..."?>` prolog.
 ///
@@ -75,7 +79,9 @@ final class Document {
 
     private func parse(data: Data) throws(ParseError) {
         let delegate = XMLBuildDelegate()
-        let parser = Foundation.XMLParser(data: data)
+        // Unqualified so the type resolves to FoundationXML.XMLParser on
+        // Linux (where Foundation.XMLParser is a deprecated stub).
+        let parser = XMLParser(data: data)
         parser.delegate = delegate
         // Explicitly defensive: never resolve external entities (XXE), never
         // process namespaces (KDBX doesn't use them and we'd rather see
@@ -97,7 +103,19 @@ final class Document {
             throw .malformed(reason: reason, line: line, column: column)
         }
 
-        root = delegate.root
+        // swift-corelibs-foundation's XMLParser can report success on an
+        // input that produced no root element (e.g. "" or "not xml at all"
+        // depending on libxml2's tolerance). Treat a missing root as a
+        // parse error so callers see the same typed failure across
+        // platforms.
+        guard let parsedRoot = delegate.root else {
+            throw .malformed(
+                reason: "XML input produced no root element",
+                line: parser.lineNumber,
+                column: parser.columnNumber
+            )
+        }
+        root = parsedRoot
         // Declaration is not surfaced by Foundation's parser; leave nil.
         // The writer always sets a fresh declaration before serializing.
     }
