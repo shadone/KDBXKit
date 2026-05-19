@@ -22,12 +22,24 @@ PLATFORM="${PLATFORM:-linux/arm64}"
 IMAGE="swift:${SWIFT}-jammy"
 
 # Forward any extra args to `swift test` so callers can do e.g. --filter Header.
-EXTRA_TEST_ARGS=("$@")
+# Guard the empty-array case — under `set -u`, bash 3.2 (the macOS default)
+# treats `${EMPTY[@]}` as an unbound variable.
+if [ "$#" -gt 0 ]; then
+  printf -v ESCAPED_TEST_ARGS '%q ' "$@"
+else
+  ESCAPED_TEST_ARGS=""
+fi
 
-# Quote-safe re-emit of the test args inside the container's bash -c.
-printf -v ESCAPED_TEST_ARGS '%q ' "${EXTRA_TEST_ARGS[@]}"
+# `-t` allocates a TTY; only request one if our stdout is actually a
+# terminal. Without this guard, running the script non-interactively
+# (CI, `claude` background tasks, piped output) fails with "the input
+# device is not a TTY".
+DOCKER_TTY_FLAG=""
+if [ -t 1 ]; then
+  DOCKER_TTY_FLAG="-t"
+fi
 
-docker run --rm -it \
+docker run --rm -i $DOCKER_TTY_FLAG \
   --platform "$PLATFORM" \
   -v "$REPO_ROOT":/workspace \
   -w /workspace \
