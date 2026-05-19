@@ -101,6 +101,12 @@ let package = Package(
                 // it up; not compiled or bundled.
                 "Database/KDBX_XML.xsd",
             ],
+            resources: [
+                // Apple-platform privacy manifest. Declares no
+                // tracking, no data collection, no required-reason
+                // API usage. Apple-only — ignored on Linux builds.
+                .copy("PrivacyInfo.xcprivacy"),
+            ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
                 .enableUpcomingFeature("StrictConcurrency"),
