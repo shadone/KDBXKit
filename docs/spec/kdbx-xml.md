@@ -1008,7 +1008,7 @@ KDBXKit's writer emits indented XML using a tab character (`\t`)
 per depth level. KeePassXC also uses tab indentation. All readers
 MUST ignore inter-element whitespace. Producers MAY emit
 unindented XML; in-element whitespace is significant only for
-string values (see §1 Conventions).
+string values (see the Conventions section).
 
 ### 10.8 Element ordering inside Meta
 
@@ -1211,12 +1211,12 @@ See §3 for the top-level structure and §4.1 for group fields.
 
 Key observations:
 - `<RecycleBinUUID>` is the nil UUID (`AAAA…AA==`, 16 zero bytes)
-  because no recycle bin group has been created yet (§5.6).
+  because no recycle bin group has been created yet (§2.1).
 - `<EnableAutoType>null</EnableAutoType>` and
   `<EnableSearching>null</EnableSearching>` carry the literal string
   `null` to signal "inherit from parent" (§4.1).
 - `<DeletedObjects/>` is self-closing; a consumer MUST treat an
-  absent element and a self-closing element identically (§9).
+  absent element and a self-closing element identically (§3.2).
 
 ---
 
@@ -1280,12 +1280,12 @@ mechanism.
 Key observations:
 - The five standard keys appear in alphabetical order here because
   KeePassXC emits them that way; the spec does not mandate any
-  particular order (§5.3).
+  particular order (§5.2).
 - `<Notes>` has an empty `<Value/>` rather than being omitted.
   Consumers MUST treat an absent `<String>` for a standard key the
-  same as one with an empty value (§5.3).
+  same as one with an empty value (§5.2).
 - `<History/>` is self-closing, meaning zero history snapshots
-  (§5.7).
+  (§5.5).
 
 ---
 
@@ -1434,9 +1434,9 @@ group. The resulting `<DeletedObjects>` block is:
 The `<UUID>` matches the entry UUID from B.2, confirming that the
 tombstone references the deleted object's original UUID. The
 `<DeletionTime>` is encoded in the standard .NET-ticks-Base64
-format (§7.1). On sync merge, a compliant consumer uses this
+format (§8.2). On sync merge, a compliant consumer uses this
 tombstone to identify and remove the object from a peer replica
-that still carries it (§9).
+that still carries it (§3.2).
 
 Key observations:
 - An entry moved to the recycle-bin group (soft delete) does NOT
@@ -1540,7 +1540,7 @@ Any child of an `<Icon>` element other than `UUID`, `Data`,
     "Unexpected element KeePassFile/Meta/CustomIcons/Icon/<ElementName>"
 
 The `Name` and `LastModificationTime` fields were added in KDBX
-4.1 (§2.7); a 4.0 file omits them without a warning.
+4.1 (§2.3); a 4.0 file omits them without a warning.
 
 #### C.2.6 Unknown children of `CustomData` item lists
 
@@ -1731,3 +1731,36 @@ modelled. If the assertion fails, the choice is:
 
 Both are legitimate; the assertion exists to make the choice
 explicit rather than silent.
+
+## 14. References
+
+### 14.1 Normative
+
+- [RFC2119] Bradner, S., "Key words for use in RFCs to Indicate
+  Requirement Levels", BCP 14, RFC 2119, March 1997.
+- [RFC4122] Leach, P., Mealling, M., and R. Salz, "A Universally
+  Unique IDentifier (UUID) URN Namespace", RFC 4122, July 2005.
+- [RFC4648] Josefsson, S., "The Base16, Base32, and Base64 Data
+  Encodings", RFC 4648, October 2006.
+- [RFC5234] Crocker, D., Ed., and P. Overell, "Augmented BNF for
+  Syntax Specifications: ABNF", STD 68, RFC 5234, January 2008.
+- [W3C-XML] Bray, T., et al., "Extensible Markup Language (XML)
+  1.0 (Fifth Edition)", W3C Recommendation, November 2008,
+  <https://www.w3.org/TR/xml/>.
+
+The KDBX container specification (this document's companion) is
+also normative:
+
+- [KDBX-Container] Dzyubenko, D., "The KDBX 4.1 Container Format",
+  KDBXKit `docs/spec/kdbx-container.md`.
+
+### 14.2 Informative
+
+- KeePass.info knowledge base, "KDBX 4 file format",
+  <https://keepass.info/help/kb/kdbx.html>.
+- KeePass.info knowledge base, "Key files",
+  <https://keepass.info/help/base/keys.html>.
+- KeePassXC source, <https://github.com/keepassxreboot/keepassxc>.
+- KDBXKit, <https://github.com/shadone/KDBXKit>.
+- keepassxc-specs (earlier informal XML reference document),
+  <https://github.com/keepassxreboot/keepassxc-specs>.

@@ -7,7 +7,7 @@ version 4.0 and 4.1, the storage format of the KeePass family of password
 managers. It covers the file signature, dynamic header, key derivation,
 authenticated encryption, block stream framing, and inner header that
 together wrap the encrypted XML payload. The XML payload is specified
-in a companion document.
+in the companion document [The KDBX 4.1 XML Payload](kdbx-xml.md).
 
 ## Status of This Document
 
@@ -57,7 +57,8 @@ literals in field values are UTF-8 unless explicitly stated otherwise.
   signature, header, HMAC-protected block stream, inner header, inner
   payload.
 - **Inner payload** — the decrypted, decompressed byte stream
-  consumed by the XML reader. Specified in the companion document.
+  consumed by the XML reader. Specified in the companion document
+  [The KDBX 4.1 XML Payload](kdbx-xml.md).
 - **Outer cipher** — the symmetric cipher encrypting the inner header
   and inner payload (AES-256-CBC or ChaCha20).
 - **Inner stream cipher** — the keystream cipher that protects
@@ -761,7 +762,8 @@ encryption during write), `Crypto/ChaCha20.swift`,
 
 The bytes immediately following the inner-header `EndOfInnerHeader`
 record are the inner payload. The inner payload is interpreted as an
-XML document by the XML reader specified in the companion document.
+XML document by the XML reader specified in the companion document
+[The KDBX 4.1 XML Payload](kdbx-xml.md).
 
 There is no length prefix on the inner payload. The payload ends at
 the end of the decompressed stream (Section 11). The block stream
