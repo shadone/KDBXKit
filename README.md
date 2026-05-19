@@ -41,6 +41,10 @@ try bytes.write(to: url)
 
 | | |
 |---|---|
+| **Memory hygiene** | `SecureBytes` (mlock + secure-zero on deinit), `ProtectedString.withRevealedString` — no plaintext through `Swift.String` |
+| **Streaming attachments** | lazy reader + streaming writer keep binaries off the heap; peak save memory is one attachment plus pipeline buffers, regardless of vault size |
+| **Interop** | round-trip tested against KeePassXC `keepassxc-cli` (gated suite); malformed-input fuzz tests guard against crash-on-bad-data |
+| **Concurrency** | Swift 6 strict-concurrency clean, all public types `Sendable` |
 | **Read** | KDBX 3.1, 4.0, 4.1 |
 | **Write** | KDBX 4.1 — 3.x files migrate on save, surfaced via `LegacyFormatNotice` |
 | **Ciphers** | AES-256-CBC, ChaCha20 |
@@ -48,10 +52,6 @@ try bytes.write(to: url)
 | **Inner stream** | Salsa20, ChaCha20 |
 | **Compression** | gzip (system zlib) |
 | **Key sources** | master password, key file, raw 32-byte pre-hash (e.g. biometric-unlocked Keychain) |
-| **Memory hygiene** | `SecureBytes` (mlock + secure-zero on deinit), `ProtectedString.withRevealedString` — no plaintext through `Swift.String` |
-| **Streaming attachments** | lazy reader + streaming writer keep binaries off the heap; peak save memory is one attachment plus pipeline buffers |
-| **Concurrency** | Swift 6 strict-concurrency clean, all public types `Sendable` |
-| **Interop** | tested against KeePassXC `keepassxc-cli` round-trips (gated suite) |
 
 ## Requirements
 
@@ -65,7 +65,7 @@ Add KDBXKit to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/shadone/KDBXKit.git", branch: "develop"),
+    .package(url: "https://github.com/shadone/KDBXKit.git", from: "1.0.0"),
 ],
 targets: [
     .target(
@@ -86,22 +86,7 @@ sudo dnf install zlib-devel        # Fedora
 
 ## Library usage
 
-### Open, walk, save
-
-```swift
-import KDBXKit
-
-let data = try Data(contentsOf: url)
-let unlock = UnlockData(masterPassword: "secret")
-let content = try KDBXReader.parse(data, unlockData: unlock)
-
-content.database.visitEntries(in: content.database.root.group) { entry in
-    print(entry.uuid, entry.strings.map(\.key))
-}
-
-let bytes = try KDBXWriter().write(content, unlockData: unlock)
-try bytes.write(to: url)
-```
+The basic open / walk / save flow is in the [intro snippet](#what-is-kdbxkit) above. The sections below cover the less obvious bits.
 
 ### Header-only inspection (no credentials)
 
@@ -129,61 +114,25 @@ The 32-byte pre-hash is the same authority as the password — protect it with a
 
 ### Streaming attachments (large vaults)
 
-For vaults whose attachments shouldn't sit resident from unlock to lock, use the lazy reader and streaming writer.
-
-**Open metadata-only — binaries stay on disk:**
+For vaults whose attachments shouldn't sit resident from unlock to lock, open metadata-only and stream binaries on demand. `openMetadataOnly` runs the full decrypt + inner-header parse but drops the binary bytes; the returned `LazyKDBXContent` keeps a handle to the source so individual binaries can be re-streamed without holding all of them in memory.
 
 ```swift
 let lazy = try KDBXReader.openMetadataOnly(from: .file(url), unlockData: unlock)
-// lazy.database, lazy.header, lazy.innerHeader exposed; binary bytes are not.
-// lazy.binaries: [BinaryMetadata] carries (offset, length, isProtected, contentHash).
-```
 
-**Stream a specific binary on demand to the destination of your choice:**
-
-```swift
-var sink = try URLSink(writingTo: destination)           // straight to a file
-// or  DataSink()                                         // in-memory
-// or  SecureBytesSink()                                  // mlocked + zero-on-deinit
+// Stream a specific binary into the destination of your choice.
+var sink = try URLSink(writingTo: destination)  // or DataSink() / SecureBytesSink()
 try KDBXReader.streamBinary(from: lazy, at: index, into: &sink)
 ```
 
-**Save without ever materializing all binaries in process memory:**
+To save without ever materializing all binaries in process memory, drive the streaming writer with `LazyBinarySource` (re-streamed from the source vault) and/or `DataBinarySource` (newly-added attachments still on the heap):
 
 ```swift
-let content = KDBXContent(
-    database: lazy.database,
-    header: lazy.header,
-    innerHeader: lazy.innerHeader
-)
-let binaries: [any BinarySource] = lazy.binaries.indices.map { i in
-    LazyBinarySource(lazy, at: i)                        // re-streamed from source
-    // or DataBinarySource(newBytes, shouldBeProtected: false) for newly-added attachments
-}
-try KDBXWriter.streamingWrite(
-    to: destinationURL,
-    content: content,
-    binaries: binaries,
-    unlockData: unlock
-)
+let content = KDBXContent(database: lazy.database, header: lazy.header, innerHeader: lazy.innerHeader)
+let binaries: [any BinarySource] = lazy.binaries.indices.map { LazyBinarySource(lazy, at: $0) }
+try KDBXWriter.streamingWrite(to: destinationURL, content: content, binaries: binaries, unlockData: unlock)
 ```
 
-Peak save memory is one attachment plus the pipeline working buffers (~64 KB gzip + ≤16 B AES + 1 MB HMAC block), independent of total attachment bytes.
-
-### KDBX 3.1 read + migrate
-
-```swift
-let content = try KDBXReader.parse(data, unlockData: unlock)
-if case .willMigrate(let from) = content.legacyFormatNotice {
-    // UI hook: "Saving will upgrade this vault from \(from) to KDBX 4.1."
-}
-
-// Opt-in: also upgrade the source AES-KDF to Argon2id at the same time
-let upgraded = content.upgradeToArgon2id(profile: .balanced)
-let bytes = try KDBXWriter().write(upgraded, unlockData: unlock)
-```
-
-The writer only ever emits 4.x bytes. KDF migration is opt-in — the library preserves the source KDF by default.
+Peak save memory is one attachment plus the pipeline buffers (~64 KB gzip + ≤16 B AES + 1 MB HMAC block) — independent of total attachment bytes.
 
 ### Secure memory
 
@@ -234,7 +183,7 @@ System:
 
 ## Companion CLI: `kdbx`
 
-The repo also ships a `kdbx` executable — a small debugging and scripting tool, also useful as a worked example of using the library. It's not the focus of the project; the library is.
+The repo also ships a `kdbx` executable — a small debugging and scripting tool, also useful as a worked example of using the library.
 
 ```sh
 swift run kdbx db info     <file.kdbx>                       # header-only, no creds needed
@@ -285,6 +234,13 @@ Closer-to-CI alternative with [`act`](https://github.com/nektos/act):
 brew install act
 act -j linux            # run the workflow's Linux job locally
 ```
+
+## Acknowledgements
+
+- **Dominik Reichl** and the [KeePass](https://keepass.info) project for the KDBX 4 format specification and the canonical XML schema (`Sources/KDBXKit/Database/KDBX_XML.xsd`).
+- **Alex Biryukov, Daniel Dinu, Dmitry Khovratovich** for the [Argon2](https://github.com/P-H-C/phc-winner-argon2) algorithm (winner of the Password Hashing Competition), and Dinu / Khovratovich / Aumasson / Neves for the reference C implementation we vendor in `Sources/CArgon2/`.
+- The **[KeePassXC](https://keepassxc.org)** project — both for being a high-quality client we test interop against, and for the `keepassxc-cli` tool that makes round-trip testing tractable.
+- **Apple's Swift Crypto team** for [swift-crypto](https://github.com/apple/swift-crypto), which carries all of our SHA / HMAC / AES work cross-platform.
 
 ## License
 
