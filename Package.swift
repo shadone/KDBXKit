@@ -4,7 +4,7 @@
 import PackageDescription
 
 let package = Package(
-    name: "KDBX",
+    name: "KDBXKit",
     platforms: [
         .macOS(.v15),
         .iOS(.v18),
