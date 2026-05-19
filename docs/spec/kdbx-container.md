@@ -505,3 +505,67 @@ file as unsupported and abort.
 
 Implementation reference: `AES256CBC.swift`, `Crypto/ChaCha20.swift`,
 `KDBXReader.swift` (cipher dispatch).
+
+## 10. HMAC-protected block stream
+
+Immediately following the 32-byte header HMAC tag (Section 8), the
+file contains the HMAC-protected block stream that wraps the
+ciphertext. The block stream is the outermost authenticated layer of
+the payload.
+
+### 10.1 Grammar
+
+    BlockStream = Block* EndBlock
+    Block       = HMAC:Byte[32] Length:Int32-LE Payload:Byte[Length]
+    EndBlock    = HMAC:Byte[32] Length:Int32-LE = 0
+
+`Length` is the payload size in bytes encoded as a signed 32-bit
+little-endian integer. KDBXKit writers cap `Length` at `1_048_576`
+(2^20, 1 MiB), matching KeePass's choice. Readers accept any
+non-negative value up to `2^31 - 1` for interop. `Payload` is opaque
+ciphertext at this layer.
+
+### 10.2 Per-block HMAC
+
+The `hmacSeed` is derived from the master key material (Section 7).
+The HMAC key for block `i` (zero-indexed) is:
+
+    blockKey(i) = SHA-512( UInt64-LE(i) || hmacSeed )
+
+where `hmacSeed = SHA-512( masterSalt || unlockKey || 0x01 )`.
+
+The MAC value is:
+
+    HMAC = HMAC-SHA-256( key = blockKey(i),
+                         data = UInt64-LE(i) || Int32-LE(Length) || Payload )
+
+Verification is constant-time. The end block (`Length = 0`) carries a
+valid HMAC computed over `UInt64-LE(i) || Int32-LE(0)` (empty
+payload); KDBXKit writes this HMAC but does not verify it on read —
+the reader breaks out of the block loop as soon as it sees
+`Length = 0`, before reaching the HMAC-check path.
+
+Block indices `0, 1, 2, …` are reserved for data blocks. Index
+`0xFFFFFFFFFFFFFFFF` is reserved for the header HMAC (Section 8) and
+MUST NOT appear in this stream.
+
+### 10.3 Block-index sequencing
+
+Block indices are strictly sequential starting at 0. The writer
+initialises `blockIndex = 0` and increments it after every emitted
+block, including the terminator. The reader mirrors this — it
+maintains its own counter starting at 0 and increments after each
+verified data block. An out-of-order or replayed block is rejected
+implicitly: the HMAC of a block at the wrong position will not match
+because the index is bound into both the block key derivation and the
+HMAC input.
+
+### 10.4 Decryption boundary
+
+The concatenation of all `Payload` byte runs from index 0 through the
+last data block (excluding the end block) is the input to the outer
+cipher (Section 9). The cipher operates on the concatenated bytes as
+one stream; block boundaries are an authentication-layer concern only.
+
+Implementation reference: `HMACProtectedBlockStream.swift`,
+`Streaming/HMACBlockStreamWriter.swift`.
