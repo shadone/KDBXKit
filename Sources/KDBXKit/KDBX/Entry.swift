@@ -72,9 +72,11 @@ public extension KDBX {
         /// See <https://keepass.info/help/v2/entry.html#tags>.
         public var tags: [String]
 
-        /// UUID of the group this entry used to live in. Set when an
-        /// entry is moved (typically to the recycle bin) so a restore
-        /// can put it back where it came from.
+        /// UUID of the group this entry was last moved out of. Updated
+        /// whenever the entry's parent group changes — moving between
+        /// folders, sending to the recycle bin, restoring from it.
+        /// Hosts use it to offer "move back" / restore-from-bin
+        /// affordances; clients are also free to ignore it.
         public var previousParentGroup: UUID?
 
         /// Creation, last-modification, last-access timestamps, plus

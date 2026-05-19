@@ -67,9 +67,11 @@ public extension KDBX {
         /// group was last viewed. UI hint, not security-relevant.
         public var lastTopVisibleEntry: UUID?
 
-        /// UUID of the group this group used to live in. Set when an
-        /// item is moved (typically to the recycle bin) so a restore
-        /// can put it back where it came from.
+        /// UUID of the group this group was last nested under. Updated
+        /// whenever this group's parent changes — moving between
+        /// folders, sending to the recycle bin, restoring from it.
+        /// Hosts use it to offer "move back" / restore-from-bin
+        /// affordances; clients are also free to ignore it.
         public var previousParentGroup: UUID?
 
         /// User-applied tags on the group. The KDBX 4.1 XSD specifies
