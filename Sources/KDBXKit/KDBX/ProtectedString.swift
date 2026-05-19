@@ -99,9 +99,11 @@ public extension KDBX {
             public static func regular(_ string: String) -> Value {
                 .regular(SecureBytes(utf8: string))
             }
+
             public static func unprotected(_ string: String) -> Value {
                 .unprotected(SecureBytes(utf8: string))
             }
+
             public static func protectedInMemory(_ string: String) -> Value {
                 .protectedInMemory(SecureBytes(utf8: string))
             }

@@ -40,7 +40,7 @@ extension DB {
             let newAlgo: Header.EncryptionAlgorithm
             switch cipher {
             case .chacha20: newAlgo = .ChaCha20
-            case .aes256:   newAlgo = .AES256CBC
+            case .aes256: newAlgo = .AES256CBC
             }
             var updated = content
             updated.header = content.header.with(encryptionAlgorithm: newAlgo)

@@ -13,22 +13,21 @@ import Testing
 /// can't slip past the existing fixture-based tests.
 @Suite("Encryption × KDF × Compression matrix")
 struct EncryptionMatrixTests {
-
     @Test(
         "Round-trip every combination",
         arguments: [
-            (Header.EncryptionAlgorithm.AES256CBC, KDFFlavor.aes,      Header.CompressionAlgorithm.none),
-            (Header.EncryptionAlgorithm.AES256CBC, KDFFlavor.aes,      Header.CompressionAlgorithm.gzip),
-            (Header.EncryptionAlgorithm.AES256CBC, KDFFlavor.argon2d,  Header.CompressionAlgorithm.none),
-            (Header.EncryptionAlgorithm.AES256CBC, KDFFlavor.argon2d,  Header.CompressionAlgorithm.gzip),
+            (Header.EncryptionAlgorithm.AES256CBC, KDFFlavor.aes, Header.CompressionAlgorithm.none),
+            (Header.EncryptionAlgorithm.AES256CBC, KDFFlavor.aes, Header.CompressionAlgorithm.gzip),
+            (Header.EncryptionAlgorithm.AES256CBC, KDFFlavor.argon2d, Header.CompressionAlgorithm.none),
+            (Header.EncryptionAlgorithm.AES256CBC, KDFFlavor.argon2d, Header.CompressionAlgorithm.gzip),
             (Header.EncryptionAlgorithm.AES256CBC, KDFFlavor.argon2id, Header.CompressionAlgorithm.none),
             (Header.EncryptionAlgorithm.AES256CBC, KDFFlavor.argon2id, Header.CompressionAlgorithm.gzip),
-            (Header.EncryptionAlgorithm.ChaCha20,  KDFFlavor.aes,      Header.CompressionAlgorithm.none),
-            (Header.EncryptionAlgorithm.ChaCha20,  KDFFlavor.aes,      Header.CompressionAlgorithm.gzip),
-            (Header.EncryptionAlgorithm.ChaCha20,  KDFFlavor.argon2d,  Header.CompressionAlgorithm.none),
-            (Header.EncryptionAlgorithm.ChaCha20,  KDFFlavor.argon2d,  Header.CompressionAlgorithm.gzip),
-            (Header.EncryptionAlgorithm.ChaCha20,  KDFFlavor.argon2id, Header.CompressionAlgorithm.none),
-            (Header.EncryptionAlgorithm.ChaCha20,  KDFFlavor.argon2id, Header.CompressionAlgorithm.gzip),
+            (Header.EncryptionAlgorithm.ChaCha20, KDFFlavor.aes, Header.CompressionAlgorithm.none),
+            (Header.EncryptionAlgorithm.ChaCha20, KDFFlavor.aes, Header.CompressionAlgorithm.gzip),
+            (Header.EncryptionAlgorithm.ChaCha20, KDFFlavor.argon2d, Header.CompressionAlgorithm.none),
+            (Header.EncryptionAlgorithm.ChaCha20, KDFFlavor.argon2d, Header.CompressionAlgorithm.gzip),
+            (Header.EncryptionAlgorithm.ChaCha20, KDFFlavor.argon2id, Header.CompressionAlgorithm.none),
+            (Header.EncryptionAlgorithm.ChaCha20, KDFFlavor.argon2id, Header.CompressionAlgorithm.gzip),
         ]
     )
     func roundtrip(
@@ -78,14 +77,24 @@ struct EncryptionMatrixTests {
             kdfParameters = .aes(.init(salt: SecureRandom.bytes(32), rounds: 100), additional: [:])
         case .argon2d:
             kdfParameters = .argon2d(
-                .init(version: .v1_3, salt: SecureRandom.bytes(32),
-                      iterations: 1, memory: 8 * 1024 * 1024, parallelism: 2),
+                .init(
+                    version: .v1_3,
+                    salt: SecureRandom.bytes(32),
+                    iterations: 1,
+                    memory: 8 * 1024 * 1024,
+                    parallelism: 2
+                ),
                 additional: [:]
             )
         case .argon2id:
             kdfParameters = .argon2id(
-                .init(version: .v1_3, salt: SecureRandom.bytes(32),
-                      iterations: 1, memory: 8 * 1024 * 1024, parallelism: 2),
+                .init(
+                    version: .v1_3,
+                    salt: SecureRandom.bytes(32),
+                    iterations: 1,
+                    memory: 8 * 1024 * 1024,
+                    parallelism: 2
+                ),
                 additional: [:]
             )
         }

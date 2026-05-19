@@ -11,7 +11,6 @@ import Testing
 
 @Suite("Streaming pipeline primitives")
 struct StreamingPipelineTests {
-
     /// Sink that just collects all consumed bytes into a Data buffer.
     /// Used as the terminal layer in unit tests for the upstream
     /// transforms.
@@ -51,7 +50,7 @@ struct StreamingPipelineTests {
         let writer = HMACBlockStreamWriter(fileHandle: handle, masterSalt: masterSalt, unlockKey: unlockKey)
 
         // 2.5 MB → expect 2 full blocks + 1 partial + terminator.
-        let mb: Int = 1_048_576
+        let mb = 1_048_576
         try writer.consume(Data(repeating: 0xAB, count: mb))
         try writer.consume(Data(repeating: 0xCD, count: mb))
         try writer.consume(Data(repeating: 0xEF, count: mb / 2))
@@ -70,7 +69,7 @@ struct StreamingPipelineTests {
         let collector = CollectingSink()
         let gzip = try GzipStreamWriter(downstream: collector)
         let payload = Data("hello, gzip world. ".utf8) +
-                      Data(repeating: 0x41, count: 100_000) // 100KB of A's
+            Data(repeating: 0x41, count: 100_000) // 100KB of A's
         try gzip.consume(payload.prefix(100))
         try gzip.consume(payload.dropFirst(100))
         try gzip.finalize()

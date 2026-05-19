@@ -63,6 +63,7 @@ public extension KDBX {
         public var settingsChanged: Date?
 
         // MARK: - Tracked fields with paired `*Changed` companions
+
         //
         // Pairs like (databaseName, databaseNameChanged) carry both the
         // value and a per-field modification timestamp. Mutating the
@@ -157,6 +158,7 @@ public extension KDBX {
         }
 
         // MARK: - Tracked field — master key change date
+
         //
         // No paired value field — only the timestamp itself is part of
         // Meta. The key material lives in the file header / KDF

@@ -34,7 +34,7 @@ public struct LazyKDBXContent: Sendable {
     public let parserWarnings: [String]
 
     // Internal — retained for re-stream
-    internal let source: KDBXSource
-    internal let unlockKey: SecureBytes
-    internal let maxDecompressedPayloadSize: Int
+    let source: KDBXSource
+    let unlockKey: SecureBytes
+    let maxDecompressedPayloadSize: Int
 }

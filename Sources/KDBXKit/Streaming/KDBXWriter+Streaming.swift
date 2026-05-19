@@ -212,8 +212,9 @@ public extension KDBXWriter {
 private struct PipelineByteSink: ByteSink {
     let pipeline: any StreamingByteConsumer
     mutating func write(_ chunk: UnsafeRawBufferPointer) throws {
-        guard let base = chunk.baseAddress, chunk.count > 0 else { return }
+        guard let base = chunk.baseAddress, !chunk.isEmpty else { return }
         try pipeline.consume(Data(bytes: base, count: chunk.count))
     }
-    mutating func finalize() throws {}
+
+    mutating func finalize() throws { }
 }

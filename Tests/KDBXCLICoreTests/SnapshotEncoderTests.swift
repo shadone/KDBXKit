@@ -6,8 +6,8 @@
 
 import Foundation
 import Testing
-@testable import KDBXKit
 @testable import KDBXCLICore
+@testable import KDBXKit
 
 @Suite("Snapshot JSON encoders")
 struct SnapshotEncoderTests {

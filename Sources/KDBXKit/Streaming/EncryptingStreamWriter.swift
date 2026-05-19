@@ -4,9 +4,9 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
+import _CryptoExtras
 import Crypto
 import Foundation
-import _CryptoExtras
 
 /// Streaming encryptor for the KDBX main payload. AES-256-CBC accumulates
 /// incoming bytes, emits complete 16-byte ciphertext blocks during
@@ -19,11 +19,12 @@ import _CryptoExtras
 /// encrypt) is encoded inline. The block cipher remains the vetted
 /// `AES.permute`; the mode glue is straightforward and matches the same
 /// chain used by the eager `KDBXWriter` path.
-internal final class EncryptingStreamWriter: StreamingByteConsumer {
+final class EncryptingStreamWriter: StreamingByteConsumer {
     private enum Backend {
         case aesCBC(StreamingAESCBCEncryptor)
         case chacha20(ChaCha20)
     }
+
     private var backend: Backend
     private let downstream: any StreamingByteConsumer
 
@@ -34,7 +35,7 @@ internal final class EncryptingStreamWriter: StreamingByteConsumer {
             let keyData = mainKey.withUnsafeBytes { keyPtr in
                 Data(keyPtr.bindMemory(to: UInt8.self))
             }
-            self.backend = .aesCBC(try StreamingAESCBCEncryptor(key: keyData, iv: header.encryptionNonce))
+            backend = .aesCBC(try StreamingAESCBCEncryptor(key: keyData, iv: header.encryptionNonce))
         case .ChaCha20:
             let cipher = try mainKey.withUnsafeBytes { keyPtr -> ChaCha20 in
                 try ChaCha20(
@@ -42,18 +43,18 @@ internal final class EncryptingStreamWriter: StreamingByteConsumer {
                     iv: header.encryptionNonce
                 )
             }
-            self.backend = .chacha20(cipher)
+            backend = .chacha20(cipher)
         }
     }
 
     func consume(_ chunk: Data) throws {
         switch backend {
-        case .aesCBC(let enc):
+        case let .aesCBC(enc):
             let out = try enc.update(chunk)
             if !out.isEmpty {
                 try downstream.consume(out)
             }
-        case .chacha20(let cipher):
+        case let .chacha20(cipher):
             if !chunk.isEmpty {
                 let out = Data(cipher.encrypt(Array(chunk)))
                 if !out.isEmpty {
@@ -65,7 +66,7 @@ internal final class EncryptingStreamWriter: StreamingByteConsumer {
 
     func finalize() throws {
         switch backend {
-        case .aesCBC(let enc):
+        case let .aesCBC(enc):
             let tail = try enc.finalize()
             if !tail.isEmpty {
                 try downstream.consume(tail)
@@ -89,14 +90,14 @@ private final class StreamingAESCBCEncryptor {
     }
 
     private let key: SymmetricKey
-    private var previous: [UInt8]  // last ciphertext block (16 bytes), IV initially
-    private var buffer: [UInt8] = []  // un-encrypted residue, count in 0..<16
+    private var previous: [UInt8] // last ciphertext block (16 bytes), IV initially
+    private var buffer: [UInt8] = [] // un-encrypted residue, count in 0..<16
 
     init(key: Data, iv: Data) throws {
         guard iv.count == 16 else { throw Error.invalidIVSize(iv.count) }
         guard key.count == 32 else { throw Error.invalidKeySize(key.count) }
         self.key = SymmetricKey(data: key)
-        self.previous = Array(iv)
+        previous = Array(iv)
     }
 
     func update(_ chunk: Data) throws -> Data {
@@ -112,7 +113,7 @@ private final class StreamingAESCBCEncryptor {
         out.reserveCapacity(fullBlockBytes)
         var offset = 0
         while offset < fullBlockBytes {
-            try emitBlock(plaintext: Array(buffer[offset ..< offset + 16]), into: &out)
+            try emitBlock(plaintext: Array(buffer[offset..<offset + 16]), into: &out)
             offset += 16
         }
         buffer.removeFirst(fullBlockBytes)
@@ -135,7 +136,7 @@ private final class StreamingAESCBCEncryptor {
     private func emitBlock(plaintext: [UInt8], into out: inout Data) throws {
         var block = plaintext
         // C_i = E_K(P_i XOR C_{i-1})
-        for i in 0 ..< 16 {
+        for i in 0..<16 {
             block[i] ^= previous[i]
         }
         do {

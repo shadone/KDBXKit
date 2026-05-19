@@ -25,12 +25,11 @@ import Testing
 /// emits.
 @Suite("XML property-based round-trip + fuzz")
 struct XMLPropertyTests {
-
     // MARK: - Round-trip
 
     @Test("Random KDBX-shaped trees survive serialize → parse")
     func roundTripPreservesTree() throws {
-        var rng = SeededRandom(seed: 0xA11CE_5EED)
+        var rng = SeededRandom(seed: 0xA11CE5EED)
         for iteration in 0..<200 {
             let original = generateTree(rng: &rng, maxDepth: 4, maxBreadth: 4)
             let doc = Document()
@@ -54,7 +53,7 @@ struct XMLPropertyTests {
 
     @Test("Serialize → parse → serialize is byte-stable")
     func serializerIsIdempotent() throws {
-        var rng = SeededRandom(seed: 0xDEAD_BEEF)
+        var rng = SeededRandom(seed: 0xDEADBEEF)
         for iteration in 0..<200 {
             let tree = generateTree(rng: &rng, maxDepth: 4, maxBreadth: 4)
             let doc1 = Document()
@@ -79,8 +78,8 @@ struct XMLPropertyTests {
 
     @Test("Random byte input never crashes the parser")
     func parserSurvivesRandomBytes() {
-        var rng = SeededRandom(seed: 0xF022_F022)
-        for _ in 0..<2_000 {
+        var rng = SeededRandom(seed: 0xF022F022)
+        for _ in 0..<2000 {
             let len = Int.random(in: 0...400, using: &rng)
             let bytes = Data((0..<len).map { _ in UInt8.random(in: 0...255, using: &rng) })
             let string = String(data: bytes, encoding: .utf8) ?? ""
@@ -94,7 +93,7 @@ struct XMLPropertyTests {
         // Build a moderately-complex valid document once, then bit-flip
         // single bytes at random positions and feed each mutated copy
         // to the parser.
-        var rng = SeededRandom(seed: 0xBEEF_F1A9)
+        var rng = SeededRandom(seed: 0xBEEFF1A9)
         let tree = generateTree(rng: &rng, maxDepth: 4, maxBreadth: 4)
         let doc = Document()
         doc.declaration = XMLDeclaration()
@@ -102,7 +101,7 @@ struct XMLPropertyTests {
         let baseline = doc.xmlData(indentation: "\t")
         var bytes = Array(baseline)
 
-        for _ in 0..<2_000 {
+        for _ in 0..<2000 {
             guard !bytes.isEmpty else { break }
             let index = Int.random(in: 0..<bytes.count, using: &rng)
             let saved = bytes[index]
@@ -118,8 +117,12 @@ struct XMLPropertyTests {
         // Build an XML string with more open tags than the depth cap.
         let depth = Document.maxNestingDepth + 50
         var xml = "<?xml version=\"1.0\"?>"
-        for _ in 0..<depth { xml += "<a>" }
-        for _ in 0..<depth { xml += "</a>" }
+        for _ in 0..<depth {
+            xml += "<a>"
+        }
+        for _ in 0..<depth {
+            xml += "</a>"
+        }
 
         do {
             _ = try Document(string: xml)
@@ -238,14 +241,14 @@ struct SeededRandom: RandomNumberGenerator {
     private var state: UInt64
 
     init(seed: UInt64) {
-        self.state = seed
+        state = seed
     }
 
     mutating func next() -> UInt64 {
-        state &+= 0x9E37_79B9_7F4A_7C15
+        state &+= 0x9E3779B97F4A7C15
         var z = state
-        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
-        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+        z = (z ^ (z >> 30)) &* 0xBF58476D1CE4E5B9
+        z = (z ^ (z >> 27)) &* 0x94D049BB133111EB
         return z ^ (z >> 31)
     }
 }

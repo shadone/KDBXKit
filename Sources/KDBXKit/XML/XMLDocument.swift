@@ -54,7 +54,7 @@ final class Document {
     var declaration: XMLDeclaration?
     var root: Node?
 
-    init() {}
+    init() { }
 
     init(string: String) throws(ParseError) {
         guard let data = string.data(using: .utf8) else {

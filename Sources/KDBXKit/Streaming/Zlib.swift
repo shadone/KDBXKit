@@ -8,7 +8,7 @@ import CZlib
 import Foundation
 
 /// Errors raised by the streaming gzip compressor / decompressor.
-internal enum ZlibError: Swift.Error, Equatable {
+enum ZlibError: Swift.Error, Equatable {
     case deflateInit(Int32)
     case deflate(Int32)
     case inflateInit(Int32)
@@ -21,7 +21,7 @@ internal enum ZlibError: Swift.Error, Equatable {
 /// with `wBits = 31` (15 + 16) so zlib emits a complete gzip-wrapped
 /// stream (header + DEFLATE body + CRC32/ISIZE trailer) — no need for
 /// us to assemble those parts ourselves.
-internal final class GzipStreamWriter: StreamingByteConsumer {
+final class GzipStreamWriter: StreamingByteConsumer {
     private var stream = z_stream()
     private let downstream: any StreamingByteConsumer
     private var initialized = false
@@ -34,8 +34,8 @@ internal final class GzipStreamWriter: StreamingByteConsumer {
             &stream,
             Z_DEFAULT_COMPRESSION,
             Z_DEFLATED,
-            31,                 // wBits: 15 + 16 → gzip wrapper, max window
-            8,                  // memLevel (zlib default)
+            31, // wBits: 15 + 16 → gzip wrapper, max window
+            8, // memLevel (zlib default)
             Z_DEFAULT_STRATEGY,
             ZLIB_VERSION,
             Int32(MemoryLayout<z_stream>.size)
@@ -47,7 +47,7 @@ internal final class GzipStreamWriter: StreamingByteConsumer {
     }
 
     deinit {
-        if initialized && !finalized {
+        if initialized, !finalized {
             deflateEnd(&stream)
         }
     }
@@ -101,12 +101,12 @@ internal final class GzipStreamWriter: StreamingByteConsumer {
 private final class DataCollector: StreamingByteConsumer {
     var collected = Data()
     func consume(_ chunk: Data) throws { collected.append(chunk) }
-    func finalize() throws {}
+    func finalize() throws { }
 }
 
 /// Convenience: gzip-compress `data` in one call. Drives the streaming
 /// writer in-memory.
-internal enum GzipOneShot {
+enum GzipOneShot {
     static func compress(_ data: Data) throws -> Data {
         let sink = DataCollector()
         let writer = try GzipStreamWriter(downstream: sink)
@@ -126,7 +126,7 @@ internal enum GzipOneShot {
 /// exceed it. The cap is enforced before any allocation past the limit,
 /// so a payload that would inflate without bound fails fast rather than
 /// after a runaway allocation.
-internal enum GzipStreamReader {
+enum GzipStreamReader {
     static func decompress(
         _ data: Data,
         maxOutputBytes: Int
@@ -134,7 +134,7 @@ internal enum GzipStreamReader {
         var stream = z_stream()
         let initStatus = inflateInit2_(
             &stream,
-            47,                 // wBits: 15 + 32 → autodetect gzip / zlib
+            47, // wBits: 15 + 32 → autodetect gzip / zlib
             ZLIB_VERSION,
             Int32(MemoryLayout<z_stream>.size)
         )
@@ -160,7 +160,7 @@ internal enum GzipStreamReader {
                     let s = inflate(&stream, Z_NO_FLUSH)
                     // Z_BUF_ERROR is "make more progress" and the loop
                     // condition handles it; only abort on hard errors.
-                    if s < 0 && s != Z_BUF_ERROR {
+                    if s < 0, s != Z_BUF_ERROR {
                         throw ZlibError.inflate(s)
                     }
                     return (s, bufferSize - Int(stream.avail_out))
@@ -178,7 +178,7 @@ internal enum GzipStreamReader {
                 if status == Z_STREAM_END {
                     return
                 }
-                if stream.avail_in == 0 && produced == 0 {
+                if stream.avail_in == 0, produced == 0 {
                     // No input left, no output produced — stream is truncated.
                     throw ZlibError.truncatedInput
                 }

@@ -5,8 +5,8 @@
 //
 
 import Foundation
-import Testing
 import KDBXKit
+import Testing
 @testable import KDBXCLICore
 
 @Suite("EntryHistory")

@@ -10,7 +10,6 @@ import Testing
 
 @Suite("Salt regeneration on write")
 struct SaltRegenerationTests {
-
     /// The KDBX spec requires masterSalt, encryptionNonce, and the KDF salt
     /// to be fresh on every save. By default `KDBXWriter.write` regenerates
     /// them, so two saves of the same content produce byte-different files.

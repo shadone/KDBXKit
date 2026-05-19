@@ -24,7 +24,7 @@ enum SecureRandom {
             let chunk = rng.next()
             withUnsafeBytes(of: chunk) { src in
                 let take = Swift.min(MemoryLayout<UInt64>.size, length - i)
-                for j in 0 ..< take {
+                for j in 0..<take {
                     bytes[i + j] = src[j]
                 }
                 i += take

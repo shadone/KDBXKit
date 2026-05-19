@@ -266,8 +266,10 @@ struct KeePassXCInteropTests {
             #expect(!out.contains("ERROR"), "attachment-export failed for \(payload.name): \(out)")
 
             let exported = try Data(contentsOf: URL(filePath: exportPath))
-            #expect(exported == payload.data,
-                    "attachment \(payload.name) round-trip via KeePassXC differs (orig \(payload.data.count)B, exported \(exported.count)B)")
+            #expect(
+                exported == payload.data,
+                "attachment \(payload.name) round-trip via KeePassXC differs (orig \(payload.data.count)B, exported \(exported.count)B)"
+            )
         }
     }
 
@@ -356,18 +358,23 @@ struct KeePassXCInteropTests {
                 Issue.record("binary \(payload.name) was not stored as a ref after KeePassXC re-save")
                 continue
             }
-            try #require(Int(idx) < reread.innerHeader.binaryContent.count,
-                         "binary \(payload.name) ref index \(idx) out of bounds")
+            try #require(
+                Int(idx) < reread.innerHeader.binaryContent.count,
+                "binary \(payload.name) ref index \(idx) out of bounds"
+            )
             let pooled = reread.innerHeader.binaryContent[Int(idx)]
-            #expect(pooled.data == payload.data,
-                    "attachment \(payload.name) bytes diverged after KeePassXC re-save")
+            #expect(
+                pooled.data == payload.data,
+                "attachment \(payload.name) bytes diverged after KeePassXC re-save"
+            )
         }
 
         // The newly-injected attachment is also present and matches.
         let injectedBinary = probe?.binaries.first { $0.key == injectedName }
         try #require(injectedBinary != nil, "injected attachment missing")
         if case let .ref(idx) = injectedBinary?.value,
-           Int(idx) < reread.innerHeader.binaryContent.count {
+           Int(idx) < reread.innerHeader.binaryContent.count
+        {
             #expect(reread.innerHeader.binaryContent[Int(idx)].data == injectedData)
         }
     }
@@ -403,7 +410,9 @@ struct KeePassXCInteropTests {
 
         var sourcePaths: [String] = []
         defer {
-            for path in sourcePaths { try? FileManager.default.removeItem(atPath: path) }
+            for path in sourcePaths {
+                try? FileManager.default.removeItem(atPath: path)
+            }
         }
 
         for payload in imports {
@@ -415,8 +424,10 @@ struct KeePassXCInteropTests {
                 ["attachment-import", dbPath, entryName, payload.name, src],
                 stdin: "\(password)\n"
             )
-            #expect(!out.contains("ERROR"),
-                    "keepassxc-cli attachment-import failed for \(payload.name): \(out)")
+            #expect(
+                !out.contains("ERROR"),
+                "keepassxc-cli attachment-import failed for \(payload.name): \(out)"
+            )
         }
 
         // Re-open with KDBXKit and verify every attachment KeePassXC
@@ -437,16 +448,22 @@ struct KeePassXCInteropTests {
                 Issue.record("attachment \(payload.name) was not stored as a pool ref")
                 continue
             }
-            try #require(Int(idx) < content.innerHeader.binaryContent.count,
-                         "attachment \(payload.name) ref index \(idx) out of bounds")
+            try #require(
+                Int(idx) < content.innerHeader.binaryContent.count,
+                "attachment \(payload.name) ref index \(idx) out of bounds"
+            )
             let pooled = content.innerHeader.binaryContent[Int(idx)]
-            #expect(pooled.data == payload.data,
-                    "attachment \(payload.name) bytes mismatch (got \(pooled.data.count)B, expected \(payload.data.count)B)")
+            #expect(
+                pooled.data == payload.data,
+                "attachment \(payload.name) bytes mismatch (got \(pooled.data.count)B, expected \(payload.data.count)B)"
+            )
         }
 
         // No silently-dropped XML pieces on the kpxc-produced file.
-        #expect(content.parserWarnings.isEmpty,
-                "unexpected parser warnings on KeePassXC output: \(content.parserWarnings)")
+        #expect(
+            content.parserWarnings.isEmpty,
+            "unexpected parser warnings on KeePassXC output: \(content.parserWarnings)"
+        )
     }
 
     @Test(
@@ -495,7 +512,7 @@ struct KeePassXCInteropTests {
         #expect(!out.contains("ERROR"), "kpxc attachment-export failed on empty attachment: \(out)")
 
         let exported = try Data(contentsOf: URL(filePath: exportPath))
-        #expect(exported.count == 0, "empty attachment exported as \(exported.count)-byte file")
+        #expect(exported.isEmpty, "empty attachment exported as \(exported.count)-byte file")
 
         // And the reverse: kpxc imports a 0-byte file into our vault,
         // we re-read it, and the pool entry is still 0 bytes.
@@ -519,7 +536,7 @@ struct KeePassXCInteropTests {
         let second = probe?.binaries.first { $0.key == "second-empty.bin" }
         try #require(second != nil, "kpxc-imported empty attachment missing")
         if case let .ref(idx) = second?.value, Int(idx) < reread.innerHeader.binaryContent.count {
-            #expect(reread.innerHeader.binaryContent[Int(idx)].data.count == 0)
+            #expect(reread.innerHeader.binaryContent[Int(idx)].data.isEmpty)
         }
     }
 
@@ -572,8 +589,10 @@ struct KeePassXCInteropTests {
         #expect(!out.contains("ERROR"), "kpxc failed to export large attachment: \(out)")
 
         let exported = try Data(contentsOf: URL(filePath: exportPath))
-        #expect(exported == payload,
-                "large attachment differs after kpxc export (orig \(payload.count)B, got \(exported.count)B)")
+        #expect(
+            exported == payload,
+            "large attachment differs after kpxc export (orig \(payload.count)B, got \(exported.count)B)"
+        )
     }
 
     @Test(
@@ -632,8 +651,10 @@ struct KeePassXCInteropTests {
             )
             #expect(!out.contains("ERROR"), "kpxc export failed for \(entryName): \(out)")
             let exported = try Data(contentsOf: URL(filePath: exportPath))
-            #expect(exported == sharedPayload,
-                    "shared attachment bytes diverged for \(entryName)")
+            #expect(
+                exported == sharedPayload,
+                "shared attachment bytes diverged for \(entryName)"
+            )
         }
 
         // Force kpxc to load + re-save the file (attachment-import
@@ -666,10 +687,14 @@ struct KeePassXCInteropTests {
                 Issue.record("\(entryName)'s shared.bin was not stored as a ref after re-save")
                 continue
             }
-            try #require(Int(idx) < reread.innerHeader.binaryContent.count,
-                         "\(entryName)'s shared.bin ref \(idx) out of bounds")
-            #expect(reread.innerHeader.binaryContent[Int(idx)].data == sharedPayload,
-                    "\(entryName)'s shared.bin bytes diverged after kpxc re-save")
+            try #require(
+                Int(idx) < reread.innerHeader.binaryContent.count,
+                "\(entryName)'s shared.bin ref \(idx) out of bounds"
+            )
+            #expect(
+                reread.innerHeader.binaryContent[Int(idx)].data == sharedPayload,
+                "\(entryName)'s shared.bin bytes diverged after kpxc re-save"
+            )
         }
     }
 
@@ -744,8 +769,10 @@ struct KeePassXCInteropTests {
 
         let output = try runCLI(["show", "-s", outPath, "Example Login"], stdin: "test\n")
         #expect(output.contains("Title: Example Login"))
-        #expect(output.contains("Password: secret123"),
-                "kpxc must accept Argon2id-derived unlock key against the unchanged master password")
+        #expect(
+            output.contains("Password: secret123"),
+            "kpxc must accept Argon2id-derived unlock key against the unchanged master password"
+        )
     }
 
     /// Deterministic-enough random bytes for tests — uses

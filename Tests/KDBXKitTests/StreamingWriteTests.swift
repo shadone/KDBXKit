@@ -11,7 +11,6 @@ import Testing
 
 @Suite("KDBXWriter.streamingWrite")
 struct StreamingWriteTests {
-
     private func fixtureURL(_ name: String) -> URL {
         URL(filePath: Bundle.module.path(forResource: "Resources/\(name)", ofType: "kdbx")!)
     }
@@ -75,10 +74,14 @@ struct StreamingWriteTests {
 
         try #require(reread.innerHeader.binaryContent.count == content.innerHeader.binaryContent.count)
         for i in content.innerHeader.binaryContent.indices {
-            #expect(reread.innerHeader.binaryContent[i].data == content.innerHeader.binaryContent[i].data,
-                    "binary \(i) bytes mismatch")
-            #expect(reread.innerHeader.binaryContent[i].shouldBeProtected == content.innerHeader.binaryContent[i].shouldBeProtected,
-                    "binary \(i) protected flag mismatch")
+            #expect(
+                reread.innerHeader.binaryContent[i].data == content.innerHeader.binaryContent[i].data,
+                "binary \(i) bytes mismatch"
+            )
+            #expect(
+                reread.innerHeader.binaryContent[i].shouldBeProtected == content.innerHeader.binaryContent[i].shouldBeProtected,
+                "binary \(i) protected flag mismatch"
+            )
         }
     }
 

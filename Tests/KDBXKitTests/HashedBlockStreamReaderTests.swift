@@ -17,7 +17,6 @@ import Testing
 /// regressions surface at the framing boundary directly.
 @Suite("HashedBlockStreamReader")
 struct HashedBlockStreamReaderTests {
-
     /// Encode a payload as a sequence of hashed-stream blocks. Used by
     /// the tests below to produce known-good inputs. Mirrors the writer
     /// shape KeePass 2.x uses: one block per chunk + a zero-length

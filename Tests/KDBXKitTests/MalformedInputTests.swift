@@ -14,14 +14,15 @@ import Testing
 /// the most obvious attack surfaces.
 @Suite("Malformed input handling — parser is crash-free")
 struct MalformedInputTests {
-
-    @Test func emptyDataThrows() {
+    @Test
+    func emptyDataThrows() {
         #expect(throws: KDBXReader.Error.self) {
             _ = try KDBXReader.parseHeader(Data())
         }
     }
 
-    @Test func randomGarbageThrowsInvalidSignature() {
+    @Test
+    func randomGarbageThrowsInvalidSignature() {
         // Anything that doesn't start with the KDBX magic should reject early.
         let bogus = Data((0..<512).map { _ in UInt8.random(in: 0...255) })
         do {
@@ -34,7 +35,8 @@ struct MalformedInputTests {
         }
     }
 
-    @Test func validSignatureFollowedByGarbageThrowsTypedError() {
+    @Test
+    func validSignatureFollowedByGarbageThrowsTypedError() {
         // Valid KDBX signature (signature1 + signature2 little-endian), then
         // random bytes. Should fail at format-version / field parsing.
         var data = Data()

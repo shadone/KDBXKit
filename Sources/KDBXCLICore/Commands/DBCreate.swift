@@ -79,7 +79,7 @@ extension DB {
             let cipherAlgo: Header.EncryptionAlgorithm
             switch cipher {
             case .chacha20: cipherAlgo = .ChaCha20
-            case .aes256:   cipherAlgo = .AES256CBC
+            case .aes256: cipherAlgo = .AES256CBC
             }
             let compression: Header.CompressionAlgorithm = noCompression ? .none : .gzip
 

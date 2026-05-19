@@ -110,7 +110,9 @@ extension Group {
         }
 
         private func collectSubtreeUUIDs(in group: KDBX.Group, into ids: inout [UUID]) {
-            for entry in group.entries { ids.append(entry.uuid) }
+            for entry in group.entries {
+                ids.append(entry.uuid)
+            }
             for child in group.groups {
                 ids.append(child.uuid)
                 collectSubtreeUUIDs(in: child, into: &ids)

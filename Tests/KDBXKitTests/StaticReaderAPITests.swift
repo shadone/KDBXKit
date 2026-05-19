@@ -10,7 +10,6 @@ import Testing
 
 @Suite("KDBXReader static API")
 struct StaticReaderAPITests {
-
     @Test("parse(data, unlockData:) returns content in one call")
     func staticParse() throws {
         let path = Bundle.module.path(forResource: "Resources/simple-argon2id-aes256", ofType: "kdbx")!

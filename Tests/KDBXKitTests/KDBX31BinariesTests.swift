@@ -30,7 +30,6 @@ import Testing
 ///   - `attachment-import / /WithAttach blob.bin /tmp/blob.bin`
 @Suite("KDBX 3.1 inline binary pool")
 struct KDBX31BinariesTests {
-
     private static let fixturePassword = "test"
 
     private static func openFixture() throws -> KDBXContent {

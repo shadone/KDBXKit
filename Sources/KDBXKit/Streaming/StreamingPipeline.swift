@@ -18,7 +18,7 @@ import Foundation
 ///
 /// Internal — backs `KDBXWriter.streamingWrite`. Public callers don't
 /// see this protocol.
-internal protocol StreamingByteConsumer: AnyObject {
+protocol StreamingByteConsumer: AnyObject {
     func consume(_ chunk: Data) throws
     func finalize() throws
 }

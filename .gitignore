@@ -112,3 +112,7 @@ xcuserdata/
 
 # Linux build path used by scripts/test-linux.sh
 .build-linux/
+
+# Xcode-style build/ dir (different from SwiftPM's .build/). Some IDE
+# configurations and `xcodebuild` invocations drop intermediates here.
+build/

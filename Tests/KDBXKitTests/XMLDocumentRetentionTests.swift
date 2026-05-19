@@ -15,7 +15,6 @@ import Testing
 /// entire metadata as a long-lived heap string.
 @Suite("KDBXReader xmlDocument retention")
 struct XMLDocumentRetentionTests {
-
     @Test("xmlDocument is nil after successful parse by default")
     func defaultClearsXML() throws {
         let path = Bundle.module.path(forResource: "Resources/simple-aes256-aes256", ofType: "kdbx")!

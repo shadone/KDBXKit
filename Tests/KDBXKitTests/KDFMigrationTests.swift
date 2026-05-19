@@ -14,7 +14,6 @@ import Testing
 /// to upgrade 3.x AES-KDF vaults to Argon2id on first save).
 @Suite("KDF migration on save")
 struct KDFMigrationTests {
-
     /// Stock kpxc-kdbx31-default — KDBX 3.1 (AES-KDF only). The
     /// migration scenarios all start here.
     private static func opened3xVault() throws -> KDBXContent {

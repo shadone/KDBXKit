@@ -13,7 +13,7 @@ import Foundation
 /// `HMAC(32) | size(4) | block` to the underlying `FileHandle`.
 /// `finalize()` also writes the terminator block (size = 0) that
 /// signals end-of-stream to the reader.
-internal final class HMACBlockStreamWriter: StreamingByteConsumer {
+final class HMACBlockStreamWriter: StreamingByteConsumer {
     /// 1 MB matches KeePass's choice.
     private static let blockSize = 1_048_576
 
@@ -21,7 +21,7 @@ internal final class HMACBlockStreamWriter: StreamingByteConsumer {
     private let masterSalt: Data
     private let unlockKey: SecureBytes
 
-    private var buffer: Data = Data(capacity: HMACBlockStreamWriter.blockSize)
+    private var buffer: Data = .init(capacity: HMACBlockStreamWriter.blockSize)
     private var blockIndex: UInt64 = 0
 
     init(fileHandle: FileHandle, masterSalt: Data, unlockKey: SecureBytes) {

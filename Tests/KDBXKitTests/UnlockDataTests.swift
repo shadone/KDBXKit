@@ -4,7 +4,6 @@ import Testing
 
 @Suite("UnlockData — rehydration from raw key data")
 struct UnlockDataTests {
-
     @Test("rawKeyData init produces an UnlockData with the same key bytes")
     func rawKeyDataRoundtrip() {
         let bytes = Data((0..<32).map { UInt8($0) })

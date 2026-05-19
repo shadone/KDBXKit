@@ -23,5 +23,5 @@ public struct App: ParsableCommand {
         ]
     )
 
-    public init() {}
+    public init() { }
 }

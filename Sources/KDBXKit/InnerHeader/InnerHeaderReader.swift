@@ -195,7 +195,7 @@ struct InnerHeaderReader {
             case .binaryContent:
                 let flags = valueData[valueData.startIndex]
                 let isProtected = (flags == 0x01)
-                let binaryBytesOffset = valueStart + 1                   // skip flags byte
+                let binaryBytesOffset = valueStart + 1 // skip flags byte
                 let binaryBytesLength = max(0, Int(valueLength) - 1)
                 let binaryBytes: Data
                 if binaryBytesLength > 0 {

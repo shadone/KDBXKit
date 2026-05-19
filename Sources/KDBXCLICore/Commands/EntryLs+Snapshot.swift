@@ -32,8 +32,12 @@ struct EntryListSnapshot: Encodable {
     }
 
     private static func visit(group: KDBX.Group, _ visitor: (KDBX.Entry) -> Void) {
-        for entry in group.entries { visitor(entry) }
-        for child in group.groups { visit(group: child, visitor) }
+        for entry in group.entries {
+            visitor(entry)
+        }
+        for child in group.groups {
+            visit(group: child, visitor)
+        }
     }
 
     func printHuman() {

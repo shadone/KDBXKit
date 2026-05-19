@@ -5,8 +5,8 @@
 //
 
 import Foundation
-import Testing
 import KDBXKit
+import Testing
 @testable import KDBXCLICore
 
 @Suite("TreeMutator")
@@ -267,7 +267,7 @@ struct TreeMutatorTests {
 
     @Test("isZeroUUID is true only for the all-zeroes UUID")
     func isZero() {
-        let zero = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+        let zero = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
         #expect(zero.isZeroUUID)
         #expect(!UUID().isZeroUUID)
     }

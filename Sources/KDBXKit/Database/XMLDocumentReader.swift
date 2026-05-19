@@ -189,14 +189,14 @@ struct XMLDocumentReader {
     // can't see the framework annotation. `nonisolated(unsafe)` asserts
     // the property we know to hold — cheaper than rebuilding a formatter
     // for every date in the file (a populated vault has thousands).
-    nonisolated(unsafe) private static let iso8601Plain: ISO8601DateFormatter = {
+    private nonisolated(unsafe) static let iso8601Plain: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime]
         return f
     }()
 
     /// Same as above but accepts fractional seconds.
-    nonisolated(unsafe) private static let iso8601Fractional: ISO8601DateFormatter = {
+    private nonisolated(unsafe) static let iso8601Fractional: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
@@ -1138,7 +1138,7 @@ struct XMLDocumentReader {
         var key: String?
         var rawValue: String?
         var ref: UInt32?
-        var protected: Bool = false
+        var protected = false
 
         for child in node.children {
             switch child.name {
@@ -1163,7 +1163,7 @@ struct XMLDocumentReader {
                         // for refs the pool entry's
                         // `shouldBeProtected` is the source of truth.
                         switch value.lowercased() {
-                        case "true":  protected = true
+                        case "true": protected = true
                         case "false": protected = false
                         default:
                             record("Unexpected Protected value '\(value)' in Binary in \(child.fullyQualifiedName)")

@@ -10,7 +10,6 @@ import Testing
 
 @Suite("KDBXContent.makeEmpty — fresh vault factory")
 struct MakeEmptyTests {
-
     @Test("makeEmpty produces a writeable + reparseable vault")
     func writeRoundtrip() throws {
         let content = KDBXContent.makeEmpty(databaseName: "Test", kdf: .fast)

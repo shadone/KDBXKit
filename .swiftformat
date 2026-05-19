@@ -44,3 +44,9 @@
 --enable initCoderUnavailable
 --enable isEmpty
 --enable redundantStaticSelf
+
+# Disabled: SwiftFormat's hoistTry mangles Swift Testing macros.
+# `#expect(try X)` becomes `#expecttry (X)` — the rule lifts `try`
+# out of the macro argument but emits invalid syntax. Until upstream
+# handles macro calls, keep `try` where it was authored.
+--disable hoistTry

@@ -15,7 +15,6 @@ import Testing
 /// `.bytes` / `.withRevealedString`.
 @Suite("Lazy per-entry decryption (C-7)")
 struct LazyDecryptionTests {
-
     @Test("After parse, every protected field is .lazyInnerCipher (not eagerly decrypted)")
     func protectedFieldsAreLazyAfterParse() throws {
         let canary = "MEMORY-DWELL-CANARY-32-BYTES-XYZQ"
@@ -50,8 +49,10 @@ struct LazyDecryptionTests {
             for protectedString in entry.strings {
                 if case let .lazyInnerCipher(ciphertext, _, _) = protectedString.value {
                     let containsCanary = ciphertext.range(of: canaryUtf8) != nil
-                    #expect(!containsCanary,
-                            "Lazy ciphertext contains canary plaintext — the inner cipher must be wrong")
+                    #expect(
+                        !containsCanary,
+                        "Lazy ciphertext contains canary plaintext — the inner cipher must be wrong"
+                    )
                 }
             }
         }
@@ -116,8 +117,13 @@ struct LazyDecryptionTests {
                 masterSalt: SecureRandom.bytes(32),
                 encryptionNonce: SecureRandom.bytes(12),
                 kdfParameters: .argon2id(
-                    .init(version: .v1_3, salt: SecureRandom.bytes(32),
-                          iterations: 1, memory: 8 * 1024 * 1024, parallelism: 2),
+                    .init(
+                        version: .v1_3,
+                        salt: SecureRandom.bytes(32),
+                        iterations: 1,
+                        memory: 8 * 1024 * 1024,
+                        parallelism: 2
+                    ),
                     additional: [:]
                 ),
                 publicCustomData: [:]

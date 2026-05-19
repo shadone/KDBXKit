@@ -5,8 +5,8 @@
 //
 
 import Foundation
-import Testing
 import KDBXKit
+import Testing
 @testable import KDBXCLICore
 
 @Suite("RecycleBinManager")
@@ -78,7 +78,7 @@ struct RecycleBinManagerTests {
     @Test("ensureBin creates a fresh bin when the recorded UUID is zero")
     func createsWhenZero() {
         var db = Fixtures.sampleDatabase()
-        db.meta.recycleBinUUID = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+        db.meta.recycleBinUUID = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
         var content = makeContent(db)
 
         let result = RecycleBinManager.ensureBin(in: &content, now: Date())

@@ -4,9 +4,9 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
+import _CryptoExtras
 import Crypto
 import Foundation
-import _CryptoExtras
 
 enum AESKDF {
     /// AES-KDF: iterate AES-256-ECB single-block encryption `rounds` times
@@ -41,7 +41,7 @@ enum AESKDF {
         var left = Array(buffer.prefix(16))
         var right = Array(buffer.suffix(16))
 
-        for _ in 0 ..< rounds {
+        for _ in 0..<rounds {
             // AES.permute is single-block ECB; invariants above guarantee
             // success — failure here would be a swift-crypto bug.
             try! AES.permute(&left, key: key)

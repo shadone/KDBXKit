@@ -6,8 +6,8 @@
 
 import ArgumentParser
 import Foundation
-import Testing
 import KDBXKit
+import Testing
 @testable import KDBXCLICore
 
 /// Integration tests that drive `App` end-to-end on a tmp-file vault: parse
@@ -106,12 +106,22 @@ struct EndToEndTests {
         defer { sb.cleanup() }
 
         try run(["group", "add", sb.vault.path, "Banking", "--in", "/", "--key-file", sb.keyFile.path])
-        try run(["entry", "add", sb.vault.path, "Chase",
-                 "--in", "/Banking",
-                 "--username", "alice",
-                 "--url", "https://chase.com",
-                 "--tag", "finance",
-                 "--key-file", sb.keyFile.path])
+        try run([
+            "entry",
+            "add",
+            sb.vault.path,
+            "Chase",
+            "--in",
+            "/Banking",
+            "--username",
+            "alice",
+            "--url",
+            "https://chase.com",
+            "--tag",
+            "finance",
+            "--key-file",
+            sb.keyFile.path,
+        ])
 
         let content = try reopen(sb)
         let banking = content.database.root.group.groups.first(where: { $0.name == "Banking" })
@@ -206,7 +216,7 @@ struct EndToEndTests {
         try run(["entry", "add", sb.vault.path, "X", "--in", "/", "--key-file", sb.keyFile.path])
         let beforeContent = try reopen(sb)
         #expect(beforeContent.database.meta.recycleBinUUID == nil
-                || beforeContent.database.meta.recycleBinUUID?.isZeroUUID == true)
+            || beforeContent.database.meta.recycleBinUUID?.isZeroUUID == true)
 
         try run(["entry", "rm", sb.vault.path, "/X", "--key-file", sb.keyFile.path])
 
@@ -232,7 +242,7 @@ struct EndToEndTests {
         let after = try reopen(sb)
         // No Recycle Bin was created (we asked for permanent).
         #expect(after.database.meta.recycleBinUUID == nil
-                || after.database.meta.recycleBinUUID?.isZeroUUID == true)
+            || after.database.meta.recycleBinUUID?.isZeroUUID == true)
         #expect(after.database.root.group.entries.isEmpty)
         #expect(after.database.root.deletedObjects.contains(where: { $0.uuid == entryID }))
     }

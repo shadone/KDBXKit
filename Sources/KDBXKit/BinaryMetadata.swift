@@ -21,8 +21,8 @@ public struct BinaryMetadata: Sendable, Equatable {
     /// load the bytes.
     public let contentHash: Data
 
-    internal let decompressedOffset: Int
-    internal let decompressedLength: Int
+    let decompressedOffset: Int
+    let decompressedLength: Int
 
     public init(
         sizeBytes: Int,

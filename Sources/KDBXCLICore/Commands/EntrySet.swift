@@ -160,9 +160,15 @@ extension Entry {
                 if let newPassword {
                     EntryField.setProtected(EntryField.password, newPassword, on: &entry)
                 }
-                for f in regularCustom { EntryField.setRegular(f.key, f.value, on: &entry) }
-                for f in protectedCustom { EntryField.setProtected(f.key, f.value, on: &entry) }
-                for k in removeFields { EntryField.remove(k, from: &entry) }
+                for f in regularCustom {
+                    EntryField.setRegular(f.key, f.value, on: &entry)
+                }
+                for f in protectedCustom {
+                    EntryField.setProtected(f.key, f.value, on: &entry)
+                }
+                for k in removeFields {
+                    EntryField.remove(k, from: &entry)
+                }
 
                 if !setTags.isEmpty {
                     entry.tags = setTags

@@ -10,19 +10,18 @@ import Testing
 
 @Suite("Decompression cap — defensive bound against unbounded inflation")
 struct DecompressionCapTests {
-
     // MARK: GzipStreamReader — unit
 
     @Test("Decompress with a tight cap throws .outputTooLarge")
     func tinyCap_throwsOutputTooLarge() throws {
         // Produce a gzip stream that decompresses to far more than the cap.
-        let plaintext = Data(repeating: 0x41, count: 10_000)
+        let plaintext = Data(repeating: 0x41, count: 10000)
         let gz = try GzipOneShot.compress(plaintext)
 
         do {
             _ = try GzipStreamReader.decompress(gz, maxOutputBytes: 100)
             Issue.record("Expected .outputTooLarge")
-        } catch ZlibError.outputTooLarge(let limit) {
+        } catch let ZlibError.outputTooLarge(limit) {
             #expect(limit == 100)
         } catch {
             Issue.record("Wrong error: \(error)")

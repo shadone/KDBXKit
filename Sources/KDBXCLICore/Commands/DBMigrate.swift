@@ -17,7 +17,7 @@ extension DB {
         static let configuration = CommandConfiguration(
             commandName: "migrate",
             abstract:
-                "Migrate a legacy KDBX 3.1 vault to KDBX 4.1. " +
+            "Migrate a legacy KDBX 3.1 vault to KDBX 4.1. " +
                 "Upgrades the KDF to Argon2id by default (the modern KeePassXC default). " +
                 "No-op on files that are already KDBX 4.x."
         )
@@ -41,7 +41,7 @@ extension DB {
             name: .customLong("keep-kdf"),
             help: ArgumentHelp(
                 "Preserve the source vault's KDF (AES-KDF) instead of upgrading to Argon2id. " +
-                "The format is still migrated to 4.1; only the KDF is left alone."
+                    "The format is still migrated to 4.1; only the KDF is left alone."
             )
         )
         var keepKDF: Bool = false

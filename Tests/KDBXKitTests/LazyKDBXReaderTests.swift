@@ -11,7 +11,6 @@ import Testing
 
 @Suite("KDBXReader lazy / streaming API")
 struct LazyKDBXReaderTests {
-
     private func fixtureURL(_ name: String) -> URL {
         URL(filePath: Bundle.module.path(forResource: "Resources/\(name)", ofType: "kdbx")!)
     }

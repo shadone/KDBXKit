@@ -4,7 +4,6 @@ import Testing
 
 @Suite("KeystreamSource — random-access matches linear-walk byte-for-byte")
 struct KeystreamSourceTests {
-
     @Test("ChaCha20: decrypting a slice at offset O matches linear walk position O")
     func chacha20RandomAccessMatchesLinear() throws {
         let keyBytes = Data((0..<32).map { UInt8($0) })
@@ -24,20 +23,22 @@ struct KeystreamSourceTests {
         // Decrypt arbitrary slices at arbitrary offsets and confirm
         // they match the corresponding bytes of `plaintext`.
         let slices: [(offset: Int, length: Int)] = [
-            (0, 1), (0, 64), (0, 65),       // block boundary
-            (32, 16),                        // mid-block
-            (63, 2),                         // straddles a block boundary
-            (128, 64),                       // exact block
-            (200, 100),                      // multi-block, mid-block start
-            (511, 1),                        // last byte
+            (0, 1), (0, 64), (0, 65), // block boundary
+            (32, 16), // mid-block
+            (63, 2), // straddles a block boundary
+            (128, 64), // exact block
+            (200, 100), // multi-block, mid-block start
+            (511, 1), // last byte
         ]
 
         for (offset, length) in slices {
             let slice = ciphertext.subdata(in: offset..<(offset + length))
             let decrypted = source.decrypt(ciphertext: slice, at: offset)
             let bytes = decrypted.withUnsafeBytes { Data($0) }
-            #expect(bytes == plaintext.subdata(in: offset..<(offset + length)),
-                    "Mismatch at offset \(offset), length \(length)")
+            #expect(
+                bytes == plaintext.subdata(in: offset..<(offset + length)),
+                "Mismatch at offset \(offset), length \(length)"
+            )
         }
     }
 
@@ -69,8 +70,10 @@ struct KeystreamSourceTests {
             let slice = ciphertext.subdata(in: offset..<(offset + length))
             let decrypted = source.decrypt(ciphertext: slice, at: offset)
             let bytes = decrypted.withUnsafeBytes { Data($0) }
-            #expect(bytes == plaintext.subdata(in: offset..<(offset + length)),
-                    "Mismatch at offset \(offset), length \(length)")
+            #expect(
+                bytes == plaintext.subdata(in: offset..<(offset + length)),
+                "Mismatch at offset \(offset), length \(length)"
+            )
         }
     }
 

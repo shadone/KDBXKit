@@ -364,7 +364,7 @@ public struct KDBXWriter {
     /// branch that emits 3.x bytes. A 3.x version number on 4.x bytes
     /// would yield a file that no compliant reader (including ours)
     /// could parse, so the clamp is mandatory rather than an opt-in.
-    internal static func clampingFormatVersionToWritable(_ content: KDBXContent) -> KDBXContent {
+    static func clampingFormatVersionToWritable(_ content: KDBXContent) -> KDBXContent {
         guard content.header.formatVersion.isLegacy3x else {
             return content
         }
@@ -389,14 +389,14 @@ public struct KDBXWriter {
         )
     }
 
-    internal static func regeneratingSalts(in content: KDBXContent) -> KDBXContent {
+    static func regeneratingSalts(in content: KDBXContent) -> KDBXContent {
         let header = content.header
 
         // Nonce length depends on the cipher.
         let nonceLength: Int
         switch header.encryptionAlgorithm {
         case .AES256CBC: nonceLength = 16
-        case .ChaCha20:  nonceLength = 12
+        case .ChaCha20: nonceLength = 12
         }
 
         // KDF salt length: keep what was there (size is meaningful for some

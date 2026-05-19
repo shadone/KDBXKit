@@ -10,7 +10,6 @@ import Testing
 
 @Suite("KDBX.Meta — settingsChanged invariant")
 struct MetaSettingsChangedTests {
-
     @Test("init does not bump settingsChanged — preserves on-disk timestamps verbatim")
     func initDoesNotBump() {
         let onDisk = Date(timeIntervalSince1970: 1_700_000_000)
@@ -193,6 +192,7 @@ private extension KDBX.Meta {
     }
 
     // MARK: - Idempotent-write guard
+
     //
     // `didSet` guards on `oldValue != current` so reassigning a field
     // with its existing value is a true no-op (no stamp advance).

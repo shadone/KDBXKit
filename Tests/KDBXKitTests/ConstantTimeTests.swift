@@ -10,31 +10,36 @@ import Testing
 
 @Suite("ConstantTime — functional correctness")
 struct ConstantTimeTests {
-    @Test func equalEqualBytes() {
+    @Test
+    func equalEqualBytes() {
         let a = Data([0x01, 0x02, 0x03, 0x04])
         let b = Data([0x01, 0x02, 0x03, 0x04])
         #expect(ConstantTime.equals(a, b))
     }
 
-    @Test func differentLastByte() {
+    @Test
+    func differentLastByte() {
         let a = Data([0x01, 0x02, 0x03, 0x04])
         let b = Data([0x01, 0x02, 0x03, 0x05])
         #expect(!ConstantTime.equals(a, b))
     }
 
-    @Test func differentFirstByte() {
+    @Test
+    func differentFirstByte() {
         let a = Data([0x01, 0x02, 0x03, 0x04])
-        let b = Data([0xff, 0x02, 0x03, 0x04])
+        let b = Data([0xFF, 0x02, 0x03, 0x04])
         #expect(!ConstantTime.equals(a, b))
     }
 
-    @Test func differentLength() {
+    @Test
+    func differentLength() {
         let a = Data([0x01, 0x02, 0x03])
         let b = Data([0x01, 0x02, 0x03, 0x04])
         #expect(!ConstantTime.equals(a, b))
     }
 
-    @Test func bothEmpty() {
+    @Test
+    func bothEmpty() {
         #expect(ConstantTime.equals(Data(), Data()))
     }
 }

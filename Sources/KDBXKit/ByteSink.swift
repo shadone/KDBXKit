@@ -33,15 +33,15 @@ public struct DataSink: ByteSink {
     public private(set) var data: Data
 
     public init(capacityHint: Int = 0) {
-        self.data = Data(capacity: capacityHint)
+        data = Data(capacity: capacityHint)
     }
 
     public mutating func write(_ chunk: UnsafeRawBufferPointer) throws {
-        guard let base = chunk.baseAddress, chunk.count > 0 else { return }
+        guard let base = chunk.baseAddress, !chunk.isEmpty else { return }
         data.append(base.assumingMemoryBound(to: UInt8.self), count: chunk.count)
     }
 
-    public mutating func finalize() throws {}
+    public mutating func finalize() throws { }
 }
 
 /// Sink for protected binaries — accumulates into `SecureBytes`
@@ -51,12 +51,12 @@ public struct SecureBytesSink: ByteSink {
     private var buffer: [UInt8]
 
     public init(capacityHint: Int = 0) {
-        self.buffer = []
-        self.buffer.reserveCapacity(capacityHint)
+        buffer = []
+        buffer.reserveCapacity(capacityHint)
     }
 
     public mutating func write(_ chunk: UnsafeRawBufferPointer) throws {
-        guard let base = chunk.baseAddress, chunk.count > 0 else { return }
+        guard let base = chunk.baseAddress, !chunk.isEmpty else { return }
         let typed = UnsafeBufferPointer(
             start: base.assumingMemoryBound(to: UInt8.self),
             count: chunk.count
@@ -64,7 +64,7 @@ public struct SecureBytesSink: ByteSink {
         buffer.append(contentsOf: typed)
     }
 
-    public mutating func finalize() throws {}
+    public mutating func finalize() throws { }
 
     /// Take the buffered bytes as `SecureBytes` and zero the local
     /// holding buffer. The returned `SecureBytes` is the only handle
@@ -93,11 +93,11 @@ public struct URLSink: ByteSink {
         self.url = url
         // Touch the file to ensure it exists and is empty.
         try Data().write(to: url, options: .atomic)
-        self.handle = try FileHandle(forWritingTo: url)
+        handle = try FileHandle(forWritingTo: url)
     }
 
     public mutating func write(_ chunk: UnsafeRawBufferPointer) throws {
-        guard let base = chunk.baseAddress, chunk.count > 0 else { return }
+        guard let base = chunk.baseAddress, !chunk.isEmpty else { return }
         // FileHandle.write(contentsOf:) copies into a Data internally;
         // unavoidable for the framework boundary. The Data is
         // short-lived (this scope).

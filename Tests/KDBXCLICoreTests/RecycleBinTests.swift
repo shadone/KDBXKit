@@ -5,8 +5,8 @@
 //
 
 import Foundation
-import Testing
 import KDBXKit
+import Testing
 @testable import KDBXCLICore
 
 @Suite("RecycleBin")
@@ -20,7 +20,7 @@ struct RecycleBinTests {
     @Test("find returns nil when recycleBinUUID is the zero UUID")
     func findZeroUUID() {
         var db = Fixtures.sampleDatabase()
-        db.meta.recycleBinUUID = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+        db.meta.recycleBinUUID = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0))
         #expect(RecycleBin.find(in: db) == nil)
     }
 

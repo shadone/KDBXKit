@@ -20,7 +20,6 @@ import Testing
 /// other variants and the cross-dialect rejection.
 @Suite("XMLDocumentReader date dialect")
 struct XMLDateDialectTests {
-
     // MARK: - Test scaffolding
 
     /// Build a complete-enough KeePassFile XML carrying a single
@@ -34,18 +33,18 @@ struct XMLDateDialectTests {
         dateFormat: XMLDocumentReader.DateFormat
     ) throws -> Date? {
         let xml = """
-        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <KeePassFile>
-            <Meta>
-                <SettingsChanged>\(literal)</SettingsChanged>
-            </Meta>
-            <Root>
-                <Group>
-                    <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
-                </Group>
-            </Root>
-        </KeePassFile>
-        """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <KeePassFile>
+                <Meta>
+                    <SettingsChanged>\(literal)</SettingsChanged>
+                </Meta>
+                <Root>
+                    <Group>
+                        <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                    </Group>
+                </Root>
+            </KeePassFile>
+            """
         let reader = try XMLDocumentReader(
             xmlDocument: xml,
             keystreamSource: Self.mockKeystream(),

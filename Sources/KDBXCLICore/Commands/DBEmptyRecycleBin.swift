@@ -114,7 +114,9 @@ enum RecycleBin {
     }
 
     static func collectUUIDs(in group: KDBX.Group, into ids: inout [UUID]) {
-        for entry in group.entries { ids.append(entry.uuid) }
+        for entry in group.entries {
+            ids.append(entry.uuid)
+        }
         for child in group.groups {
             ids.append(child.uuid)
             collectUUIDs(in: child, into: &ids)
@@ -123,7 +125,9 @@ enum RecycleBin {
 
     static func countEntries(in group: KDBX.Group) -> Int {
         var n = group.entries.count
-        for child in group.groups { n += countEntries(in: child) }
+        for child in group.groups {
+            n += countEntries(in: child)
+        }
         return n
     }
 
@@ -174,4 +178,3 @@ struct EmptyRecycleBinResult: Encodable {
         print("Emptied recycle bin: removed \(removedEntries) entry(ies) and \(removedGroups) group(s).")
     }
 }
-

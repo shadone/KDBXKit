@@ -159,14 +159,14 @@ public extension KDBXReader {
 
 // MARK: - Internal pipeline helpers
 
-internal struct DecryptedKDBXPayload {
+struct DecryptedKDBXPayload {
     let header: Header
     let unlockKey: SecureBytes
     /// Decrypted + decompressed bytes — inner header followed by XML.
     let payload: Data
 }
 
-internal extension KDBXReader {
+extension KDBXReader {
     /// Runs steps 1..4.a.i of the KDBX read pipeline: parse cleartext
     /// header, verify digests, derive unlock key, decrypt block
     /// stream, decompress. Stops just before inner-header parsing so
@@ -357,7 +357,7 @@ internal extension KDBXReader {
 
 // MARK: - Internal read helpers exposed for lazy path
 
-internal extension KDBXReader {
+extension KDBXReader {
     /// `readData(length:)` is private to the eager parse; the lazy
     /// pipeline needs the same bytes-from-stream behavior. Renamed
     /// public-ish so the helper functions above can call it without

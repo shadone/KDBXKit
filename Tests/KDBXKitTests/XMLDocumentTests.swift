@@ -252,6 +252,7 @@ struct XMLDocumentTests {
     }
 
     // MARK: Inline binary Protected attribute round-trip
+
     //
     // KDBX 3.1 carries the binary protection flag inline on the
     // entry's `<Value Protected="True">base64</Value>` element. KDBX
@@ -263,23 +264,23 @@ struct XMLDocumentTests {
 
     private func parseInlineBinaryXML(valueElement: String) throws -> KDBX.ProtectedBinary {
         let xml = """
-        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <KeePassFile>
-            <Meta/>
-            <Root>
-                <Group>
-                    <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
-                    <Entry>
-                        <UUID>BBBBBBBBBBBBBBBBBBBBBA==</UUID>
-                        <Binary>
-                            <Key>secret.bin</Key>
-                            \(valueElement)
-                        </Binary>
-                    </Entry>
-                </Group>
-            </Root>
-        </KeePassFile>
-        """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <KeePassFile>
+                <Meta/>
+                <Root>
+                    <Group>
+                        <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                        <Entry>
+                            <UUID>BBBBBBBBBBBBBBBBBBBBBA==</UUID>
+                            <Binary>
+                                <Key>secret.bin</Key>
+                                \(valueElement)
+                            </Binary>
+                        </Entry>
+                    </Group>
+                </Root>
+            </KeePassFile>
+            """
         let reader = try XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
         let parsed = try reader.parse()
         let entry = parsed.root.group.entries.first!
@@ -337,7 +338,7 @@ struct XMLDocumentTests {
                                 .init(key: "p.bin", value: .inline(Data([9, 8, 7]), protected: true)),
                                 .init(key: "u.bin", value: .inline(Data([1, 2, 3]), protected: false)),
                             ]
-                        )
+                        ),
                     ]
                 ),
                 deletedObjects: []
@@ -380,6 +381,7 @@ struct XMLDocumentTests {
     }
 
     // MARK: Lenient parsing of negative integer fields
+
     //
     // The XSD declares `MaintenanceHistoryDays` and `UsageCount` as
     // `xs:unsignedInt` / `xs:unsignedLong` (no sentinel), and `HistoryMaxItems` /
@@ -389,33 +391,33 @@ struct XMLDocumentTests {
 
     private func parseMetaXML(_ metaBody: String) throws -> KDBX.Meta {
         let xml = """
-        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <KeePassFile>
-            <Meta>\(metaBody)</Meta>
-            <Root>
-                <Group>
-                    <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
-                </Group>
-            </Root>
-        </KeePassFile>
-        """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <KeePassFile>
+                <Meta>\(metaBody)</Meta>
+                <Root>
+                    <Group>
+                        <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                    </Group>
+                </Root>
+            </KeePassFile>
+            """
         let reader = try XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
         return try reader.parse().meta
     }
 
     private func parseGroupTimesXML(_ timesBody: String) throws -> KDBX.Times? {
         let xml = """
-        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <KeePassFile>
-            <Meta/>
-            <Root>
-                <Group>
-                    <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
-                    <Times>\(timesBody)</Times>
-                </Group>
-            </Root>
-        </KeePassFile>
-        """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <KeePassFile>
+                <Meta/>
+                <Root>
+                    <Group>
+                        <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                        <Times>\(timesBody)</Times>
+                    </Group>
+                </Root>
+            </KeePassFile>
+            """
         let reader = try XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
         return try reader.parse().root.group.times
     }
@@ -509,25 +511,25 @@ struct XMLDocumentTests {
 
     private func parseAutoTypeAssociationXML(window: String, keystrokeSequence: String) throws -> KDBX.AutoType.Association? {
         let xml = """
-        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <KeePassFile>
-            <Meta/>
-            <Root>
-                <Group>
-                    <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
-                    <Entry>
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <KeePassFile>
+                <Meta/>
+                <Root>
+                    <Group>
                         <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
-                        <AutoType>
-                            <Association>
-                                \(window)
-                                \(keystrokeSequence)
-                            </Association>
-                        </AutoType>
-                    </Entry>
-                </Group>
-            </Root>
-        </KeePassFile>
-        """
+                        <Entry>
+                            <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                            <AutoType>
+                                <Association>
+                                    \(window)
+                                    \(keystrokeSequence)
+                                </Association>
+                            </AutoType>
+                        </Entry>
+                    </Group>
+                </Root>
+            </KeePassFile>
+            """
         let reader = try XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
         return try reader.parse().root.group.entries.first?.autoType?.association.first
     }
@@ -570,24 +572,24 @@ struct XMLDocumentTests {
         // Element entirely missing is still a corruption — per XSD both
         // sub-elements are required (just allowed to be empty).
         let xml = """
-        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <KeePassFile>
-            <Meta/>
-            <Root>
-                <Group>
-                    <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
-                    <Entry>
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <KeePassFile>
+                <Meta/>
+                <Root>
+                    <Group>
                         <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
-                        <AutoType>
-                            <Association>
-                                <Window>chrome*</Window>
-                            </Association>
-                        </AutoType>
-                    </Entry>
-                </Group>
-            </Root>
-        </KeePassFile>
-        """
+                        <Entry>
+                            <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                            <AutoType>
+                                <Association>
+                                    <Window>chrome*</Window>
+                                </Association>
+                            </AutoType>
+                        </Entry>
+                    </Group>
+                </Root>
+            </KeePassFile>
+            """
         let reader = try XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
         #expect(throws: XMLDocumentReader.Error.self) {
             _ = try reader.parse()
@@ -604,17 +606,17 @@ struct XMLDocumentTests {
             closeTags = "</Group>" + closeTags
         }
         return """
-        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <KeePassFile>
-            <Meta/>
-            <Root>
-                <Group>
-                    <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
-                    \(openTags)\(closeTags)
-                </Group>
-            </Root>
-        </KeePassFile>
-        """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <KeePassFile>
+                <Meta/>
+                <Root>
+                    <Group>
+                        <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                        \(openTags)\(closeTags)
+                    </Group>
+                </Root>
+            </KeePassFile>
+            """
     }
 
     @Test
@@ -642,18 +644,18 @@ struct XMLDocumentTests {
     @Test
     func parser_unknownElementProducesWarning() throws {
         let xml = """
-        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <KeePassFile>
-            <Meta>
-                <SomeFutureKeePassXCField>hello</SomeFutureKeePassXCField>
-            </Meta>
-            <Root>
-                <Group>
-                    <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
-                </Group>
-            </Root>
-        </KeePassFile>
-        """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <KeePassFile>
+                <Meta>
+                    <SomeFutureKeePassXCField>hello</SomeFutureKeePassXCField>
+                </Meta>
+                <Root>
+                    <Group>
+                        <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                    </Group>
+                </Root>
+            </KeePassFile>
+            """
         let reader = try XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
         _ = try reader.parse()
         #expect(reader.collectedWarnings.contains { $0.contains("SomeFutureKeePassXCField") })
@@ -662,23 +664,23 @@ struct XMLDocumentTests {
     @Test
     func parser_unknownAttributeProducesWarning() throws {
         let xml = """
-        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <KeePassFile>
-            <Meta/>
-            <Root>
-                <Group>
-                    <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
-                    <Entry>
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <KeePassFile>
+                <Meta/>
+                <Root>
+                    <Group>
                         <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
-                        <String>
-                            <Key>Title</Key>
-                            <Value SomeUnknownAttr="x">hi</Value>
-                        </String>
-                    </Entry>
-                </Group>
-            </Root>
-        </KeePassFile>
-        """
+                        <Entry>
+                            <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                            <String>
+                                <Key>Title</Key>
+                                <Value SomeUnknownAttr="x">hi</Value>
+                            </String>
+                        </Entry>
+                    </Group>
+                </Root>
+            </KeePassFile>
+            """
         let reader = try XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
         _ = try reader.parse()
         #expect(reader.collectedWarnings.contains { $0.contains("SomeUnknownAttr") })
@@ -687,19 +689,19 @@ struct XMLDocumentTests {
     @Test
     func parser_cleanInputProducesNoWarnings() throws {
         let xml = """
-        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <KeePassFile>
-            <Meta>
-                <Generator>KDBXKit</Generator>
-                <DatabaseName>x</DatabaseName>
-            </Meta>
-            <Root>
-                <Group>
-                    <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
-                </Group>
-            </Root>
-        </KeePassFile>
-        """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <KeePassFile>
+                <Meta>
+                    <Generator>KDBXKit</Generator>
+                    <DatabaseName>x</DatabaseName>
+                </Meta>
+                <Root>
+                    <Group>
+                        <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                    </Group>
+                </Root>
+            </KeePassFile>
+            """
         let reader = try XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
         _ = try reader.parse()
         #expect(reader.collectedWarnings.isEmpty)
@@ -709,17 +711,17 @@ struct XMLDocumentTests {
 
     private func parseGroupTagsXML(_ tagsBody: String) throws -> [String] {
         let xml = """
-        <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-        <KeePassFile>
-            <Meta/>
-            <Root>
-                <Group>
-                    <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
-                    <Tags>\(tagsBody)</Tags>
-                </Group>
-            </Root>
-        </KeePassFile>
-        """
+            <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+            <KeePassFile>
+                <Meta/>
+                <Root>
+                    <Group>
+                        <UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>
+                        <Tags>\(tagsBody)</Tags>
+                    </Group>
+                </Root>
+            </KeePassFile>
+            """
         let reader = try XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
         return try reader.parse().root.group.tags
     }

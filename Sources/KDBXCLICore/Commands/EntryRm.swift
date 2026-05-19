@@ -103,7 +103,9 @@ extension Entry {
 
         private func containsEntry(uuid: UUID, in group: KDBX.Group) -> Bool {
             if group.entries.contains(where: { $0.uuid == uuid }) { return true }
-            for child in group.groups where containsEntry(uuid: uuid, in: child) { return true }
+            for child in group.groups where containsEntry(uuid: uuid, in: child) {
+                return true
+            }
             return false
         }
     }

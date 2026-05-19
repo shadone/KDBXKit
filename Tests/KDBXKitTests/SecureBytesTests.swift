@@ -10,7 +10,6 @@ import Testing
 
 @Suite("SecureBytes — basic correctness")
 struct SecureBytesTests {
-
     @Test("Roundtrips through UTF-8 / Data / [UInt8]")
     func roundtrips() {
         let s = SecureBytes(utf8: "hunter2")
@@ -25,7 +24,7 @@ struct SecureBytesTests {
     @Test("Empty bytes")
     func empty() {
         let s = SecureBytes.empty
-        #expect(s.count == 0)
+        #expect(s.isEmpty)
         #expect(s.toData().isEmpty)
         #expect(s.revealedString.isEmpty)
     }
@@ -37,7 +36,7 @@ struct SecureBytesTests {
         let c = SecureBytes(utf8: "abd")
         #expect(a == b)
         #expect(a != c)
-        #expect(a !== b)  // different objects, equal contents
+        #expect(a !== b) // different objects, equal contents
     }
 
     @Test("Description doesn't leak content")
@@ -64,8 +63,10 @@ struct SecureBytesTests {
         // through the hash."
         let a = SecureBytes(utf8: "abcdef")
         let b = SecureBytes(utf8: "ghijkl")
-        var hA = Hasher(); a.hash(into: &hA)
-        var hB = Hasher(); b.hash(into: &hB)
+        var hA = Hasher()
+        a.hash(into: &hA)
+        var hB = Hasher()
+        b.hash(into: &hB)
         #expect(hA.finalize() == hB.finalize())
     }
 }

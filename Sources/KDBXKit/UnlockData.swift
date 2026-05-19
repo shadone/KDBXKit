@@ -209,7 +209,8 @@ public struct UnlockData: Sendable {
             // as a fallback.
             let stripped = text.filter { !$0.isWhitespace }
             if stripped.count == 64,
-               let hex = decodeHexKeyFile(Data(stripped.utf8)) {
+               let hex = decodeHexKeyFile(Data(stripped.utf8))
+            {
                 decoded = hex
             } else {
                 decoded = Data(base64Encoded: stripped, options: .ignoreUnknownCharacters)
@@ -243,9 +244,9 @@ public struct UnlockData: Sendable {
 
     private static func hexValue(_ b: UInt8) -> UInt8? {
         switch b {
-        case 0x30...0x39: return b - 0x30                  // '0'-'9'
-        case 0x41...0x46: return b - 0x41 + 10             // 'A'-'F'
-        case 0x61...0x66: return b - 0x61 + 10             // 'a'-'f'
+        case 0x30...0x39: return b - 0x30 // '0'-'9'
+        case 0x41...0x46: return b - 0x41 + 10 // 'A'-'F'
+        case 0x61...0x66: return b - 0x61 + 10 // 'a'-'f'
         default: return nil
         }
     }

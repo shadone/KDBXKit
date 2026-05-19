@@ -10,7 +10,6 @@ import Testing
 
 @Suite("KDBX.validate — structural checks")
 struct ValidationTests {
-
     @Test("A freshly built empty vault validates clean")
     func freshVaultClean() {
         let content = KDBXContent.makeEmpty(databaseName: "Clean", kdf: .fast)
@@ -83,6 +82,7 @@ struct ValidationTests {
     }
 
     // MARK: Zero UUID semantics
+
     //
     // Per the KDBX 4.1 XSD and KeePass conventions, the zero UUID acts as
     // a "no reference" sentinel for most reference fields (CustomIconUUID,

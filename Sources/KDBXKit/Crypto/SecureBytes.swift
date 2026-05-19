@@ -37,7 +37,6 @@ import Foundation
 /// those types may reallocate or copy under the hood, defeating the
 /// zero-on-deinit guarantee.
 public final class SecureBytes: @unchecked Sendable, Equatable, CustomStringConvertible, Hashable {
-
     /// Page-aligned heap pointer we own.
     private let buffer: UnsafeMutableRawPointer
     /// Allocated size, rounded up to the page. Always ≥ count.
@@ -98,6 +97,12 @@ public final class SecureBytes: @unchecked Sendable, Equatable, CustomStringConv
 
     /// Build an empty SecureBytes.
     public static var empty: SecureBytes { SecureBytes([] as [UInt8]) }
+
+    /// Whether the buffer carries any bytes. Cheap convenience over
+    /// `count == 0`; mirrors the standard-library shape of
+    /// `Collection.isEmpty` so callers (and SwiftFormat's `isEmpty`
+    /// rule) can reach for the natural form.
+    public var isEmpty: Bool { count == 0 }
 
     deinit {
         // Zero the buffer with a function the compiler can't optimize

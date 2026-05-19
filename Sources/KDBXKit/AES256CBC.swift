@@ -4,9 +4,9 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
+import _CryptoExtras
 import Crypto
 import Foundation
-import _CryptoExtras
 
 enum AES256CBC {
     enum Error: Swift.Error, Sendable, Equatable {
