@@ -2,8 +2,8 @@
 
 <p align="center">
   <strong>Read and write KeePass 2 (KDBX 4) databases from Swift.</strong><br/>
-  Strict-concurrency Swift 6, page-locked secrets, streaming attachments,<br/>
-  KDBX 3.1 read with migrate-on-save to 4.1.
+  Page-locked secrets, KeePassXC-tested round-trips, and streaming<br/>
+  attachments that keep peak memory bounded regardless of vault size.
 </p>
 
 <p align="center">
