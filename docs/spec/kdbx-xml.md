@@ -85,9 +85,10 @@ specific to the XML payload:
   (container §12.2, ID 3); entries reference pool entries by
   index. In KDBX 3.1 the pool lives inline in `<Meta><Binaries>`.
 - **NullableBoolEx** — a tri-state encoded as the literal strings
-  `True`, `False`, or `null` (lower-case). Distinct from a regular
-  Bool because the third state means "inherit from the parent
-  Group" rather than "unset".
+  `True`, `False`, or `Null` (title-case; readers SHOULD also
+  accept lower-case `null` for interop — see §4.3). Distinct from a
+  regular Bool because the third state means "inherit from the
+  parent Group" rather than "unset".
 
 ## Document map
 
