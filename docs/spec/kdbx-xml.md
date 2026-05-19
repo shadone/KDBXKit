@@ -1445,3 +1445,289 @@ Key observations:
 - The `<DeletedObjects>` element is always present in a well-formed
   document; when there are no tombstones it appears as
   `<DeletedObjects/>` (self-closing), as seen in B.1.
+
+---
+
+## Appendix C (Informative): Parser-warnings catalogue
+
+This appendix lists XML elements and attributes that KDBXKit's
+reader does not fully model. Encountering one of these does NOT
+produce a parse error; the reader appends a string to
+`KDBXContent.parserWarnings` and the unrecognised element or
+attribute is silently dropped from the in-memory representation.
+On round-trip the dropped item is NOT re-emitted.
+
+This appendix is informative. Producers writing for KeePass /
+KeePassXC compatibility SHOULD NOT emit elements that KDBXKit
+drops, since the round-trip would lose data. Readers implementing
+the spec from scratch MAY choose to model these elements; KDBXKit
+does not, and the rationale for each is given below.
+
+### C.1 Format of a parser warning
+
+Each warning is a free-form `String`. The conventions KDBXKit
+follows internally are:
+
+    "Unexpected element <FullyQualifiedPath>"
+    "Unexpected attribute '<name>' in <ElementName> in <FullyQualifiedPath>"
+    "Unexpected attribute value '<value>' in attribute <name> in <FullyQualifiedPath>"
+    "Missing Key or Value node in CustomDataWithTimes in <FullyQualifiedPath>"
+    "Negative value '<n>' for unsigned field in <FullyQualifiedPath>; dropping"
+    "Failed to parse <Type> '<text>' in <FullyQualifiedPath>; dropping"
+    "Protect in memory not yet implemented in <FullyQualifiedPath>"
+    "Unexpected Protected value '<value>' in Binary in <FullyQualifiedPath>"
+
+`<FullyQualifiedPath>` is produced by the XML node's
+`fullyQualifiedName` property and takes the form
+`KeePassFile/Meta/MemoryProtection/UnknownField`, giving the
+exact position in the document tree.
+
+Producers MUST NOT rely on the exact warning string format; it is
+not part of the public API and may change without notice.
+
+### C.2 Known dropped elements
+
+The table below maps each `record(...)` call site in
+`XMLDocumentReader.swift` to the document context where it can
+fire. The call-site count (excluding the `record` function
+definition itself) is **32**.
+
+#### C.2.1 Unknown children of `KeePassFile`
+
+Any direct child of `<KeePassFile>` other than `<Meta>` and
+`<Root>` triggers:
+
+    "Unexpected element: KeePassFile/<ElementName>"
+
+No real-world producer is known to emit extra top-level children;
+this guard exists as a safety net.
+
+#### C.2.2 Unknown children of `Meta`
+
+Any direct child of `<Meta>` not listed in §2 triggers:
+
+    "Unexpected element KeePassFile/Meta/<ElementName>"
+
+Typical real-world source: a future KeePass / KeePassXC release
+adds a new `<Meta>` field (e.g. `<DatabaseTags>`) before KDBXKit
+models it.
+
+#### C.2.3 Unknown children of `MemoryProtection`
+
+Any child of `<Meta><MemoryProtection>` other than `ProtectTitle`,
+`ProtectUserName`, `ProtectPassword`, `ProtectURL`, and
+`ProtectNotes` triggers:
+
+    "Unexpected element KeePassFile/Meta/MemoryProtection/<ElementName>"
+
+KeePass 2.x does not emit extra children here. This guard is
+forward-compatibility protection.
+
+#### C.2.4 Unknown children of `CustomIcons`
+
+Any child of `<Meta><CustomIcons>` other than `<Icon>` triggers:
+
+    "Unexpected element KeePassFile/Meta/CustomIcons/<ElementName>"
+
+The expected children are zero or more `<Icon>` items; anything
+else is dropped.
+
+#### C.2.5 Unknown children of a `CustomIcon`
+
+Any child of an `<Icon>` element other than `UUID`, `Data`,
+`Name`, and `LastModificationTime` triggers:
+
+    "Unexpected element KeePassFile/Meta/CustomIcons/Icon/<ElementName>"
+
+The `Name` and `LastModificationTime` fields were added in KDBX
+4.1 (§2.7); a 4.0 file omits them without a warning.
+
+#### C.2.6 Unknown children of `CustomData` item lists
+
+Two distinct parsers handle `<CustomData>` blocks: one for
+`<Meta><CustomData>` (items carry `LastModificationTime`) and one
+for group/entry `<CustomData>` (plain key/value pairs).
+
+Any child of the `<CustomData>` container other than `<Item>`
+triggers:
+
+    "Unexpected element <path>/CustomData/<ElementName>"
+
+Any child of an `<Item>` element other than `Key`, `Value`, and
+(where applicable) `LastModificationTime` triggers:
+
+    "Unexpected element <path>/CustomData/Item/<ElementName>"
+
+If an `<Item>` element is missing either its `<Key>` or `<Value>`
+child the item is dropped and a warning is emitted:
+
+    "Missing Key or Value node in CustomDataWithTimes in <path>/CustomData/Item"
+
+This warning fires for both the timed and the plain variants of the
+item parser.
+
+#### C.2.7 Unknown children of `Root`
+
+Any child of `<Root>` other than `<Group>` and `<DeletedObjects>`
+triggers:
+
+    "Unexpected element KeePassFile/Root/<ElementName>"
+
+#### C.2.8 Unknown children of `Group`
+
+Any child of a `<Group>` element not listed in §4.1 triggers:
+
+    "Unexpected element <path>/Group/<ElementName>"
+
+This is the most likely source of real-world warnings: KeePassXC
+and other clients have added group-level fields (e.g. an extra
+metadata element) in incremental releases before the spec
+absorbed them.
+
+#### C.2.9 Unknown children of `Times`
+
+Any child of a `<Times>` block other than `CreationTime`,
+`LastModificationTime`, `LastAccessTime`, `ExpiryTime`, `Expires`,
+`UsageCount`, and `LocationChanged` triggers:
+
+    "Unexpected element <path>/Times/<ElementName>"
+
+`<Times>` appears under both `<Group>` and `<Entry>`.
+
+#### C.2.10 Unknown children of `Entry`
+
+Any child of an `<Entry>` element not listed in §5.1 triggers:
+
+    "Unexpected element <path>/Entry/<ElementName>"
+
+Like §C.2.8, this is a forward-compatibility guard.
+
+#### C.2.11 Unknown children of `History`
+
+Any child of `<Entry><History>` other than `<Entry>` triggers:
+
+    "Unexpected element <path>/Entry/History/<ElementName>"
+
+History snapshot entries are themselves `<Entry>` elements; any
+other tag is unexpected.
+
+#### C.2.12 Unknown children of `AutoType`
+
+Any child of `<AutoType>` other than `Enabled`,
+`DataTransferObfuscation`, `DefaultSequence`, and `Association`
+triggers:
+
+    "Unexpected element <path>/Entry/AutoType/<ElementName>"
+
+#### C.2.13 Unknown children of `AutoType/Association`
+
+Any child of an `<Association>` block other than `<Window>` and
+`<KeystrokeSequence>` triggers:
+
+    "Unexpected element <path>/Entry/AutoType/Association/<ElementName>"
+
+#### C.2.14 Attributes on `String/Value`
+
+`<String><Value>` accepts two attributes: `Protected` and
+`ProtectInMemory`. An attribute with any other name triggers:
+
+    "Unexpected attribute '<name>' in String in <path>/Entry/String/Value"
+
+A value of `Protected` or `ProtectInMemory` that is neither `True`
+nor `False` triggers:
+
+    "Unexpected attribute value '<value>' in attribute <name> in <path>/Entry/String/Value"
+
+#### C.2.15 `ProtectInMemory="True"` on `String/Value` (not yet implemented)
+
+When `<Value ProtectInMemory="True">` is encountered, KDBXKit
+records:
+
+    "Protect in memory not yet implemented in <path>/Entry/String"
+
+and falls back to `ProtectedString.Value.protectedInMemory(_:)`.
+The value is stored in the in-memory model but is not re-emitted as
+`ProtectInMemory="True"` by the writer — it round-trips as an
+ordinary unprotected string. This is an implementation limitation,
+not a parse failure.
+
+#### C.2.16 Unknown children of `Entry/Binary` (protected-binary child list)
+
+Any child of the `<Binary>` element inside `<Entry>` other than
+`<Key>` and `<Value>` triggers:
+
+    "Unexpected element <path>/Entry/Binary/<ElementName>"
+
+#### C.2.17 Attributes on `Entry/Binary/Value`
+
+`<Binary><Value>` accepts two attributes: `Ref` and `Protected`.
+An attribute with any other name triggers:
+
+    "Unexpected attribute '<name>' in Binary in <path>/Entry/Binary/Value"
+
+A value of the `Protected` attribute that is neither `true`, `True`,
+`false`, nor `False` (case-insensitive) triggers:
+
+    "Unexpected Protected value '<value>' in Binary in <path>/Entry/Binary/Value"
+
+#### C.2.18 Unknown children of `DeletedObjects`
+
+Any child of `<DeletedObjects>` other than `<DeletedObject>`
+triggers:
+
+    "Unexpected element KeePassFile/Root/DeletedObjects/<ElementName>"
+
+#### C.2.19 Unknown children of `DeletedObject`
+
+Any child of a `<DeletedObject>` element other than `<UUID>` and
+`<DeletionTime>` triggers:
+
+    "Unexpected element <path>/DeletedObjects/DeletedObject/<ElementName>"
+
+#### C.2.20 Malformed unsigned integers (lenient path)
+
+Two fields — `MaintenanceHistoryDays` and `Times/UsageCount` — use
+a lenient parser that tolerates bad input rather than aborting the
+parse. A negative decimal string in either of these fields triggers:
+
+    "Negative value '<n>' for unsigned field in <path>/<FieldName>; dropping"
+
+A string that cannot be parsed as the target integer type at all
+triggers:
+
+    "Failed to parse <Type> '<text>' in <path>/<FieldName>; dropping"
+
+In both cases the field is set to `nil` in the in-memory model
+(the property is optional) and parsing continues.
+
+#### C.2.21 Unknown children and unknown attributes of `Meta/Binaries/Binary` (KDBX 3.x only)
+
+`<Meta><Binaries>` is a KDBX 3.x-only inline binary pool (§10).
+Any child of the `<Binaries>` container other than `<Binary>`
+triggers:
+
+    "Unexpected element KeePassFile/Meta/Binaries/<ElementName>"
+
+Any attribute on a `<Binary>` element other than `ID`, `Compressed`,
+and `Protected` triggers:
+
+    "Unexpected attribute '<name>' in Binary in KeePassFile/Meta/Binaries/Binary"
+
+These warnings are only reachable when parsing a 3.x file; a
+well-formed KDBX 4.x file does not contain `<Meta><Binaries>`.
+
+### C.3 Adding new fixtures
+
+When adding a third-party fixture to
+`Tests/KDBXKitTests/Resources/`, the convention (per
+`KDBXKit/CLAUDE.md`) is to assert
+`KDBXContent.parserWarnings == []` to catch features that are not
+modelled. If the assertion fails, the choice is:
+
+- **Model the feature in KDBXKit** — changes the source but
+  preserves full fidelity.
+- **Scrub the unrecognised element from the fixture** — loses
+  fidelity but keeps the test focused on what KDBXKit covers.
+
+Both are legitimate; the assertion exists to make the choice
+explicit rather than silent.
