@@ -343,16 +343,13 @@ internal extension KDBXReader {
         case .none:
             break
         case .gzip:
-            let output = CappedDataOutputStream(cap: maxDecompressedPayloadSize)
             do {
-                try GzipStreamReader.decompress(payload, into: output)
+                payload = try GzipStreamReader.decompress(payload, maxOutputBytes: maxDecompressedPayloadSize)
+            } catch ZlibError.outputTooLarge {
+                throw KDBXReader.Error.decompressedPayloadTooLarge(limit: maxDecompressedPayloadSize)
             } catch {
-                if output.overflowed {
-                    throw KDBXReader.Error.decompressedPayloadTooLarge(limit: maxDecompressedPayloadSize)
-                }
                 throw KDBXReader.Error.corruptedXML(reason: "Failed to decompress: \(error)")
             }
-            payload = output.collected
         }
         return payload
     }

@@ -25,6 +25,15 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
     ],
     targets: [
+        .systemLibrary(
+            name: "CZlib",
+            path: "Sources/CZlib",
+            pkgConfig: "zlib",
+            providers: [
+                .apt(["zlib1g-dev"]),
+                .brew(["zlib"]),
+            ],
+        ),
         .executableTarget(
             name: "kdbx-cli",
             dependencies: [
@@ -82,14 +91,12 @@ let package = Package(
                 .product(name: "Crypto", package: "swift-crypto"),
                 .product(name: "_CryptoExtras", package: "swift-crypto"),
                 .product(name: "Logging", package: "swift-log"),
+                "CZlib",
                 "argon2",
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
                 .enableUpcomingFeature("StrictConcurrency"),
-            ],
-            linkerSettings: [
-                .linkedLibrary("z"),
             ],
         ),
         .testTarget(

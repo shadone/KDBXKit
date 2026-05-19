@@ -4,8 +4,8 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
+import CZlib
 import Foundation
-import zlib
 
 /// Errors raised by the streaming gzip compressor / decompressor.
 internal enum ZlibError: Swift.Error, Equatable {
@@ -14,7 +14,7 @@ internal enum ZlibError: Swift.Error, Equatable {
     case inflateInit(Int32)
     case inflate(Int32)
     case truncatedInput
-    case outputWriteFailed
+    case outputTooLarge(limit: Int)
 }
 
 /// Push-based streaming gzip compressor over system zlib. Initialized
@@ -119,17 +119,18 @@ internal enum GzipOneShot {
 /// One-shot gzip decompressor used by the eager reader, the lazy reader,
 /// the legacy 3.x reader, and the legacy inline-binary decompressor.
 /// Initialized with `wBits = 47` (15 + 32) so zlib autodetects gzip or
-/// zlib wrappers — KDBX uses gzip but the autodetect costs nothing and
-/// matches swift-gzip's previous behavior.
+/// zlib wrappers — KDBX uses gzip but the autodetect costs nothing.
 ///
-/// Output goes through an `OutputStream` so callers can use
-/// `CappedDataOutputStream` to enforce a maximum-output cap (zlib will
-/// report an `outputWriteFailed` once the stream rejects a write).
+/// `maxOutputBytes` caps the decompressed size and throws
+/// `.outputTooLarge(limit:)` mid-stream once the cumulative output would
+/// exceed it. The cap is enforced before any allocation past the limit,
+/// so a payload that would inflate without bound fails fast rather than
+/// after a runaway allocation.
 internal enum GzipStreamReader {
     static func decompress(
         _ data: Data,
-        into output: OutputStream
-    ) throws {
+        maxOutputBytes: Int
+    ) throws -> Data {
         var stream = z_stream()
         let initStatus = inflateInit2_(
             &stream,
@@ -142,12 +143,9 @@ internal enum GzipStreamReader {
         }
         defer { inflateEnd(&stream) }
 
-        if output.streamStatus == .notOpen {
-            output.open()
-        }
-
         let bufferSize = 64 * 1024
         var outputBuffer = [UInt8](repeating: 0, count: bufferSize)
+        var result = Data()
 
         try data.withUnsafeBytes { (inputPtr: UnsafeRawBufferPointer) in
             let inputBase = inputPtr.bindMemory(to: UInt8.self).baseAddress
@@ -169,11 +167,11 @@ internal enum GzipStreamReader {
                 }
 
                 if produced > 0 {
-                    let written = outputBuffer.withUnsafeBufferPointer { outBuf in
-                        output.write(outBuf.baseAddress!, maxLength: produced)
+                    if result.count + produced > maxOutputBytes {
+                        throw ZlibError.outputTooLarge(limit: maxOutputBytes)
                     }
-                    if written != produced {
-                        throw ZlibError.outputWriteFailed
+                    outputBuffer.withUnsafeBufferPointer { outBuf in
+                        result.append(outBuf.baseAddress!, count: produced)
                     }
                 }
 
@@ -186,5 +184,7 @@ internal enum GzipStreamReader {
                 }
             }
         }
+
+        return result
     }
 }

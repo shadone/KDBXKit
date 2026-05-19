@@ -22,15 +22,12 @@ enum LegacyBinaryDecompressor {
         _ data: Data,
         maxDecompressedPayloadSize: Int = KDBXReader.maxDecompressedPayloadSize
     ) throws(Error) -> Data {
-        let output = CappedDataOutputStream(cap: maxDecompressedPayloadSize)
         do {
-            try GzipStreamReader.decompress(data, into: output)
+            return try GzipStreamReader.decompress(data, maxOutputBytes: maxDecompressedPayloadSize)
+        } catch ZlibError.outputTooLarge {
+            throw .decompressedPayloadTooLarge(limit: maxDecompressedPayloadSize)
         } catch {
-            if output.overflowed {
-                throw .decompressedPayloadTooLarge(limit: maxDecompressedPayloadSize)
-            }
             throw .decompressionFailed(reason: "\(error)")
         }
-        return output.collected
     }
 }

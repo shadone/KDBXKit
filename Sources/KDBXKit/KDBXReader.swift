@@ -397,19 +397,16 @@ public struct KDBXReader: Sendable {
             break
 
         case .gzip:
-            // Stream-decompress into a capped buffer so a malformed or
-            // crafted payload that would inflate without bound fails
-            // mid-inflation rather than after the fact.
-            let output = CappedDataOutputStream(cap: maxDecompressedPayloadSize)
+            // Decompress with a hard size cap so a malformed or crafted
+            // payload that would inflate without bound fails mid-inflation
+            // rather than after a runaway allocation.
             do {
-                try GzipStreamReader.decompress(payload, into: output)
+                payload = try GzipStreamReader.decompress(payload, maxOutputBytes: maxDecompressedPayloadSize)
+            } catch ZlibError.outputTooLarge {
+                throw Error.decompressedPayloadTooLarge(limit: maxDecompressedPayloadSize)
             } catch {
-                if output.overflowed {
-                    throw Error.decompressedPayloadTooLarge(limit: maxDecompressedPayloadSize)
-                }
                 throw Error.corruptedXML(reason: "Failed to decompress: \(error)")
             }
-            payload = output.collected
         }
 
         // MARK: 4.a.i.1 Parse Inner Header

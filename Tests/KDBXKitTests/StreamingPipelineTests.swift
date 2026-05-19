@@ -79,9 +79,7 @@ struct StreamingPipelineTests {
         #expect(collector.collected.count >= 18) // 10 header + 8 footer
         #expect(collector.collected.prefix(2) == Data([0x1F, 0x8B]))
 
-        let output = OutputStream(toMemory: ())
-        try GzipStreamReader.decompress(collector.collected, into: output)
-        let decompressed = (output.property(forKey: .dataWrittenToMemoryStreamKey) as? Data) ?? Data()
+        let decompressed = try GzipStreamReader.decompress(collector.collected, maxOutputBytes: 1_000_000)
         #expect(decompressed == payload)
     }
 }

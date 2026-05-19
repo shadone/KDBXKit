@@ -11,43 +11,30 @@ import Testing
 @Suite("Decompression cap — defensive bound against unbounded inflation")
 struct DecompressionCapTests {
 
-    // MARK: CappedDataOutputStream — unit
+    // MARK: GzipStreamReader — unit
 
-    @Test("Writes under the cap succeed and accumulate")
-    func underCap_accumulates() {
-        let stream = CappedDataOutputStream(cap: 10)
-        let written = "hello".utf8.withContiguousStorageIfAvailable { buffer -> Int in
-            stream.write(buffer.baseAddress!, maxLength: buffer.count)
+    @Test("Decompress with a tight cap throws .outputTooLarge")
+    func tinyCap_throwsOutputTooLarge() throws {
+        // Produce a gzip stream that decompresses to far more than the cap.
+        let plaintext = Data(repeating: 0x41, count: 10_000)
+        let gz = try GzipOneShot.compress(plaintext)
+
+        do {
+            _ = try GzipStreamReader.decompress(gz, maxOutputBytes: 100)
+            Issue.record("Expected .outputTooLarge")
+        } catch ZlibError.outputTooLarge(let limit) {
+            #expect(limit == 100)
+        } catch {
+            Issue.record("Wrong error: \(error)")
         }
-        #expect(written == 5)
-        #expect(stream.collected.count == 5)
-        #expect(stream.overflowed == false)
     }
 
-    @Test("Write that crosses the cap is rejected with -1")
-    func overCap_rejected() {
-        let stream = CappedDataOutputStream(cap: 3)
-        let written = "hello".utf8.withContiguousStorageIfAvailable { buffer -> Int in
-            stream.write(buffer.baseAddress!, maxLength: buffer.count)
-        }
-        #expect(written == -1)
-        #expect(stream.overflowed)
-    }
-
-    @Test("Exactly-at-cap write succeeds; one past the cap is rejected")
-    func boundaryCases() {
-        let stream = CappedDataOutputStream(cap: 5)
-        _ = "hello".utf8.withContiguousStorageIfAvailable { buffer -> Int in
-            stream.write(buffer.baseAddress!, maxLength: buffer.count)
-        }
-        #expect(stream.collected.count == 5)
-        #expect(stream.overflowed == false)
-
-        let again = "x".utf8.withContiguousStorageIfAvailable { buffer -> Int in
-            stream.write(buffer.baseAddress!, maxLength: buffer.count)
-        }
-        #expect(again == -1)
-        #expect(stream.overflowed)
+    @Test("Decompress under the cap succeeds and returns the full payload")
+    func underCap_succeeds() throws {
+        let plaintext = Data(repeating: 0x41, count: 100)
+        let gz = try GzipOneShot.compress(plaintext)
+        let out = try GzipStreamReader.decompress(gz, maxOutputBytes: 1024)
+        #expect(out == plaintext)
     }
 
     // MARK: KDBXReader integration
