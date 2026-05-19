@@ -168,3 +168,61 @@ ordering is informative.
 Implementation reference: `HeaderFieldType.swift` (record IDs and value
 types), `HeaderReader.swift` (parsing loop and rejection rules),
 `HeaderWriter.swift` (emission order).
+
+## 4. Variant dictionary encoding
+
+A variant dictionary is a length-prefixed key-value map used inside two
+header records: `KDFParameters` (Section 6) and `PublicCustomData`
+(Section 3.1). The same encoding is used in both places.
+
+### 4.1 Grammar
+
+    VariantDict   = Version Item* Terminator
+    Version       = UInt16-LE        ; current value 0x0100 (major 1)
+    Terminator    = 0x00
+    Item          = Type:UInt8
+                    KeyLen:Int32-LE Key:Byte[KeyLen]
+                    ValueLen:Int32-LE Value:Byte[ValueLen]
+    Type          = 0x04 / 0x05 / 0x08 / 0x0C / 0x0D / 0x18 / 0x42
+
+The version field is read as a single UInt16 little-endian; the high
+byte is the major version and MUST equal `0x01`. The low byte is the
+minor version; a reader MUST accept any minor.
+
+`KeyLen` is the byte length of the UTF-8-encoded key, stored as a
+signed Int32 little-endian. A reader MUST reject any `KeyLen` that is
+zero or negative. `ValueLen` is the byte length of the value as encoded
+on disk, stored as a signed Int32 little-endian. A reader MUST reject
+any `ValueLen` that is zero or negative.
+
+The terminator byte `0x00` MUST be present; a stream that ends without
+encountering `0x00` is a parse error (the reader MUST reject it with an
+unexpected-EOF error).
+
+### 4.2 Value types
+
+| Tag  | Type      | Encoding                                  |
+|------|-----------|-------------------------------------------|
+| 0x04 | UInt32    | 4 bytes, little-endian                    |
+| 0x05 | UInt64    | 8 bytes, little-endian                    |
+| 0x08 | Bool      | 1 byte; 0x00 = false, 0x01 = true         |
+| 0x0C | Int32     | 4 bytes, little-endian, two's complement  |
+| 0x0D | Int64     | 8 bytes, little-endian, two's complement  |
+| 0x18 | String    | UTF-8 bytes, no terminator                |
+| 0x42 | ByteArray | raw bytes, no length prefix beyond ValueLen |
+
+Unknown type tags SHOULD be skipped: KDBXKit reads the key and value
+bytes (advancing the stream past the full item) and logs the unknown
+type at debug level before continuing to the next item. A strict reader
+MAY reject an unknown tag with a parse error instead.
+
+### 4.3 Ordering and duplicate keys
+
+Items MAY appear in any order. Implementations MUST NOT rely on
+specific ordering. Duplicate keys within a single dictionary cause the
+later value to silently overwrite the earlier one; KDBXKit does not
+detect or reject duplicates. Writers SHOULD NOT emit duplicate keys.
+
+Implementation reference: `VariantDictionary.swift`,
+`VariantDictionaryValueType.swift`, `VariantDictionaryReader.swift`
+(grammar enforcement), `VariantDictionaryWriter.swift` (emission).
