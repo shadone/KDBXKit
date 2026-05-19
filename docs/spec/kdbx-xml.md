@@ -154,7 +154,7 @@ Implementation reference: `Database/XMLDocumentWriter.swift`
 (`KeePassFile` element construction and child ordering),
 `Database/XMLDocumentReader.swift`
 (`KeePassFile` element check and root dispatch),
-`Database/KDBX_XML.xsd` (schema).
+[`KDBX_XML.xsd`](KDBX_XML.xsd) (schema).
 
 ## 2. Meta element
 
@@ -833,7 +833,7 @@ helpers),
 `Database/XMLDocumentReader.swift` (`DateFormat` enum, `parseDate`,
 `parseTimes`, `parseISO8601`),
 `Database/XMLDocumentWriter.swift` (`encode(_:Date)`, `write(_:Times:to:)`),
-`Database/KDBX_XML.xsd` (`TDateTime` type definition).
+[`KDBX_XML.xsd`](KDBX_XML.xsd) (`TDateTime` type definition).
 
 ## 9. CustomData and CustomDataItem
 
@@ -1029,8 +1029,8 @@ Implementation reference: `KDBX/Color.swift`,
 
 ## Appendix A (Normative): XML Schema reference
 
-The canonical XML schema for KDBX 4.x is checked into KDBXKit at
-`Sources/KDBXKit/Database/KDBX_XML.xsd`. That file is the
+The canonical XML schema for KDBX 4.x lives alongside this
+document at [`KDBX_XML.xsd`](KDBX_XML.xsd). That file is the
 authoritative reference for element names, attribute names,
 cardinalities, and value types. It is copyright (C) 2007-2025
 Dominik Reichl and is published at

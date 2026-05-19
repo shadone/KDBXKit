@@ -95,13 +95,6 @@ let package = Package(
                 "CZlib",
                 "argon2",
             ],
-            exclude: [
-                // Reference-only: the canonical KDBX 4.1 XML schema
-                // (Dominik Reichl, BSD-licensed). Kept next to the
-                // XML reader/writer so format-touching code can look
-                // it up; not compiled or bundled.
-                "Database/KDBX_XML.xsd",
-            ],
             resources: [
                 // Apple-platform privacy manifest. Declares no
                 // tracking, no data collection, no required-reason
