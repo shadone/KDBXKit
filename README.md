@@ -45,8 +45,7 @@ try bytes.write(to: url)
 | **Streaming attachments** | lazy reader + streaming writer keep binaries off the heap; peak save memory is one attachment plus pipeline buffers, regardless of vault size |
 | **Interop** | round-trip tested against KeePassXC `keepassxc-cli` (gated suite); malformed-input fuzz tests guard against crash-on-bad-data |
 | **Concurrency** | Swift 6 strict-concurrency clean, all public types `Sendable` |
-| **Read** | KDBX 3.1, 4.0, 4.1 |
-| **Write** | KDBX 4.1 — 3.x files migrate on save, surfaced via `LegacyFormatNotice` |
+| **Supported versions** | KDBX 4.1, 4.0, KDBX 3.1 (read-only) |
 | **Ciphers** | AES-256-CBC, ChaCha20 |
 | **KDFs** | AES-KDF, Argon2d, Argon2id |
 | **Inner stream** | Salsa20, ChaCha20 |
@@ -55,9 +54,10 @@ try bytes.write(to: url)
 
 ## Requirements
 
-| Swift | macOS | iOS | Linux |
-|:-:|:-:|:-:|:-:|
-| 6.1+ | 15+ | 18+ | Swift 6.1 toolchain + zlib |
+- **Swift**: 6.1+
+- **macOS**: 15+
+- **iOS**: 18+
+- **Linux**: Swift 6.1 toolchain + zlib
 
 ## Installation
 
