@@ -7,6 +7,23 @@
 import Crypto
 import Foundation
 
+/// Errors raised while ingesting a user-supplied key file. Surfaced
+/// from the keyfile-accepting `UnlockData` initialisers. Distinct from
+/// ``UnlockDataError`` because credential ingestion and KDF derivation
+/// are independent failure modes, and keeping them separate avoids
+/// contaminating every `UnlockDataError` switch site with a case that
+/// can't occur there.
+public enum KeyFileError: Error, Sendable, Equatable {
+    /// The key file claims to be an XML v2.0 KeePass key file (it
+    /// carries a `Hash` attribute on the `<Data>` element) but the
+    /// SHA-256 of the decoded bytes does not match the truncated hash
+    /// in that attribute. KeePass/KeePassXC reject such files outright;
+    /// continuing with the decoded bytes would silently use a key
+    /// derived from corrupted material and surface as "wrong password"
+    /// rather than the real cause.
+    case checksumMismatch
+}
+
 /// Errors raised while turning a user-provided key into a vault unlock key.
 public enum UnlockDataError: Error, Sendable, Equatable {
     /// The KDF identified by this UUID isn't implemented by KDBXKit. The
@@ -60,14 +77,29 @@ public struct UnlockData: Sendable {
     /// bytes are zeroed when the last reference releases.
     let keyData: SecureBytes
 
-    /// Build an unlock from a master password and an optional key file.
-    public init(masterPassword: String, keyFile: Data? = nil) {
-        keyData = Self.makeKeyData(password: masterPassword, keyFile: keyFile)
+    /// Build an unlock from a master password alone.
+    public init(masterPassword: String) {
+        // No key file → no validation can fail. Use the throwing
+        // helper with `try!` because the only failure mode lives on
+        // the key-file path, which we're skipping.
+        keyData = try! Self.makeKeyData(password: masterPassword, keyFile: nil)
+    }
+
+    /// Build an unlock from a master password plus an optional key file.
+    ///
+    /// Throws ``KeyFileError`` when the key file is structurally an
+    /// XML v2.0 KeePass key file but its embedded checksum does not
+    /// match the decoded bytes.
+    public init(masterPassword: String, keyFile: Data?) throws(KeyFileError) {
+        keyData = try Self.makeKeyData(password: masterPassword, keyFile: keyFile)
     }
 
     /// Build an unlock from a key file alone (no password).
-    public init(keyFile: Data) {
-        keyData = Self.makeKeyData(password: nil, keyFile: keyFile)
+    ///
+    /// Throws ``KeyFileError`` on the same conditions as
+    /// ``init(masterPassword:keyFile:)``.
+    public init(keyFile: Data) throws(KeyFileError) {
+        keyData = try Self.makeKeyData(password: nil, keyFile: keyFile)
     }
 
     /// Build an unlock from already-derived key data — the 32-byte
@@ -168,7 +200,7 @@ public struct UnlockData: Sendable {
         }
     }
 
-    private static func makeKeyData(password: String?, keyFile: Data?) -> SecureBytes {
+    private static func makeKeyData(password: String?, keyFile: Data?) throws(KeyFileError) -> SecureBytes {
         // R = SHA-256( SHA-256(password.utf8) || normalized(keyFile) )
         var hasher = SHA256()
         if let password {
@@ -177,7 +209,7 @@ public struct UnlockData: Sendable {
             hasher.update(data: utf8.sha256())
         }
         if let keyFile {
-            hasher.update(data: normalizeKeyFile(keyFile))
+            hasher.update(data: try normalizeKeyFile(keyFile))
         }
         return SecureBytes(Data(hasher.finalize()))
     }
@@ -197,10 +229,10 @@ public struct UnlockData: Sendable {
     ///   (legacy hex keyfile).
     /// - Any other file: SHA-256 hash of the entire file (arbitrary binary
     ///   — what KeePassXC's CLI generates by default).
-    static func normalizeKeyFile(_ data: Data) -> Data {
+    static func normalizeKeyFile(_ data: Data) throws(KeyFileError) -> Data {
         // XML keyfile? Detect by a small prefix scan so we don't pay full
         // XML-parse cost on raw binary files.
-        if looksLikeXMLKeyFile(data), let extracted = parseXMLKeyFile(data) {
+        if looksLikeXMLKeyFile(data), let extracted = try parseXMLKeyFile(data) {
             return extracted
         }
         // v1 raw 32-byte keyfile.
@@ -229,9 +261,15 @@ public struct UnlockData: Sendable {
     }
 
     /// Parse a KeePass XML keyfile (v1 or v2) and return the 32-byte hash.
-    /// Returns nil on any parse / decode failure so the caller can fall
-    /// through to the next strategy.
-    private static func parseXMLKeyFile(_ data: Data) -> Data? {
+    /// Returns nil on any structural parse / decode failure so the
+    /// caller can fall through to the next strategy. Throws
+    /// ``KeyFileError/checksumMismatch`` when the file is unambiguously
+    /// an XML v2 key file (the `<Data>` element carries a `Hash`
+    /// attribute) but the embedded hash does not match the SHA-256 of
+    /// the decoded bytes — matching KeePass/KeePassXC behaviour, which
+    /// reject such files rather than silently using the corrupted
+    /// material.
+    private static func parseXMLKeyFile(_ data: Data) throws(KeyFileError) -> Data? {
         guard let xml = String(data: data, encoding: .utf8) else { return nil }
         guard let document = try? Document(string: xml) else { return nil }
         guard let root = document.root, root.name == "KeyFile" else { return nil }
@@ -248,7 +286,8 @@ public struct UnlockData: Sendable {
         text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return nil }
 
-        let isV2 = dataNode.attributes.contains { name, _ in name == "Hash" }
+        let hashAttribute = dataNode.attributes.first { name, _ in name == "Hash" }?.1
+        let isV2 = hashAttribute != nil
 
         let decoded: Data?
         if isV2 {
@@ -270,11 +309,42 @@ public struct UnlockData: Sendable {
 
         guard let bytes = decoded, bytes.count == 32 else { return nil }
 
-        // v2 integrity check: first 4 bytes of SHA-256(decoded) as
-        // uppercase hex must equal the Hash attribute. We log via debug
-        // (no logger plumbed here) but still return the bytes — KeePass
-        // itself treats the check as advisory.
+        // v2 integrity check. The `Hash` attribute carries the first 4
+        // bytes of SHA-256(decoded), hex-encoded. KeePass and KeePassXC
+        // both reject the file on mismatch; do the same.
+        if let hashAttribute {
+            let expectedFirstFour = bytes.sha256().prefix(4)
+            guard let attributeBytes = hexDecode(hashAttribute), attributeBytes.count >= 4 else {
+                // Hash attribute is present but not parseable as hex →
+                // structurally invalid v2 key file.
+                throw .checksumMismatch
+            }
+            if !ConstantTime.equals(Data(expectedFirstFour), attributeBytes.prefix(4)) {
+                throw .checksumMismatch
+            }
+        }
+
         return bytes
+    }
+
+    /// Hex-decode an ASCII hex string into a `Data`. Whitespace is
+    /// tolerated, case is not significant. Any non-ASCII or non-hex
+    /// character, or an odd-length input, returns nil.
+    private static func hexDecode(_ string: String) -> Data? {
+        let stripped = string.filter { !$0.isWhitespace }
+        guard stripped.count.isMultiple(of: 2) else { return nil }
+        var out = Data(capacity: stripped.count / 2)
+        var iter = stripped.unicodeScalars.makeIterator()
+        while let hi = iter.next(), let lo = iter.next() {
+            guard hi.value < 128, lo.value < 128,
+                  let hiVal = hexValue(UInt8(hi.value)),
+                  let loVal = hexValue(UInt8(lo.value))
+            else {
+                return nil
+            }
+            out.append(UInt8(hiVal << 4 | loVal))
+        }
+        return out
     }
 
     /// Decode a 64-byte ASCII hex string into 32 bytes. Returns nil if any

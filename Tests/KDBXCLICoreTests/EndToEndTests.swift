@@ -45,7 +45,7 @@ struct EndToEndTests {
         let keyBytes = Data((0..<32).map { UInt8($0) })
         try keyBytes.write(to: keyFile)
 
-        let unlock = UnlockData(keyFile: keyBytes)
+        let unlock = try UnlockData(keyFile: keyBytes)
         let content = KDBXContent.makeEmpty(databaseName: "test", kdf: .fast)
         try VaultWriting.writeAtomically(content: content, unlockData: unlock, to: vault, backup: false)
 
@@ -57,7 +57,7 @@ struct EndToEndTests {
     /// not in-memory mutations.
     private func reopen(_ sandbox: Sandbox) throws -> KDBXContent {
         let keyBytes = try Data(contentsOf: sandbox.keyFile)
-        let unlock = UnlockData(keyFile: keyBytes)
+        let unlock = try UnlockData(keyFile: keyBytes)
         guard case let .success(content, _) = try read(from: sandbox.vault.path, unlockData: unlock) else {
             Issue.record("vault failed to unlock with the sandbox key file")
             throw EndToEndError.unlockFailed

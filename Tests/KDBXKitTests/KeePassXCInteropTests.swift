@@ -81,14 +81,14 @@ struct KeePassXCInteropTests {
     }
 
     @Test(
-        "Round-trip through KeePassXC preserves comma-tags written as semicolon-tags",
+        "Round-trip through KeePassXC preserves comma-separated tags",
         .enabled(if: KeePassXCInteropTests.cliAvailable, "KeePassXC CLI not installed")
     )
     func ourOutput_preservesTagsAcrossDialects() throws {
         // kpxc-extras carries `2fa,login,work` (KeePassXC's comma dialect).
-        // Our reader splits on either separator; our writer emits `;`.
-        // The real test: KeePassXC must still find the entry (and round-trip
-        // the tag attribute as it likes) when we hand back `;`-separated.
+        // Our reader splits on either `;` or `,`; our writer emits `,` to
+        // match KeePassXC's preferred form. The real test: KeePassXC must
+        // still find the entry and round-trip the tag attribute.
         let path = Bundle.module.path(forResource: "Resources/kpxc-extras", ofType: "kdbx")!
         let data = try Data(contentsOf: URL(filePath: path))
         let unlock = UnlockData(masterPassword: "test")
@@ -107,7 +107,7 @@ struct KeePassXCInteropTests {
 
         let output = try runCLI(["show", outPath, "GitHub"], stdin: "test\n")
         // KeePassXC's `show` prints the tags line. Our writer emits them
-        // semicolon-separated; KeePassXC accepts either form.
+        // comma-separated (matching KeePassXC); KeePassXC accepts either form.
         #expect(output.contains("Tags:"))
         #expect(output.contains("2fa"))
         #expect(output.contains("login"))
@@ -130,7 +130,7 @@ struct KeePassXCInteropTests {
         let kfPath = Bundle.module.path(forResource: "Resources/kpxc-keyfile", ofType: "key")!
         let data = try Data(contentsOf: URL(filePath: dbPath))
         let keyFile = try Data(contentsOf: URL(filePath: kfPath))
-        let unlock = UnlockData(masterPassword: "123", keyFile: keyFile)
+        let unlock = try UnlockData(masterPassword: "123", keyFile: keyFile)
 
         var reader = KDBXReader(data)
         let content = try reader.parse(unlockData: unlock)

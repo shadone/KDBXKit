@@ -50,9 +50,9 @@ struct NewCredentialOptions: ParsableArguments {
                 guard let keyFileData else {
                     throw NewCredentialError.stdinEmpty
                 }
-                return UnlockData(keyFile: keyFileData)
+                return try UnlockData(keyFile: keyFileData)
             }
-            return UnlockData(masterPassword: password, keyFile: keyFileData)
+            return try UnlockData(masterPassword: password, keyFile: keyFileData)
         }
 
         if isatty(STDIN_FILENO) != 0 {
@@ -61,14 +61,14 @@ struct NewCredentialOptions: ParsableArguments {
                 throw NewCredentialError.emptyPassword
             }
             if password.isEmpty {
-                return UnlockData(keyFile: keyFileData!)
+                return try UnlockData(keyFile: keyFileData!)
             }
-            return UnlockData(masterPassword: password, keyFile: keyFileData)
+            return try UnlockData(masterPassword: password, keyFile: keyFileData)
         }
 
         // No stdin, no TTY: maybe key-file-only is enough.
         if let keyFileData {
-            return UnlockData(keyFile: keyFileData)
+            return try UnlockData(keyFile: keyFileData)
         }
         throw NewCredentialError.noSource
     }

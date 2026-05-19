@@ -78,19 +78,19 @@ struct CredentialOptions: ParsableArguments {
             if password.isEmpty {
                 throw CredentialError.stdinEmpty
             }
-            return UnlockData(masterPassword: password, keyFile: keyFileData)
+            return try UnlockData(masterPassword: password, keyFile: keyFileData)
         }
 
         if !noEnv,
            let password = ProcessInfo.processInfo.environment["KDBX_PASSWORD"],
            !password.isEmpty
         {
-            return UnlockData(masterPassword: password, keyFile: keyFileData)
+            return try UnlockData(masterPassword: password, keyFile: keyFileData)
         }
 
         if let keyFileData {
             // Key file alone is a valid unlock.
-            return UnlockData(keyFile: keyFileData)
+            return try UnlockData(keyFile: keyFileData)
         }
 
         guard requireUnlock else {
@@ -99,7 +99,7 @@ struct CredentialOptions: ParsableArguments {
 
         if isatty(STDIN_FILENO) != 0 {
             let password = promptForPassword()
-            return UnlockData(masterPassword: password, keyFile: nil)
+            return UnlockData(masterPassword: password)
         }
 
         throw CredentialError.noCredentialsAndNotTTY

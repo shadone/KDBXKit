@@ -19,7 +19,7 @@ struct KeyFileTests {
     func passwordAndKeyFile() throws {
         let content = KDBXContent.makeEmpty(databaseName: "WithKeyFile", kdf: .fast)
         let keyFile = Data((0..<64).map { _ in UInt8.random(in: 0...255) })
-        let unlock = UnlockData(masterPassword: "pw", keyFile: keyFile)
+        let unlock = try UnlockData(masterPassword: "pw", keyFile: keyFile)
 
         let bytes = try writeToMemory(content, unlockData: unlock)
         let reopened = try KDBXReader.parse(bytes, unlockData: unlock)
@@ -30,7 +30,7 @@ struct KeyFileTests {
     func keyFileOnly() throws {
         let content = KDBXContent.makeEmpty(databaseName: "KeyOnly", kdf: .fast)
         let keyFile = Data((0..<64).map { _ in UInt8.random(in: 0...255) })
-        let unlock = UnlockData(keyFile: keyFile)
+        let unlock = try UnlockData(keyFile: keyFile)
 
         let bytes = try writeToMemory(content, unlockData: unlock)
         let reopened = try KDBXReader.parse(bytes, unlockData: unlock)
@@ -49,36 +49,36 @@ struct KeyFileTests {
     // first case with other implementations.
 
     @Test("Keyfile normalization: 32 raw bytes passes through unchanged")
-    func normalize_raw32() {
+    func normalize_raw32() throws {
         let raw = Data((0..<32).map { UInt8($0) })
-        #expect(UnlockData.normalizeKeyFile(raw) == raw)
+        #expect(try UnlockData.normalizeKeyFile(raw) == raw)
     }
 
     @Test("Keyfile normalization: 64 ASCII hex decodes to 32 bytes")
-    func normalize_hex64() {
+    func normalize_hex64() throws {
         // Mixed case hex; expect 0x00..0x1F.
         let hex = "000102030405060708090a0b0c0d0e0f101112131415161718191A1B1C1D1E1F"
-        let decoded = UnlockData.normalizeKeyFile(Data(hex.utf8))
+        let decoded = try UnlockData.normalizeKeyFile(Data(hex.utf8))
         #expect(decoded == Data((0..<32).map { UInt8($0) }))
     }
 
     @Test("Keyfile normalization: 64 bytes that aren't valid hex fall back to SHA-256")
-    func normalize_64nonHex() {
+    func normalize_64nonHex() throws {
         // 64 bytes of 0xFF — not valid ASCII hex.
         let blob = Data(repeating: 0xFF, count: 64)
-        let normalized = UnlockData.normalizeKeyFile(blob)
+        let normalized = try UnlockData.normalizeKeyFile(blob)
         #expect(normalized == Data(SHA256.hash(data: blob)))
     }
 
     @Test("Keyfile normalization: arbitrary binary file is SHA-256-hashed")
-    func normalize_arbitraryBinary() {
+    func normalize_arbitraryBinary() throws {
         let blob = Data((0..<200).map { UInt8($0 & 0xFF) })
-        let normalized = UnlockData.normalizeKeyFile(blob)
+        let normalized = try UnlockData.normalizeKeyFile(blob)
         #expect(normalized == Data(SHA256.hash(data: blob)))
     }
 
     @Test("Keyfile normalization: v1 XML keyfile (hex inside <Data>) parses to 32 bytes")
-    func normalize_xmlV1Hex() {
+    func normalize_xmlV1Hex() throws {
         let xml = """
             <?xml version="1.0" encoding="utf-8"?>
             <KeyFile>
@@ -88,28 +88,53 @@ struct KeyFileTests {
                 </Key>
             </KeyFile>
             """
-        let normalized = UnlockData.normalizeKeyFile(Data(xml.utf8))
+        let normalized = try UnlockData.normalizeKeyFile(Data(xml.utf8))
         #expect(normalized == Data((0..<32).map { UInt8($0) }))
     }
 
     @Test("Keyfile normalization: v2 XML keyfile (base64 + Hash attribute) parses to 32 bytes")
-    func normalize_xmlV2Base64() {
+    func normalize_xmlV2Base64() throws {
         // base64 of bytes 0x00..0x1F:
         let xml = """
             <?xml version="1.0" encoding="utf-8"?>
             <KeyFile>
                 <Meta><Version>2.0</Version></Meta>
                 <Key>
-                    <Data Hash="50E03C97">AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=</Data>
+                    <Data Hash="630DCD29">AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=</Data>
                 </Key>
             </KeyFile>
             """
-        let normalized = UnlockData.normalizeKeyFile(Data(xml.utf8))
+        let normalized = try UnlockData.normalizeKeyFile(Data(xml.utf8))
         #expect(normalized == Data((0..<32).map { UInt8($0) }))
     }
 
+    /// A v2 XML key file with a Hash attribute that does not match
+    /// SHA-256(decodedBytes)[0..4] MUST be rejected outright. KeePass
+    /// and KeePassXC both treat this as fatal; silently falling
+    /// through to the SHA-256-of-the-file fallback would let an
+    /// undetected bit-flip in the key file produce a wrong derived
+    /// key, surfacing as "wrong password" with no diagnostic.
+    @Test("Keyfile normalization: v2 XML keyfile with mismatched Hash is rejected")
+    func normalize_xmlV2BadHashIsRejected() {
+        // Decoded bytes are 0x00..0x1F, whose SHA-256[0..4] is
+        // 630DCD29 (see normalize_xmlV2Base64 above). The Hash here
+        // is wrong.
+        let xml = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <KeyFile>
+                <Meta><Version>2.0</Version></Meta>
+                <Key>
+                    <Data Hash="DEADBEEF">AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=</Data>
+                </Key>
+            </KeyFile>
+            """
+        #expect(throws: KeyFileError.checksumMismatch) {
+            _ = try UnlockData.normalizeKeyFile(Data(xml.utf8))
+        }
+    }
+
     @Test("Keyfile normalization: malformed XML keyfile falls through to SHA-256 fallback")
-    func normalize_malformedXMLFallsThrough() {
+    func normalize_malformedXMLFallsThrough() throws {
         // Looks like XML (has `<KeyFile`) but the Data element is bogus.
         let xml = """
             <?xml version="1.0" encoding="utf-8"?>
@@ -120,7 +145,7 @@ struct KeyFileTests {
             </KeyFile>
             """
         let blob = Data(xml.utf8)
-        let normalized = UnlockData.normalizeKeyFile(blob)
+        let normalized = try UnlockData.normalizeKeyFile(blob)
         // Falls through to SHA-256(file) — a defensive choice rather than
         // throwing; produces a stable-but-different unlock key for
         // unrecognized shapes.
@@ -141,7 +166,7 @@ struct KeyFileTests {
 
         let content = try KDBXReader.parse(
             data,
-            unlockData: .init(masterPassword: "123", keyFile: keyFile)
+            unlockData: try .init(masterPassword: "123", keyFile: keyFile)
         )
         #expect(content.database.meta.databaseName != nil)
     }
@@ -152,10 +177,10 @@ struct KeyFileTests {
         let keyA = Data(repeating: 0xAA, count: 64)
         let keyB = Data(repeating: 0xBB, count: 64)
 
-        let bytes = try writeToMemory(content, unlockData: .init(masterPassword: "pw", keyFile: keyA))
+        let bytes = try writeToMemory(content, unlockData: try .init(masterPassword: "pw", keyFile: keyA))
 
         #expect(throws: KDBXReader.Error.wrongCredentials) {
-            _ = try KDBXReader.parse(bytes, unlockData: .init(masterPassword: "pw", keyFile: keyB))
+            _ = try KDBXReader.parse(bytes, unlockData: try .init(masterPassword: "pw", keyFile: keyB))
         }
     }
 
@@ -166,7 +191,7 @@ struct KeyFileTests {
         let bytes = try writeToMemory(content, unlockData: .init(masterPassword: "pw"))
 
         #expect(throws: KDBXReader.Error.wrongCredentials) {
-            _ = try KDBXReader.parse(bytes, unlockData: .init(masterPassword: "pw", keyFile: keyFile))
+            _ = try KDBXReader.parse(bytes, unlockData: try .init(masterPassword: "pw", keyFile: keyFile))
         }
     }
 
