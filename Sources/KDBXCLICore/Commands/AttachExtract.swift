@@ -65,7 +65,7 @@ extension Attach {
             if let outputPath {
                 try bytes.write(to: URL(filePath: outputPath))
             } else {
-                if isatty(fileno(stdout)) != 0 {
+                if isatty(STDOUT_FILENO) != 0 {
                     throw AttachError.refuseTTY
                 }
                 FileHandle.standardOutput.write(bytes)

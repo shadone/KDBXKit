@@ -97,7 +97,7 @@ struct CredentialOptions: ParsableArguments {
             return nil
         }
 
-        if isatty(fileno(stdin)) != 0 {
+        if isatty(STDIN_FILENO) != 0 {
             let password = promptForPassword()
             return UnlockData(masterPassword: password, keyFile: nil)
         }
@@ -129,15 +129,15 @@ private func promptForPassword(prompt: String = "Master password: ") -> String {
     FileHandle.standardError.write(Data(prompt.utf8))
 
     var oldTerm = termios()
-    let haveTermios = tcgetattr(fileno(stdin), &oldTerm) == 0
+    let haveTermios = tcgetattr(STDIN_FILENO, &oldTerm) == 0
     if haveTermios {
         var newTerm = oldTerm
         newTerm.c_lflag &= ~tcflag_t(ECHO)
-        _ = tcsetattr(fileno(stdin), TCSAFLUSH, &newTerm)
+        _ = tcsetattr(STDIN_FILENO, TCSAFLUSH, &newTerm)
     }
     defer {
         if haveTermios {
-            _ = tcsetattr(fileno(stdin), TCSAFLUSH, &oldTerm)
+            _ = tcsetattr(STDIN_FILENO, TCSAFLUSH, &oldTerm)
         }
         FileHandle.standardError.write(Data("\n".utf8))
     }
