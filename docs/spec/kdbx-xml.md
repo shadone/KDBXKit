@@ -104,3 +104,52 @@ specific to the XML payload:
 12. Appendix B (normative): Test vectors
 13. Appendix C (informative): Parser-warnings catalogue
 14. References
+
+## 1. Document structure
+
+The inner payload, after the inner header (container §12), is an XML
+document with the following top-level structure:
+
+    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    <KeePassFile>
+      <Meta> ... </Meta>
+      <Root> ... </Root>
+    </KeePassFile>
+
+### 1.1 XML declaration
+
+The first bytes of the inner payload MUST be an XML declaration. The
+declaration MUST carry `version="1.0"` and SHOULD carry
+`encoding="UTF-8"`. KeePassXC's parser rejects documents missing the
+`version` attribute, even when an encoding is present; producers MUST
+emit both.
+
+KDBXKit emits `standalone="yes"` in addition to the version and
+encoding attributes. Consumers MUST ignore unknown declaration
+attributes; the `standalone` attribute has no semantic effect on the
+inner payload and is included for strict-parser compatibility.
+
+### 1.2 KeePassFile element
+
+`KeePassFile` is the document root. It has no attributes. It contains
+exactly two children, in order:
+
+1. `Meta` (exactly 1) — see §2.
+2. `Root` (exactly 1) — see §3.
+
+A KDBX 4.x reader MUST reject a document whose root is not
+`KeePassFile`, or whose root is missing either child, with a parse
+error.
+
+KDBXKit captures unrecognised elements anywhere in the document into
+``KDBXContent.parserWarnings`` (a list of strings). Producers MUST
+NOT rely on unrecognised elements being preserved on a round-trip —
+KDBXKit's reader silently drops them and the writer does not
+re-emit. See Appendix C for the catalogue of warnings observed in
+the wild.
+
+Implementation reference: `Database/XMLDocumentWriter.swift`
+(`KeePassFile` element construction and child ordering),
+`Database/XMLDocumentReader.swift`
+(`KeePassFile` element check and root dispatch),
+`Database/KDBX_XML.xsd` (schema).
