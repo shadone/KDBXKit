@@ -116,4 +116,5 @@ the document map permits (it does not — see Section 3 for the closed
 record set).
 
 Implementation reference: `KDBXReader.swift` (version dispatch),
-`Header.swift §FormatVersion` enum.
+`Header.swift §FormatVersion` (struct with `static let` members
+`v3_1`, `v4_0`, `v4_1`).
