@@ -643,22 +643,27 @@ and so on.
 
 The first byte of a `Binary` record's value is a flags byte:
 
-    bit 0 (0x01) — protected. Bytes are XOR-masked by the inner stream
-                   cipher (Section 13) at the position determined by
-                   the inner stream's per-payload progression.
+    bit 0 (0x01) — protected (memory-protection hint; see below).
     bits 1-7    — reserved; MUST be zero on emit; readers MAY tolerate
                    non-zero values for forward compatibility.
 
 KDBXKit interprets the flags byte with an exact-equality check
-(`flags == 0x01`) when setting the `shouldBeProtected` property; bits
-1-7 are therefore currently treated as part of the opaque flags byte
-rather than isolated. Writers MUST emit `0x00` (unprotected) or
-`0x01` (protected) for this byte.
+(`flags == 0x01`) when setting the `shouldBeProtected` property;
+bits 1-7 are therefore currently treated as part of the opaque flags
+byte rather than isolated. Writers MUST emit `0x00` (unprotected)
+or `0x01` (protected) for this byte.
 
-Unprotected binaries are stored verbatim. Protected binaries are
-XOR'd with keystream bytes drawn from the inner stream cipher in the
-same global order as protected XML strings (Section 13 details the
-ordering rule).
+[Implementation note: The "protected" flag does NOT cause the
+binary's bytes to be XOR-masked by the inner stream cipher in
+KDBXKit's current implementation. The bytes are stored verbatim
+inside the inner header regardless of the flag value. The flag is
+treated as an in-process hint that the binary contains sensitive
+material (and so should be held in `SecureBytes` or similar while
+unlocked). See §13.3 for the keystream consumption order, which
+covers protected XML string values only. This may diverge from
+other KDBX implementations; cross-implementation behaviour with
+respect to this flag is an open question that this specification
+does not resolve.]
 
 Implementation reference: `InnerHeaderFieldType.swift`,
 `InnerHeader.swift`, `InnerHeaderReader.swift`,
