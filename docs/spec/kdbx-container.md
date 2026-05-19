@@ -946,3 +946,101 @@ A round-trip test:
    `toVariantDictionary()` and `VariantDictionaryWriter`.
 3. The output byte sequence MUST be byte-identical to the input
    (when `regenerateSalts: false` is used at the writer level).
+
+### B.2 Header HMAC
+
+Source: `simple-argon2id-aes256.kdbx`, password `"123"`.
+
+Outer header TLV records run from file offset 12 through the end of
+the `EndOfHeader` value. The byte immediately after that value is the
+start of the HeaderHash + HeaderHMAC pair:
+
+```
+endOfHeaderOffset = 253 (0x00FD)  ; bytes 12 .. 252 are the header bytes hashed and HMAC'd
+```
+
+TLV walk from offset 12 to EndOfHeader:
+
+| FileOffset | Type | TypeName         | Len | ValueOffset |
+|------------|------|------------------|-----|-------------|
+| 12 (0x000C)  | 0x02 | CipherID         |  16 | 17          |
+| 33 (0x0021)  | 0x03 | CompressionFlags |   4 | 38          |
+| 42 (0x002A)  | 0x04 | MasterSeed       |  32 | 47          |
+| 79 (0x004F)  | 0x07 | EncryptionIV     |  16 | 84          |
+| 100 (0x0064) | 0x0B | KdfParameters    | 139 | 105         |
+| 244 (0x00F4) | 0x00 | EndOfHeader      |   4 | 249         |
+
+The `EndOfHeader` value is `0D 0A 0D 0A` (4 bytes); it ends at offset
+252. `endOfHeaderOffset = 253`.
+
+Observed values in the fixture:
+
+```
+HeaderHash  (32 bytes at offset 253)      = 3B 50 87 B0 33 A6 A9 95 95 AD ED 25 8F EA 5A 07
+                                            AD E8 99 77 8B 9A 8C 60 F7 09 6E C5 B4 60 D2 00
+
+HeaderHMAC  (32 bytes at offset 285)      = D8 8A E9 42 06 27 7F 0E 8A BE 56 57 64 9E 69 08
+                                            89 6D 27 DA 37 F8 E5 26 71 1D 2E 1C EB 02 34 AB
+```
+
+Verification recipe:
+
+```
+H(password)      = SHA-256( UTF-8("123") )
+                 = A6 65 A4 59 20 42 2F 9D 41 7E 48 67 EF DC 4F B8
+                   A0 4A 1F 3F FF 1F A0 7E 99 8E 86 F7 F7 A2 7A E3
+composite        = SHA-256( H(password) )          ; (no key file)
+transformedKey   = Argon2id( password  = composite,
+                             salt      = 14 4C 62 06 AD 60 EA 2B B3 FE 92 52
+                                         2A 85 53 B7 06 E2 85 96 44 40 F3 0B
+                                         7D BF 1D 27 40 5C 81 EF,
+                             iterations   = 10,
+                             memory       = 65536 KiB,
+                             parallelism  = 12,
+                             version      = 0x13,
+                             outputLen    = 32 )
+masterSalt       = DA 94 76 6B 36 43 61 3A 3E B6 F2 A6 EA B1 25 F2
+                   B8 F5 F4 BD CF 0D C0 2B D0 E9 4E 9F FF 8A EA 38
+hmacSeed         = SHA-512( masterSalt || transformedKey || 0x01 )
+headerHmacKey    = SHA-512( UInt64-LE(0xFFFFFFFFFFFFFFFF) || hmacSeed )
+
+Expected HeaderHash = SHA-256( headerBytes )
+Expected HeaderHMAC = HMAC-SHA-256( key  = headerHmacKey,
+                                    data = headerBytes )
+```
+
+Where `headerBytes` is the 241 bytes from file offset 12 through 252
+inclusive (the full outer-header TLV sequence including the
+`EndOfHeader` record and its `0D 0A 0D 0A` value).
+
+A reader that derives the same `transformedKey` from the same fixture
+parameters and password MUST observe these tag values.
+
+### B.3 First data block HMAC
+
+Source: same fixture.
+
+First block fields (at offset `endOfHeaderOffset + 64 = 317`):
+
+```
+Block-0 HMAC    (32 bytes at offset 317)  = A3 CF 23 94 73 46 92 0C 2C 34 6D 12 4B 73 61 16
+                                            F5 67 8F 9C D8 25 8F 20 76 E8 C2 7B F4 15 F2 22
+Block-0 Length  (Int32-LE at offset 349)  = 1792 bytes
+Block-0 Payload (first 64 bytes, hex)     = A6 68 C3 38 0B F5 88 76 62 6B 54 3A DA F2 18 7B
+                                            46 D0 58 8B AA 55 60 70 7D 8A 15 68 D7 A0 01 0B
+                                            BC 46 CB 76 52 C5 F3 46 D9 18 69 B2 5A 7F 7B 2E
+                                            47 4C C4 3B 3B 98 59 44 AA 63 97 9E DA 8C CC BE
+```
+
+The fixture has a single data block (1792 bytes) followed by a
+sentinel block with `Length = 0`.
+
+Verification recipe:
+
+```
+block0Key  = SHA-512( UInt64-LE(0) || hmacSeed )
+block0Data = UInt64-LE(0) || Int32-LE(1792) || Payload
+block0HMAC = HMAC-SHA-256( key = block0Key, data = block0Data )
+```
+
+Constant-time tag comparison is REQUIRED (§10.2).
