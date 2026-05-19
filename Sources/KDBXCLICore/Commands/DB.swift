@@ -21,7 +21,10 @@ struct DB: ParsableCommand {
             Create.self,
             EmptyRecycleBin.self,
             Migrate.self,
-        ],
-        defaultSubcommand: Info.self
+        ]
+        // No defaultSubcommand: with one set, ArgumentParser routes
+        // `kdbx db --help` to the default's help and hides the
+        // subcommand list. Discoverability of `xml`, `validate`, etc.
+        // matters more than the `kdbx db <file>` shortcut for `info`.
     )
 }

@@ -12,7 +12,7 @@ extension DB {
     struct Info: ParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "info",
-            abstract: "Inspect a vault's header, KDF parameters, inner header, and validation issues. Header-only when no credentials are provided."
+            abstract: "Inspect a vault's header, KDF parameters, inner header, and validation issues. Prompts for the master password unless --public is given."
         )
 
         @OptionGroup()
@@ -21,12 +21,20 @@ extension DB {
         @OptionGroup()
         var outputOptions: OutputOptions
 
+        @Flag(
+            name: .customLong("public"),
+            help: "Show only public (unencrypted) header information. No master-password prompt; environment, stdin, and --key-file inputs are ignored. The inner header and validation results are omitted."
+        )
+        var publicOnly: Bool = false
+
         mutating func run() throws {
             let kdbx: KDBXReader
             let content: KDBXContent?
             let unlockState: DBInfoSnapshot.UnlockState
 
-            let unlockData = try commonOptions.credentials.resolve(requireUnlock: false)
+            let unlockData: UnlockData? = publicOnly
+                ? nil
+                : try commonOptions.credentials.resolve(requireUnlock: true)
             switch try read(from: commonOptions.filepath, unlockData: unlockData) {
             case let .noCredentials(kdbxReader):
                 kdbx = kdbxReader
