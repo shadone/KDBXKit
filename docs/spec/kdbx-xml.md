@@ -38,9 +38,10 @@ Conventions](kdbx-container.md#conventions):
 
 Additional conventions specific to the XML payload:
 
-- The XML document is encoded in UTF-8. A `<?xml version="1.0"
-  encoding="utf-8"?>` declaration MUST be present as the first
-  bytes of the inner payload, before any whitespace.
+- The XML document is encoded in UTF-8. An `<?xml version="1.0"
+  encoding="UTF-8" standalone="yes"?>` declaration MUST be present
+  as the first bytes of the inner payload, before any whitespace.
+  See §1.1 for normative details.
 - Element and attribute names are case-sensitive, written in
   CamelCase, and MUST be matched literally. KDBXKit's reader is
   case-sensitive; producers MUST emit the casing this document
