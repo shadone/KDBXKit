@@ -10,7 +10,7 @@ KDBXKit's answer is two types: ``SecureBytes`` for arbitrary key material, and `
 
 For a wider view of the engineering posture (cryptographic primitives, integrity ordering, threat model), see the project's `docs/security.md`.
 
-## `SecureBytes`
+## SecureBytes
 
 A page-aligned, `mlock`'d, zero-on-deinit byte buffer.
 
@@ -32,7 +32,7 @@ Properties:
 
 When in doubt: if it's key material or about to be, hold it in `SecureBytes`.
 
-## `ProtectedString`
+## ProtectedString
 
 Entry-level secrets — passwords, TOTP seeds, custom protected strings.
 

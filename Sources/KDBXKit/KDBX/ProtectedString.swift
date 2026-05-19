@@ -7,6 +7,23 @@
 import Foundation
 
 public extension KDBX {
+    /// A `<String>` element on a KDBX entry — a named field carrying a
+    /// (possibly secret) value.
+    ///
+    /// Used for every text-shaped field on an entry: standard ones
+    /// (`Title`, `UserName`, `Password`, `URL`, `Notes`) and any
+    /// custom strings the host app or other KDBX clients added. The
+    /// `key` is the field name; `value` is a ``Value`` carrying the
+    /// payload in a form that respects KDBX's protected-in-memory and
+    /// protected-on-disk distinctions.
+    ///
+    /// ```swift
+    /// // Find the entry's Password field.
+    /// let pw = entry.strings.first(where: { $0.key == "Password" })?.value
+    /// pw?.withRevealedString { plaintext in
+    ///     // plaintext lives only for this closure.
+    /// }
+    /// ```
     struct ProtectedString: Sendable, Equatable {
         /// The value of a `<Value>` element inside an entry's `<String>`
         /// node. Three on-disk forms exist in the KDBX spec; from our
@@ -109,7 +126,15 @@ public extension KDBX {
             }
         }
 
+        /// The field name (`"Title"`, `"UserName"`, `"Password"`,
+        /// `"URL"`, `"Notes"`, or any custom key the host or another
+        /// KDBX client added). Standard and custom fields share the
+        /// same list on `Entry.strings`.
         public var key: String
+
+        /// The field value. May be a regular protected string, an
+        /// unprotected one, or a deferred lazy-cipher reference;
+        /// reveal via ``Value/withRevealedString(_:)``.
         public var value: Value
 
         public init(key: String, value: Value) {

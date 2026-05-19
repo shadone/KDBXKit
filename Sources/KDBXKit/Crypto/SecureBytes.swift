@@ -13,29 +13,40 @@ import Musl
 #endif
 import Foundation
 
-/// A buffer of sensitive bytes that
+/// A page-locked, zero-on-deinit byte buffer for sensitive material.
 ///
-/// 1. allocates a **page-aligned** heap region we own outright,
-/// 2. asks the kernel to `mlock` the page so it can't be paged out to disk
-///    (best-effort — `RLIMIT_MEMLOCK` can cause this to fail; we proceed
-///    anyway),
-/// 3. **zeroes the bytes with `memset_s`** when the last reference is
-///    released, so the allocator can't hand the buffer to another caller
-///    with the secret still in it.
+/// Use `SecureBytes` for any cleartext key material that crosses the
+/// library boundary: derived keys, key-file bytes, decrypted entry
+/// strings, the inner-stream key. It's the answer to "how do we hold
+/// secret bytes in a way that doesn't bleed to swap, doesn't survive
+/// allocator reuse, and never gets handed to `Swift.String`?"
 ///
-/// Read access is via `withUnsafeBytes { ... }` (or `withRevealedString` for
-/// the UTF-8-decode-and-use case). Direct subscripting isn't exposed because
-/// it would lend callers an unscoped pointer they could keep past the lifetime
-/// of the SecureBytes.
+/// ## Mechanics
 ///
-/// `SecureBytes` is a `final class` so:
-/// - copies share the underlying buffer (cheap, single zeroing on last release),
-/// - `deinit` is reliable (structs can't have deinit),
-/// - equality compares contents constant-time, not identity.
+/// 1. Allocates a **page-aligned** heap region (`posix_memalign`) so
+///    the entire region can be `mlock`'d.
+/// 2. Asks the kernel to `mlock` the page so it can't be paged out to
+///    disk (best-effort — `RLIMIT_MEMLOCK` can refuse and we proceed
+///    anyway; a non-pinned page still holds the bytes, it just isn't
+///    protected against swap).
+/// 3. **Zeroes the bytes** when the last reference releases — via
+///    `memset_s` on Apple/BSD or `explicit_bzero` on Linux. Both are
+///    functions the compiler is forbidden from optimizing away. Then
+///    `munlock`s and `free`s.
 ///
-/// The buffer is intentionally **not** held in a Swift `Array` or `Data` —
-/// those types may reallocate or copy under the hood, defeating the
-/// zero-on-deinit guarantee.
+/// ## Access
+///
+/// Read access is via ``withUnsafeBytes(_:)`` — no subscript, no
+/// `Data` getter, no `Array` accessor. The closure form bounds the
+/// pointer's lifetime to a scope you control.
+///
+/// `SecureBytes` is a `final class` so copies share the underlying
+/// buffer (cheap; single zeroing on last release), `deinit` is
+/// reliable (structs can't have one), and `==` compares contents in
+/// constant time rather than identity. The buffer is intentionally
+/// **not** backed by a Swift `Array` or `Data` — those types may
+/// reallocate or copy under the hood, defeating the zero-on-deinit
+/// guarantee.
 public final class SecureBytes: @unchecked Sendable, Equatable, CustomStringConvertible, Hashable {
     /// Page-aligned heap pointer we own.
     private let buffer: UnsafeMutableRawPointer

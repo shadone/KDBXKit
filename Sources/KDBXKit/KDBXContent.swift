@@ -6,10 +6,29 @@
 
 import Foundation
 
-/// The content of the `.kdbx` file.
+/// The decoded content of a `.kdbx` file — vault data tree, outer
+/// header, and inner header, in one value type.
+///
+/// Returned from ``KDBXReader/parse(_:unlockData:)`` and consumed by
+/// ``KDBXWriter/write(_:unlockData:regenerateSalts:)``. Mutate it like
+/// any Swift struct (entries, groups, metadata are reachable through
+/// `database.root.group`); the writer regenerates random salts and
+/// IVs on every save unless explicitly opted out.
 public struct KDBXContent: Equatable, Sendable {
+    /// The vault data tree — groups, entries, metadata. The "what's
+    /// in the vault" half of the file. Access entries via
+    /// `database.root.group` and `database.visitEntries(in:_:)`.
     public var database: KDBX
+
+    /// The outer file header — format version, cipher choice, KDF
+    /// parameters, master salt, encryption nonce. The "how the file
+    /// is wrapped" half. Mostly read-only from the caller's
+    /// perspective; the writer re-derives most of it on save.
     public var header: Header
+
+    /// The inner header — inner-stream cipher choice + its key, plus
+    /// the binary attachment pool. Decrypted from inside the outer
+    /// encrypted block stream.
     public var innerHeader: InnerHeader
 
     /// Diagnostics emitted by the XML parser during the most recent parse:
