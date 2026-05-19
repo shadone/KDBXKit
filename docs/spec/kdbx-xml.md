@@ -236,3 +236,79 @@ Implementation reference: `KDBX/Meta.swift`,
 `Database/XMLDocumentReader.swift` (Meta parsing dispatch at
 `parseMeta`), `Database/XMLDocumentWriter.swift` (Meta emission
 order in `write(_:KDBX.Meta:to:)`).
+
+## 3. Root element
+
+`Root` is the second child of `KeePassFile`. It carries the top-level
+Group (and, by recursion, every other Group and Entry in the
+database) and a `DeletedObjects` sync ledger.
+
+### 3.1 Children
+
+| Element        | Type            | Cardinality | Notes |
+|----------------|-----------------|-------------|-------|
+| Group          | Group (§4)      | exactly 1   | The top-level Group. All other Groups and Entries hang off it recursively. |
+| DeletedObjects | DeletedObject[] | 0 or 1      | Container for tombstones. See §3.2. |
+
+A reader MUST reject a Root with no top-level Group with a parse
+error. If more than one `Group` element appears in `Root`, KDBXKit
+silently takes the last one; earlier siblings are overwritten with no
+warning recorded in `parserWarnings`. Producers MUST emit exactly one
+`Group` child.
+
+KDBXKit places no schema-level constraint on the top-level Group's
+Name; convention is to use the database name (often the same string
+as `Meta/DatabaseName`).
+
+### 3.2 DeletedObjects (sync ledger)
+
+`DeletedObjects` is a container holding zero or more `DeletedObject`
+children:
+
+    <DeletedObjects>
+      <DeletedObject>
+        <UUID>...</UUID>
+        <DeletionTime>...</DeletionTime>
+      </DeletedObject>
+      ...
+    </DeletedObjects>
+
+Each `DeletedObject` has:
+
+| Element      | Type | Cardinality | Notes |
+|--------------|------|-------------|-------|
+| UUID         | UUID | exactly 1   | The UUID of a Group or Entry that has been deleted. |
+| DeletionTime | Time | exactly 1   | When the deletion happened. See §8. |
+
+A reader MUST reject a `DeletedObject` missing either `UUID` or
+`DeletionTime` with a parse error. KDBXKit throws
+`.corrupted(reason:)` in this case.
+
+The `DeletedObjects` container element itself is optional. When
+absent, KDBXKit treats the tombstone list as empty (Swift:
+`deletedObjects: []`). The writer omits the `<DeletedObjects>`
+element entirely when the list is empty, rather than emitting an
+empty container.
+
+The purpose of `DeletedObjects` is to support multi-device sync: a
+client that observes a UUID in the live tree on one replica AND in
+the `DeletedObjects` of another replica uses the `DeletionTime`
+relative to the local last-modified time of the corresponding object
+to decide which side wins. KDBXKit preserves tombstones faithfully
+across reads and writes; it does not generate tombstones
+automatically, and it does not garbage-collect them. Host
+applications that perform deletions are responsible for appending a
+`DeletedObject` with the deleted item's `uuid` and the current time.
+
+Tombstones MAY accumulate without bound. Implementations MAY
+garbage-collect tombstones whose `DeletionTime` is older than some
+threshold; a tombstone older than `Meta/MaintenanceHistoryDays` is
+one common-but-not-universal choice of threshold. KDBXKit performs
+no such collection.
+
+Implementation reference: `KDBX/Root.swift`,
+`KDBX/DeletedObject.swift`,
+`Database/XMLDocumentReader.swift` (`parseRoot`,
+`parseDeletedObjects`, `parseDeletedObject`),
+`Database/XMLDocumentWriter.swift` (`write(_:KDBX.Root:to:)`,
+`write(_:KDBX.DeletedObject:to:)`).
