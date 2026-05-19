@@ -15,8 +15,8 @@ let defaultVault = "demo.kdbx"
 let defaultPassword = "demo"
 
 let url = URL(filePath: CommandLine.arguments.count >= 2
-              ? CommandLine.arguments[1]
-              : defaultVault)
+    ? CommandLine.arguments[1]
+    : defaultVault)
 
 guard FileManager.default.fileExists(atPath: url.path) else {
     print("Vault not found at \(url.path)")
@@ -39,6 +39,7 @@ print("Opened \(url.lastPathComponent)")
 if let name = content.database.meta.databaseName {
     print("Name:   \(name)")
 }
+
 print("Cipher: \(content.header.encryptionAlgorithm)")
 print("KDF:    \(content.header.kdfParameters)")
 print()
