@@ -16,7 +16,7 @@ public extension KDBXContent {
     ///
     /// - Parameters:
     ///   - databaseName: visible vault name, stored in `Meta.databaseName`.
-    ///   - kdf: KDF profile; defaults to `.balanced`. Tune lower for snappy
+    ///   - profile: KDF profile; defaults to `.balanced`. Tune lower for snappy
     ///     unlock at the cost of weaker offline-attack resistance, higher
     ///     for valuable vaults that can afford slower unlock.
     ///   - generator: written into `Meta.generator`; defaults to `"KDBXKit"`.

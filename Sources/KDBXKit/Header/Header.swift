@@ -44,7 +44,7 @@ public struct Header: Sendable, Equatable {
         /// integrity scheme (no SHA-256 / HMAC trailer), a plain hashed
         /// block stream instead of the HMAC-protected one, binaries
         /// inlined in XML rather than in an inner header, and Salsa20 as
-        /// the inner stream cipher. See ``Header3xReader``.
+        /// the inner stream cipher. See `Header3xReader` for the parser.
         ///
         /// KDBX 3.0 (KeePass 2.10–2.19) is **not** supported: its default
         /// inner stream cipher was the ArcFour-variant we reject, and the

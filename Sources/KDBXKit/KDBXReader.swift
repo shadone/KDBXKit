@@ -115,7 +115,7 @@ public struct KDBXReader: Sendable {
     /// - note: This is for debug purposes, for accessing the value even if the parsing failed due to e.g. invalid master password.
     ///
     /// Setter is `internal(set)` so the per-format pipeline extensions
-    /// (``parse3x`` for legacy 3.x, the inline 4.x path here) can write
+    /// (`parse3x` for legacy 3.x, the inline 4.x path here) can write
     /// it. From outside the module it remains read-only.
     public internal(set) var header: Header?
 
