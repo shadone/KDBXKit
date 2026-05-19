@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
-import CryptoKit
+import Crypto
 import Foundation
 
 /// Errors raised while turning a user-provided key into a vault unlock key.

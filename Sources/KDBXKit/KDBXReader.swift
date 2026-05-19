@@ -5,7 +5,7 @@
 //
 
 import CommonCrypto
-import CryptoKit
+import Crypto
 import Foundation
 import SwiftGzip
 

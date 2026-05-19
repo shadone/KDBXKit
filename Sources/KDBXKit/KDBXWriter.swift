@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
-import CryptoKit
+import Crypto
 import CryptoSwift
 import Foundation
 import SwiftGzip

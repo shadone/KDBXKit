@@ -20,6 +20,7 @@ let package = Package(
         ),
     ],
     dependencies: [
+        .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
         .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", from: "1.8.3"),
         .package(url: "https://github.com/P-H-C/phc-winner-argon2.git", branch: "master"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
@@ -58,6 +59,7 @@ let package = Package(
         .target(
             name: "KDBXKit",
             dependencies: [
+                .product(name: "Crypto", package: "swift-crypto"),
                 .product(name: "CryptoSwift", package: "cryptoswift"),
                 .product(name: "argon2", package: "phc-winner-argon2"),
                 .product(name: "SwiftGzip", package: "swift-gzip"),
