@@ -834,3 +834,87 @@ helpers),
 `parseTimes`, `parseISO8601`),
 `Database/XMLDocumentWriter.swift` (`encode(_:Date)`, `write(_:Times:to:)`),
 `Database/KDBX_XML.xsd` (`TDateTime` type definition).
+
+## 9. CustomData and CustomDataItem
+
+`<CustomData>` is a free-form key-value container used by
+applications and plugins to attach data to a database (on Meta), to
+a Group, or to an Entry. KDBXKit and KeePassXC both use it for
+non-standard fields that have no first-class home in the schema.
+
+### 9.1 Container
+
+A `<CustomData>` element contains zero or more `<Item>` children.
+A `<CustomData>` with no `<Item>` children MAY be emitted as
+`<CustomData></CustomData>` or omitted entirely; consumers MUST
+treat both equivalently. KDBXKit omits the container element when
+the in-memory list is empty.
+
+### 9.2 Item structure
+
+| Element              | Type   | Cardinality | Since | Notes |
+|----------------------|--------|-------------|-------|-------|
+| `Key`                | String | exactly 1   | 4.0   | Application-defined identifier. Convention: namespace with a prefix (e.g. `passie:vaultID`, `KPXC_BROWSER_<setting>`). |
+| `Value`              | String | exactly 1   | 4.0   | The value. Empty body is permitted. |
+| `LastModificationTime` | Time | 0 or 1    | 4.1   | When this item was last edited. See §8 for the date encoding. Only present on Meta items; absent on Group and Entry items. |
+
+`Key` and `Value` are both required. KDBXKit's reader skips any
+`<Item>` that is missing either element and records a parser
+warning; it does not throw.
+
+`LastModificationTime` availability differs by location:
+
+| Location | `LastModificationTime` present? |
+|----------|---------------------------------|
+| Meta     | Yes (KDBX 4.1+)                 |
+| Group    | No                              |
+| Entry    | No                              |
+
+A 4.0 reader encountering `LastModificationTime` in a Meta item
+MUST ignore it and MUST NOT reject the file. A 4.1 writer SHOULD
+emit it whenever the in-memory representation has a value.
+
+### 9.3 Duplicate keys
+
+Keys SHOULD be unique within a single `<CustomData>` container.
+KDBXKit's reader builds a plain array: duplicate keys result in
+silent append (both items are preserved in document order). No
+parse error is raised and the file is not rejected. Producers MUST
+enforce uniqueness on emit; the behaviour of a consumer receiving
+duplicate keys is implementation-defined.
+
+### 9.4 Conventions
+
+Two soft conventions are widely used:
+
+- **Namespace keys.** Application code MUST namespace its keys to
+  avoid collisions. KeePassXC uses prefixes such as `KPXC_` and
+  `_LAST_MODIFIED`. KDBXKit host applications use `passie:` for
+  Passie-specific keys. The recommended general form is
+  `AppName_FieldName` or `vendor:key`.
+- **Round-trip preservation.** Implementations MUST preserve
+  unknown CustomData items on read-modify-write. KDBXKit reads all
+  `<Item>` children into a list and emits them back unchanged, even
+  when the host application does not recognise a given key.
+
+### 9.5 Containers by location
+
+The container element name and item element name are identical in
+all three locations:
+
+| Location | Container element | Item element |
+|----------|-------------------|--------------|
+| Meta     | `<CustomData>`    | `<Item>`     |
+| Group    | `<CustomData>`    | `<Item>`     |
+| Entry    | `<CustomData>`    | `<Item>`     |
+
+The XML shape is the same at all three locations. The only
+structural difference is `LastModificationTime` availability (see
+§9.2).
+
+Implementation reference: `KDBX/CustomDataItem.swift`,
+`KDBX/CustomDataWithTimes.swift`,
+`Database/XMLDocumentReader.swift` (`parseCustomDataItemList`,
+`parseCustomDataWithTimesList`),
+`Database/XMLDocumentWriter.swift` (`write(_:CustomDataItem:to:)`,
+`write(_:CustomDataWithTimes:to:)`).
