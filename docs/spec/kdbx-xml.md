@@ -645,3 +645,107 @@ interface),
 Protected attribute handling, cursor advancement),
 `Database/XMLDocumentWriter.swift` (`write(_:KDBX.ProtectedString:to:)`,
 Protected attribute emission and encryptor consumption).
+
+## 7. Binary references and the binary pool
+
+Entry attachments are stored in a **binary pool** outside the XML
+document body; each Entry's `<Binary>` child carries a reference into
+that pool. The pool's location depends on the format version.
+
+### 7.1 Pool location
+
+- **KDBX 4.x**: the pool lives in the inner header (container
+  §12.2, field ID 3). One inner-header `Binary` record per pool
+  entry, in pool-index order starting at 0. Each record carries a
+  flags byte (memory-protection hint; container §12.3) followed by
+  the raw attachment bytes. Pool entries are indexed 0, 1, 2 … in
+  declaration order.
+
+- **KDBX 3.x**: the pool lives inline in the XML document, as
+  `<Meta><Binaries><Binary ID="N" Compressed="True|False">...
+  </Binary></Binaries></Meta>`. The element body is the base64 of
+  the attachment bytes, optionally gzip-compressed when
+  `Compressed="True"`. Pool indices are the `ID` attribute values
+  interpreted as `UInt32`. The reader sorts pool entries by `ID`
+  ascending before assigning sequential array indices, so a
+  producer MUST use contiguous IDs starting at 0 for the `Ref`
+  values in its `<Entry><Binary>` children to resolve correctly.
+
+KDBXKit's reader normalises both layouts into a single in-memory
+pool (`InnerHeader.binaryContent`) indexed by integer. The writer
+emits only the 4.x inner-header form and never writes a
+`<Meta><Binaries>` element.
+
+### 7.2 Entry `<Binary>` child
+
+Inside an Entry (§5):
+
+    <Binary>
+      <Key>screenshot.png</Key>
+      <Value Ref="0"/>
+    </Binary>
+
+| Element | Type     | Notes |
+|---------|----------|-------|
+| Key     | String   | The user-visible filename. Stored and round-tripped verbatim; KDBXKit's reader and writer do not normalise or strip path-separator characters. |
+| Value   | self-closing element with `Ref:UInt32` attribute | The decimal integer pool index. MUST reference an existing pool entry for the file to be considered valid. |
+
+`Ref` is an attribute on `<Value>`, not on `<Binary>` itself.
+
+A `<Value>` element carrying a `Ref` attribute whose value is not a
+valid `UInt32` decimal string causes the reader to throw
+`.corrupted(reason:)` immediately. A syntactically valid `Ref` that
+points beyond the end of the pool does not cause a parse error; it
+is surfaced as a structured warning by `KDBXContent.validate()` (a
+`ValidationFailure.warning(...)` entry) rather than a thrown error.
+Callers that require referential integrity MUST call `validate()`
+after parse and treat out-of-range `Ref` values as corrupt.
+
+A single pool entry MAY be referenced by multiple entries
+(deduplication). When adding an attachment via the `attach add`
+CLI command, KDBXKit checks whether a byte-identical
+`InnerHeader.BinaryContent` (same `data` and `shouldBeProtected`)
+already exists in the pool and reuses its index rather than
+appending a duplicate. The writer itself (both eager
+`KDBXWriter.write` and `streamingWrite`) emits the pool as-is from
+`innerHeader.binaryContent` without applying any further content-
+hash deduplication — deduplication is a write-side concern of the
+layer that constructs `KDBXContent`, not of the serialiser.
+
+### 7.3 Compression
+
+In KDBX 4.x there is no per-binary compression flag in the XML. The
+inner-header binary record stores the raw attachment bytes; gzip of
+the whole inner payload (container §11) provides any compression
+benefit.
+
+In KDBX 3.x the `Compressed` attribute on `<Binary>` inside
+`<Meta><Binaries>` MAY be `True` (gzip-compressed body) or `False`
+(or absent; raw base64). KDBXKit's 3.x reader inflates
+`Compressed="True"` entries via `LegacyBinaryDecompressor.gunzip`,
+so the in-memory pool always carries the raw (decompressed) payload,
+matching the shape the 4.x inner-header pool uses.
+
+### 7.4 In-memory representation
+
+KDBXKit holds binary pool entries in `InnerHeader.BinaryContent`
+(`shouldBeProtected: Bool`, `data: Data`). On an eager
+`KDBXReader.parse`, every pool entry is materialised into memory at
+unlock time. The lazy path (`KDBXReader.openMetadataOnly` +
+`streamBinary`) retains only per-binary metadata
+(`BinaryMetadata`: offset, length, content hash, protection flag)
+and re-streams bytes on demand, so large attachments never need to
+be fully resident.
+
+Implementation reference: `KDBX/ProtectedBinary.swift`,
+`InnerHeader/InnerHeader.swift` (`BinaryContent` type and pool array),
+`InnerHeader/InnerHeaderReader.swift` (inner-header binary record parsing),
+`Database/LegacyBinaryDecompressor.swift` (KDBX 3.x inline-pool
+gzip decompression),
+`Database/XMLDocumentReader.swift` (`parseProtectedBinary` for
+entry-side `<Binary>` elements; `parseInlineBinariesPool` for the
+3.x `<Meta><Binaries>` pool),
+`Database/XMLDocumentWriter.swift` (`write(_:KDBX.ProtectedBinary:to:)`),
+`KDBXContent+validate.swift` (out-of-range `Ref` validation),
+`KDBXCLICore/Commands/AttachAdd.swift` (content-equality dedup at
+attach-add time).
