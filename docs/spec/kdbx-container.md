@@ -1044,3 +1044,71 @@ block0HMAC = HMAC-SHA-256( key = block0Key, data = block0Data )
 ```
 
 Constant-time tag comparison is REQUIRED (§10.2).
+
+### B.4 Argon2id derivation
+
+Source: `simple-argon2id-aes256.kdbx`.
+
+Inputs:
+
+    password    = "123" (UTF-8 bytes: 31 32 33)
+    H(password) = SHA-256( "123" )
+                = A665A459 20422F9D 417E4867 EFDC4FB8
+                  A04A1F3F FF1FA07E 998E86F7 F7A27AE3
+    keyFile     = (absent)
+    composite   = SHA-256( H(password) )            ; key file absent → empty contribution
+    salt        = 144C6206 AD60EA2B B3FE9252 2A8553B7
+                  06E28596 4440F30B 7DBF1D27 405C81EF
+    V           = 0x13                              ; Argon2 1.3
+    I           = 10
+    M           = 67108864                          ; 64 MiB
+    P           = 12
+
+Expected:
+
+    transformedKey = Argon2id( password   = composite,
+                                salt       = salt,
+                                parallelism= 12,
+                                memory     = 67108864 bytes,
+                                iterations = 10,
+                                version    = 0x13,
+                                outputLen  = 32 )
+
+The expected 32-byte transformed key MUST match the value computed by
+KDBXKit's `Argon2KDF.derive`. A reader that derives the same key from
+the same inputs will successfully verify the HeaderHMAC in §B.2 and
+unlock the fixture; that end-to-end success is the conformance test
+this vector underwrites. The fixture password "123" is fixed at the
+test-suite level (see `KeePassXCInteropTests` and
+`KDBXKitTests/Resources/`).
+
+## 17. References
+
+### 17.1 Normative
+
+- [RFC2119] Bradner, S., "Key words for use in RFCs to Indicate
+  Requirement Levels", BCP 14, RFC 2119, March 1997.
+- [RFC4122] Leach, P., Mealling, M., and R. Salz, "A Universally
+  Unique IDentifier (UUID) URN Namespace", RFC 4122, July 2005.
+- [RFC5234] Crocker, D., Ed., and P. Overell, "Augmented BNF for
+  Syntax Specifications: ABNF", STD 68, RFC 5234, January 2008.
+- [RFC8439] Nir, Y. and A. Langley, "ChaCha20 and Poly1305 for IETF
+  Protocols", RFC 8439, June 2018.
+- [RFC9106] Biryukov, A., Dinu, D., Khovratovich, D., and S.
+  Josefsson, "Argon2 Memory-Hard Function for Password Hashing and
+  Proof-of-Work Applications", RFC 9106, September 2021.
+- [RFC1952] Deutsch, P., "GZIP file format specification version
+  4.3", RFC 1952, May 1996.
+- [FIPS180-4] National Institute of Standards and Technology,
+  "Secure Hash Standard (SHS)", FIPS PUB 180-4, August 2015.
+- [FIPS197] National Institute of Standards and Technology,
+  "Advanced Encryption Standard (AES)", FIPS PUB 197, November 2001.
+
+### 17.2 Informative
+
+- KeePass.info knowledge base, "KDBX 4 file format",
+  <https://keepass.info/help/kb/kdbx.html>.
+- KeePassXC source, <https://github.com/keepassxreboot/keepassxc>.
+- KDBXKit, <https://github.com/shadone/KDBXKit>.
+- keepassxc-specs (companion document material for the inner XML
+  payload), <https://github.com/keepassxreboot/keepassxc-specs>.
