@@ -69,6 +69,14 @@ System libraries:
 - `zlib` - gzip compress + decompress for the inner payload. Exposed to Swift via a small `Sources/CZlib/` system-library target (`module.modulemap` + shim header) that declares `link "z"` in the map. `Sources/KDBXKit/Streaming/Zlib.swift` is the push-based wrapper that uses `CZlib`.
 - `pthread` - transitively required by argon2's `thread.c`; auto-linked on Apple, comes via swift runtime on Linux.
 
+## Format specification (authoritative for byte-level questions)
+
+- `docs/spec/kdbx-container.md` — outer binary container (signature → inner header). Includes Argon2id / HMAC / block-stream test vectors against `Tests/KDBXKitTests/Resources/simple-argon2id-aes256.kdbx`.
+- `docs/spec/kdbx-xml.md` — inner XML payload. Cross-references the container spec.
+- `docs/spec/KDBX_XML.xsd` — canonical schema (Dominik Reichl, BSD). Reference-only; not built or bundled.
+
+Both prose docs are normative downstream of the official KeePass implementation: where they conflict, the official implementation wins. Cite the spec from code when a format decision is non-obvious; update the spec when a real divergence is found.
+
 ## KDBX format handling - the API surface
 
 ### Eager read / write (one-shot, everything in memory)
@@ -107,6 +115,9 @@ KDBXKit reads KDBX 3.1 and migrates it to 4.1 on save. **The writer only ever em
 ### Format dialects we round-trip
 
 - **Tags separator**: KeePassXC writes `,`-separated, KeePass 2 (.NET) writes `;`. Reader splits on either; writer emits `,` (matches KeePassXC; the KDBX 4.1 XSD nominally says `;` but both clients accept either form). Tag values containing `;` or `,` round-trip lossily.
+- **UUIDs on the wire are canonical RFC 4122 bytes**, but `KDFParameters.KDF.AES` and friends store their internal `uuid_t` tuple **byte-reversed**. The `toUInt128().toDataLittleEndian()` chain (writer) and `Data.asUUIDLE()` (reader) compose two reversals into canonical-order on-disk bytes. If you log a deserialised UUID's `.uuidString`, you'll see the byte-reversed form — don't surface that to users.
+- **KDBX 4.x dates are Int64 seconds since `0001-01-01T00:00:00Z`, base64-encoded** — NOT 100-ns .NET `DateTime.Ticks`. KDBX 3.x uses ISO 8601 strings. Dialect is selected once per `XMLDocumentReader` (`.dotNetTicksBase64` default / `.iso8601` for 3.x).
+- **NullableBoolEx**: writer emits `Null` (title-case); reader accepts both `Null` and `null`. The XSD enumerates both casings.
 
 ## Security primitives
 
