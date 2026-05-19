@@ -309,3 +309,79 @@ Implementation reference: `UnlockData.swift` (`makeKeyData` for
 composition, `normalizeKeyFile` for dialect dispatch,
 `parseXMLKeyFile` for both XML dialects, `decodeHexKeyFile` for the
 hex branch).
+
+## 6. Key derivation function
+
+The KDFParameters header record (Section 3.1, ID 11) is a
+VariantDictionary containing a single mandatory key `$UUID`
+(ByteArray, 16 bytes, RFC 4122 byte order) that selects the KDF, plus
+KDF-specific parameter keys.
+
+### 6.1 AES-KDF
+
+UUID: `EA4F8AC1-080D-74BF-6044-8A629AF3D9C9`
+
+This is the `Foundation.UUID` string representation of the 16 raw bytes
+stored in `KDFParameters.KDF.AES` (see `KDFParameters.swift`). On disk
+the bytes are written in little-endian UUID layout via
+`toUInt128().toDataLittleEndian()`.
+
+Parameters:
+
+| Key | Type      | Meaning                         |
+|-----|-----------|---------------------------------|
+| `R` | UInt64    | rounds; MUST be > 0             |
+| `S` | ByteArray | seed; MUST be exactly 32 bytes  |
+
+Derivation: the composite key (Section 5) is split into two 16-byte
+blocks. Each block is independently encrypted with AES-256-ECB under
+key `S` for `R` rounds. The two encrypted 16-byte blocks are
+concatenated and SHA-256'd to yield the 32-byte transformed key.
+
+    transformedKey = SHA-256( ECB-encrypt^R(left16, key=S)
+                           || ECB-encrypt^R(right16, key=S) )
+
+where `left16` and `right16` are the first and second halves of the
+32-byte composite key respectively, and `ECB-encrypt^R` denotes R
+sequential single-block AES-256-ECB encryptions.
+
+### 6.2 Argon2d
+
+UUID: `0C0AE303-A4A9-F791-4B44-298CDF6D63EF`
+
+Parameters (Argon2 RFC 9106 [RFC9106] terminology):
+
+| Key | Type      | Meaning                                               |
+|-----|-----------|-------------------------------------------------------|
+| `S` | ByteArray | salt; SHOULD be 16 to 32 bytes                        |
+| `P` | UInt32    | parallelism                                           |
+| `M` | UInt64    | memory in bytes                                       |
+| `I` | UInt64    | iterations                                            |
+| `V` | UInt32    | Argon2 version; MUST be `0x13` (version 1.3)          |
+| `K` | ByteArray | optional secret key; OPTIONAL, often absent           |
+| `A` | ByteArray | optional associated data; OPTIONAL, often absent      |
+
+Output length is 32 bytes. The variant is Argon2d.
+
+KDBXKit parses and validates `S`, `P`, `M`, `I`, and `V`. Version
+`0x10` (Argon2 1.0) is explicitly rejected. The `K` and `A` keys, if
+present, are retained in the `additional` pass-through dictionary but
+are not forwarded to the Argon2 hash function in the current
+implementation.
+
+### 6.3 Argon2id
+
+UUID: `E6A1F0C6-3EFC-3DB2-7347-DB56198B299E`
+
+Parameters and rules are identical to Argon2d (§6.2); only the variant
+selector differs. KDBXKit and the upstream KeePass clients RECOMMEND
+Argon2id for new files.
+
+### 6.4 Output
+
+In all three cases, the KDF output is a 32-byte **transformed key**
+consumed by Sections 7 and 8.
+
+Implementation reference: `KDFParameters.swift` (UUID dispatch and key
+names), `AESKDF.swift` (AES-KDF derivation), `Argon2KDF.swift` (Argon2
+derivation via the in-tree `argon2` C target).
