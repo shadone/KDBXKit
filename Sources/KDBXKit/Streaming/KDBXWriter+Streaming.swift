@@ -73,8 +73,9 @@ public extension KDBXWriter {
         headerStream.open()
         do {
             try HeaderWriter(to: headerStream).write(header)
-        } catch let err as HeaderWriter.Error {
-            switch err {
+        } catch {
+            // `error` is `HeaderWriter.Error` via typed throws — no cast.
+            switch error {
             case .unexpectedEOF: throw KDBXWriter.Error.unexpectedEOF
             case let .unknown(reason): throw KDBXWriter.Error.headerSerializationFailed(reason: reason)
             }
@@ -88,8 +89,9 @@ public extension KDBXWriter {
     private static func deriveUnlockKey(prepared: KDBXContent, unlockData: UnlockData) throws -> SecureBytes {
         do {
             return try unlockData.computeUnlockKey(kdfParameters: prepared.header.kdfParameters)
-        } catch let kdfErr as UnlockDataError {
-            switch kdfErr {
+        } catch {
+            // `error` is `UnlockDataError` via typed throws.
+            switch error {
             case let .unsupportedKDF(uuid):
                 throw KDBXWriter.Error.unsupportedKDF(uuid)
             case let .kdfFailed(reason):
@@ -172,8 +174,9 @@ public extension KDBXWriter {
         }
         do {
             try XMLDocumentWriter(to: xmlStream, encryptor: innerEncryptor).write(database)
-        } catch let err as XMLDocumentWriter.Error {
-            switch err {
+        } catch {
+            // `error` is `XMLDocumentWriter.Error` via typed throws.
+            switch error {
             case .unexpectedEOF: throw KDBXWriter.Error.unexpectedEOF
             case let .unknown(reason): throw KDBXWriter.Error.xmlSerializationFailed(reason: reason)
             }
