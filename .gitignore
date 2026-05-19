@@ -109,3 +109,6 @@ xcuserdata/
 
 # Auto-generated SwiftPM Xcode integration files
 .swiftpm/xcode/xcshareddata/xcschemes/
+
+# Linux build path used by scripts/test-linux.sh
+.build-linux/

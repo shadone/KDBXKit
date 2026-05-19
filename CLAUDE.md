@@ -33,12 +33,20 @@ License: BSD 2-Clause (see `LICENSE`).
 ## Build & test
 
 ```bash
-swift build                          # Build library + CLI
-swift test                          # Run all 74+ tests
+swift build                          # Build library + CLI (macOS)
+swift test                          # Run all tests (macOS)
 swift test --filter HeaderTests    # Run a specific suite
 swift run kdbx --help              # Run CLI tool
 mint run swiftformat .             # Format (run from this dir)
 mint bootstrap                     # Install mint-managed tools (SwiftFormat)
+
+./scripts/test-linux.sh            # Build + test in the swift:6.1-jammy container CI uses.
+                                   # Linux artifacts land in .build-linux (gitignored) so
+                                   # macOS .build stays untouched. Forwards extra args to
+                                   # `swift test`, e.g. ./scripts/test-linux.sh --filter Header.
+act -j linux                       # Same idea via nektos/act: runs the actual CI workflow's
+                                   # Linux job against local Docker. Heavier; reach for it
+                                   # when debugging the workflow itself rather than the code.
 ```
 
 **Swift Testing**, not XCTest. Use `@Suite("...")`, `@Test("...")`, `#expect(...)`.

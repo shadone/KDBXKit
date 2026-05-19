@@ -133,6 +133,32 @@ mint bootstrap
 mint run swiftformat .
 ```
 
+### Testing the Linux build locally
+
+You don't need a Linux machine to verify the Linux path — `scripts/test-linux.sh` runs the build and tests inside the same Swift container CI uses. Requires Docker (Docker Desktop, Colima, or OrbStack).
+
+```sh
+./scripts/test-linux.sh                  # full build + test, Linux/arm64
+./scripts/test-linux.sh --filter Header  # forward args to `swift test`
+SWIFT=6.2 ./scripts/test-linux.sh        # try a different toolchain
+PLATFORM=linux/amd64 ./scripts/test-linux.sh   # cross-test x86_64 under qemu (slow)
+```
+
+Linux build artifacts go into `.build-linux/` (gitignored) so they don't collide with your macOS `.build/`; you can interleave macOS and Linux `swift test` runs freely.
+
+### Running the GitHub Actions workflow locally with `act`
+
+For the closer-to-CI experience, [`act`](https://github.com/nektos/act) executes `.github/workflows/ci.yml` against local Docker:
+
+```sh
+brew install act      # one-time
+act -j linux          # run just the Linux job
+act -j macos          # run just the macOS job (best-effort — see act's caveats)
+act                   # run everything (PR event by default)
+```
+
+On Apple Silicon you may need `--container-architecture linux/amd64` if `act`'s default image is amd64-only. Our Linux job uses the `swift:6.1-jammy` container directly so the host image doesn't matter much.
+
 ### CI
 
 `.github/workflows/ci.yml` runs three jobs on every push / PR to `develop`:
