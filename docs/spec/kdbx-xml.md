@@ -312,3 +312,78 @@ Implementation reference: `KDBX/Root.swift`,
 `parseDeletedObjects`, `parseDeletedObject`),
 `Database/XMLDocumentWriter.swift` (`write(_:KDBX.Root:to:)`,
 `write(_:KDBX.DeletedObject:to:)`).
+
+## 4. Group element
+
+A Group is a node in the hierarchical tree under Root. It carries
+its own metadata, optional children (sub-Groups, Entries, or both),
+and optional per-Group settings that override database-wide
+defaults.
+
+### 4.1 Child elements
+
+| Element                  | Type                      | Cardinality | Since | Notes |
+|--------------------------|---------------------------|-------------|-------|-------|
+| UUID                     | UUID                      | exactly 1   | 4.0   | Stable identifier. Referenced from DeletedObjects, PreviousParentGroup, and Meta UI-state fields. |
+| Name                     | String                    | 0 or 1      | 4.0   | Human-readable label. |
+| Notes                    | String                    | 0 or 1      | 4.0   | Free-form text. |
+| IconID                   | UInt32                    | exactly 1   | 4.0   | Built-in KeePass icon index. 0..68 are KeePass icons; CustomIconUUID overrides when set. KDBXKit always emits this element (default 0). |
+| CustomIconUUID           | UUID                      | 0 or 1      | 4.0   | If set and non-zero, references a `Meta/CustomIcons/Icon/UUID`. All-zero UUID is treated as unset. |
+| Times                    | Times (§8)                | 0 or 1      | 4.0   | Per-Group timestamps. |
+| IsExpanded               | Bool                      | 0 or 1      | 4.0   | UI state: whether the group node is shown expanded in the client's tree view. |
+| DefaultAutoTypeSequence  | String                    | 0 or 1      | 4.0   | Inherited by descendant Entries that do not override. Empty/missing = use the KeePass-default sequence (per Entry §5). |
+| EnableAutoType           | NullableBoolEx (§4.3)     | 0 or 1      | 4.0   | Tri-state auto-type policy. `Null` = inherit from parent Group. |
+| EnableSearching          | NullableBoolEx (§4.3)     | 0 or 1      | 4.0   | Tri-state search policy. `Null` = inherit from parent Group. |
+| LastTopVisibleEntry      | UUID                      | 0 or 1      | 4.0   | UI state: UUID of the entry scrolled to the top on last view. |
+| PreviousParentGroup      | UUID                      | 0 or 1      | 4.1   | Set when a group is moved (e.g. to/from Recycle Bin); enables restore-to-original-location. All-zero UUID = none. |
+| Tags                     | String                    | 0 or 1      | 4.1   | Comma-separated tag list on write; reader splits on `,` or `;`. See §10. |
+| CustomData               | CustomData (§9)           | 0 or 1      | 4.0   | Arbitrary string key/value pairs. No per-item timestamps (contrast with `Meta/CustomData` which uses `CustomDataWithTimes`). |
+| Entry                    | Entry (§5)                | 0+          | 4.0   | Child Entries directly inside this Group. |
+| Group                    | Group (recursive)         | 0+          | 4.0   | Child sub-Groups. |
+
+### 4.2 Recursion and ordering
+
+Group nesting depth has no schema limit. KDBXKit's parser is a
+recursive Swift function (`parseGroup`) that increments a depth
+counter on each call. If the counter reaches `maxGroupNestingDepth`
+(default: 100) the parser throws `.corrupted(reason:)`. A
+pathologically deep file constructed to exceed the call-stack limit
+(well above 100) would exhaust the thread stack before this guard
+fires; the 100-level cap is a practical safeguard against typical
+crafted inputs, not a guarantee against all adversarial depths.
+
+Sibling ordering inside a Group is significant for UI display.
+KDBXKit preserves the encountered order on read. The writer emits
+children in the in-memory order, and always follows the ordering:
+metadata elements (UUID through CustomData), then all Entry
+children, then all Group children. Readers MUST NOT rely on a
+specific order of metadata elements, but SHOULD preserve Entry /
+Group order on round-trip.
+
+### 4.3 NullableBoolEx encoding
+
+`EnableAutoType` and `EnableSearching` carry one of three literal
+string values:
+
+| Value   | Meaning |
+|---------|---------|
+| `True`  | Explicitly enabled for this Group and its descendants. |
+| `False` | Explicitly disabled for this Group and its descendants. |
+| `Null`  | Inherit from the parent Group. At the root Group, treated as `True`. |
+
+KDBXKit's writer emits the title-case form `Null` (capital N) to
+match what KeePass 2 (.NET) produces. The reader accepts both
+`Null` and `null` (lower-case n), and `True`/`true`,
+`False`/`false`. Any other value causes the reader to throw
+`.corrupted(reason:)`.
+
+Note: the Terminology section of this document lists `null`
+(lower-case) as the canonical on-disk form. That description
+applies to the reader's acceptance set; the writer always emits
+`Null` with a capital N.
+
+Implementation reference: `KDBX/Group.swift`,
+`KDBX/NullableBoolEx.swift`,
+`Database/XMLDocumentReader.swift` (`parseGroup`,
+`parseNullableBoolEx`),
+`Database/XMLDocumentWriter.swift` (`write(_:KDBX.Group:to:)`).
