@@ -918,3 +918,98 @@ Implementation reference: `KDBX/CustomDataItem.swift`,
 `parseCustomDataWithTimesList`),
 `Database/XMLDocumentWriter.swift` (`write(_:CustomDataItem:to:)`,
 `write(_:CustomDataWithTimes:to:)`).
+
+## 10. Dialect notes
+
+This section catalogues real-world divergences between
+implementations that the schema does not capture. KDBXKit's
+behaviour is tolerant on read and conformant-to-the-XSD on write
+unless noted.
+
+### 10.1 Tag separators
+
+The XSD specifies `;` as the tag separator. KeePassXC writes `,` in
+practice; KeePass 2.x writes `;`. KDBXKit's reader accepts either
+separator (splits on `;` or `,`). KDBXKit's writer emits `,`
+(matches KeePassXC's preferred form; both KeePass 2.x and KeePassXC
+accept either separator on read).
+
+Tag values containing `;` or `,` cannot be losslessly round-tripped
+through any current implementation; producers SHOULD strip these
+characters from tag values, or replace them with an escape (none of
+the major implementations document an escape, so the practical
+recommendation is to disallow them).
+
+### 10.2 Color encoding
+
+`<Color>`, `<ForegroundColor>`, and `<BackgroundColor>` are encoded
+as 6-character uppercase hex strings prefixed with `#`, e.g.
+`#FF8800`. The format string in source is `"#%02X%02X%02X"`. The
+empty string is the canonical "no color" value; KDBXKit's reader
+accepts both `<Color></Color>` and absence as "unset", and the
+writer omits the element entirely when unset.
+
+The alpha channel is not represented; all KDBX colors are opaque
+RGB.
+
+### 10.3 AutoType default sequences
+
+When an Entry's `<AutoType><DefaultSequence>` is empty or missing,
+the inherited default sequence applies. Inheritance walks up the
+Group tree: each Group has its own `<DefaultAutoTypeSequence>`
+(§4); the first non-empty value encountered wins. If no ancestor
+sets one, the KeePass built-in default is
+`{USERNAME}{TAB}{PASSWORD}{ENTER}`. KDBXKit does not resolve
+inheritance on the data layer; that is a UI concern.
+
+### 10.4 NullableBoolEx encoding
+
+KDBXKit's writer emits `Null` (title-case) for the third state.
+KeePass 2.x emits `null` (lower-case). KDBXKit's reader accepts
+both. Producers MAY emit either; readers MUST accept both. (See
+§4.3.)
+
+### 10.5 Boolean encoding
+
+KDBXKit writes `True` / `False` (title-case). KeePass 2.x and
+KeePassXC are believed to write the same form. KDBXKit's reader
+accepts the title-case form only; lower-case `true`/`false` MAY
+be rejected by other implementations. Producers MUST emit
+title-case.
+
+### 10.6 UUID encoding inside the XML payload
+
+Inside the XML payload, UUIDs are base64-encoded 16-byte values
+stored in little-endian byte order (i.e., the 16 UUID bytes
+reversed — byte 15 first, byte 0 last). This matches the
+little-endian UUID convention used throughout the KDBX binary
+container (see the container spec §Conventions). It is distinct
+from the `Foundation.UUID.uuidString` "8-4-4-4-12" hyphenated
+form and from the RFC 4122 canonical big-endian byte order. Empty
+body and a UUID of all-zero bytes are treated as equivalent by
+KDBXKit's reader; both decode to `UUID(uuid: (0,0,...,0))`.
+
+### 10.7 Whitespace and indentation
+
+KDBXKit's writer emits indented XML using a tab character (`\t`)
+per depth level. KeePassXC also uses tab indentation. All readers
+MUST ignore inter-element whitespace. Producers MAY emit
+unindented XML; in-element whitespace is significant only for
+string values (see §1 Conventions).
+
+### 10.8 Element ordering inside Meta
+
+Meta's child elements MAY appear in any order; KDBXKit emits them
+in the order shown in §2's table. KeePassXC emits a similar but
+not byte-identical order. Round-trip stability through
+`KDBXReader.parse` + `KDBXWriter.write` with `regenerateSalts:
+false` holds for `KDBXKit`-to-`KDBXKit` round-trips; cross-
+implementation round-trips re-serialise to the local writer's
+element order and are NOT byte-stable at the XML level.
+
+Implementation reference: `KDBX/Color.swift`,
+`Database/XMLDocumentReader.swift`,
+`Database/XMLDocumentWriter.swift`,
+`Extensions/Data+asUUIDLE.swift`,
+`Extensions/UUID+uint128.swift`,
+`KDBXKit/CLAUDE.md §Format dialects we round-trip`.
