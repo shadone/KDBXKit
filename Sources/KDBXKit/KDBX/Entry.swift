@@ -7,43 +7,112 @@
 import Foundation
 
 public extension KDBX {
+    /// A single record in the vault — credential, login, note, or
+    /// whatever shape your host app exposes on top of KDBX's
+    /// key/value field model.
+    ///
+    /// The actual data lives in ``strings`` (named text-shaped fields,
+    /// including standard `Title` / `UserName` / `Password` / `URL` /
+    /// `Notes` plus any custom strings) and ``binaries`` (file
+    /// attachments). The rest of the struct is metadata: identity,
+    /// display hints, behavior toggles, and an audit history.
+    ///
+    /// Find a specific field by key:
+    ///
+    /// ```swift
+    /// let password = entry.strings.first(where: { $0.key == "Password" })?.value
+    /// password?.withRevealedString { plaintext in
+    ///     // plaintext lives only for this closure.
+    /// }
+    /// ```
     struct Entry: Sendable, Equatable {
+        /// Stable identity for this entry. Persists across edits,
+        /// history snapshots, group moves, and round-trips through the
+        /// writer; the canonical reference for "the same entry" across
+        /// vault versions.
         public var uuid: UUID
 
-        /// See the folder "Ext/Images_Client_HighRes" in the KeePass source code package.
+        /// Standard icon index from KeePass's built-in icon set.
+        /// See `Ext/Images_Client_HighRes` in the KeePass source for
+        /// the numeric mapping. Use ``customIconUUID`` to override
+        /// with a vault-embedded image.
         public var iconID: UInt32
 
-        /// Reference to a custom icon stored in the KeePassFile/Meta/CustomIcons element. If non-zero, it overrides IconID.
+        /// When non-nil, refers to an entry in `Meta.customIcons` and
+        /// shadows ``iconID``. UI clients should prefer the custom icon
+        /// whenever this is set.
         public var customIconUUID: UUID?
 
+        /// Display foreground color hint for the UI (text). Not
+        /// security-relevant; clients are free to ignore it.
         public var foregroundColor: Color?
 
+        /// Display background color hint for the UI. Not
+        /// security-relevant; clients are free to ignore it.
         public var backgroundColor: Color?
 
-        /// https://keepass.info/help/base/autourl.html#override
+        /// When non-nil, the UI uses this URL instead of the entry's
+        /// `URL` field for "open" actions. Useful for protocol-scheme
+        /// overrides (e.g. launching a custom handler).
+        /// See <https://keepass.info/help/base/autourl.html#override>.
         public var overrideURL: String?
 
-        /// https://keepass.info/help/v2/entry.html#gen
-        /// https://keepass.info/help/kb/pw_quality_est.html
+        /// When non-nil and `false`, the UI skips password-quality
+        /// estimation for this entry. Useful for entries with
+        /// intentionally weak passwords (service-account placeholders,
+        /// shared throwaway accounts). `nil` means "use the host's
+        /// default policy".
+        /// See <https://keepass.info/help/v2/entry.html#gen> and
+        /// <https://keepass.info/help/kb/pw_quality_est.html>.
         public var qualityCheck: Bool?
 
-        /// Tags associated with the entry, separated using ';'. https://keepass.info/help/v2/entry.html#tags
+        /// User-applied tags on the entry. The KDBX 4.1 XSD specifies
+        /// `;`-separated on disk; the reader also accepts `,` for
+        /// KeePassXC interop and the writer emits `;`.
+        /// See <https://keepass.info/help/v2/entry.html#tags>.
         public var tags: [String]
 
-        /// UUID of the group in which the current group was stored previously. This information can for instance be used by a recycle bin restoration command.
+        /// UUID of the group this entry used to live in. Set when an
+        /// entry is moved (typically to the recycle bin) so a restore
+        /// can put it back where it came from.
         public var previousParentGroup: UUID?
 
+        /// Creation, last-modification, last-access timestamps, plus
+        /// the expiry hint.
         public var times: Times?
 
+        /// The entry's named text-shaped fields. Standard fields
+        /// (`"Title"`, `"UserName"`, `"Password"`, `"URL"`, `"Notes"`)
+        /// and any custom strings live in the same array, keyed by
+        /// `ProtectedString.key`. Values are ``ProtectedString/Value``
+        /// — reveal cleartext via
+        /// ``ProtectedString/Value/withRevealedString(_:)``.
         public var strings: [ProtectedString]
 
+        /// File attachments embedded on the entry. Each
+        /// ``ProtectedBinary`` carries a reference into the vault's
+        /// binary pool (in ``InnerHeader``), not the bytes themselves —
+        /// the pool deduplicates byte-identical attachments across
+        /// entries.
         public var binaries: [ProtectedBinary]
 
+        /// Auto-type configuration: default keystroke sequence plus
+        /// per-window-title associations. `nil` if auto-type is
+        /// disabled or unset for this entry; consult
+        /// ``Group/enableAutoType`` for the inherited policy.
         public var autoType: AutoType?
 
+        /// Arbitrary string key/value pairs hosts can attach to the
+        /// entry. Persisted on save; not surfaced by the KeePass UI
+        /// by default. Use this for app-specific metadata (e.g.
+        /// "last-synced-at" timestamps, source-system identifiers).
         public var customData: [CustomDataItem]
 
-        /// https://keepass.info/help/v2/entry.html#hst
+        /// Past versions of this entry, oldest first. Every `entry set`
+        /// or equivalent edit prepends a snapshot of the prior state
+        /// here. The list is trimmed on save according to
+        /// `Meta.historyMaxItems`.
+        /// See <https://keepass.info/help/v2/entry.html#hst>.
         public var history: [Entry]
 
         public init(
