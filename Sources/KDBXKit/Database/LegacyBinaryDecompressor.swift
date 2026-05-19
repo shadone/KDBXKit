@@ -5,7 +5,6 @@
 //
 
 import Foundation
-import SwiftGzip
 
 /// Inflates the per-`<Binary>` gzip payload used by the KDBX 3.x inline
 /// binary pool (`<Meta><Binaries><Binary Compressed="True">...`).
@@ -23,10 +22,9 @@ enum LegacyBinaryDecompressor {
         _ data: Data,
         maxDecompressedPayloadSize: Int = KDBXReader.maxDecompressedPayloadSize
     ) throws(Error) -> Data {
-        let input = InputStream(data: data)
         let output = CappedDataOutputStream(cap: maxDecompressedPayloadSize)
         do {
-            try GzipDecompressor().unzip(inputStream: input, outputStream: output)
+            try GzipStreamReader.decompress(data, into: output)
         } catch {
             if output.overflowed {
                 throw .decompressedPayloadTooLarge(limit: maxDecompressedPayloadSize)

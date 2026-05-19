@@ -6,7 +6,6 @@
 
 import Crypto
 import Foundation
-import SwiftGzip
 
 /// KDBX 3.x read pipeline. Kept in a separate extension so the 4.x
 /// pipeline in ``KDBXReader.parse(unlockData:retainsXMLForDiagnostics:maxDecompressedPayloadSize:)``
@@ -154,10 +153,9 @@ extension KDBXReader {
         case .none:
             break
         case .gzip:
-            let input = InputStream(data: xmlBytes)
             let output = CappedDataOutputStream(cap: maxDecompressedPayloadSize)
             do {
-                try GzipDecompressor().unzip(inputStream: input, outputStream: output)
+                try GzipStreamReader.decompress(xmlBytes, into: output)
             } catch {
                 if output.overflowed {
                     throw .decompressedPayloadTooLarge(limit: maxDecompressedPayloadSize)

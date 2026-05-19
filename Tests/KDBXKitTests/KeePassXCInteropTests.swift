@@ -209,10 +209,8 @@ struct KeePassXCInteropTests {
         // Build a fresh vault carrying a pool of attachments with sizes
         // chosen to exercise both the small-payload path and the
         // multi-chunk gzip path through KDBXWriter's streaming pipeline.
-        // The Compression-framework DEFLATE bytes differ from SwiftGzip's
-        // even on identical input — both are valid gzip, but only a real
-        // KeePassXC decode proves the framing is correct (10-byte header,
-        // raw DEFLATE, 8-byte CRC32 + length trailer).
+        // Only a real KeePassXC decode proves the gzip framing is
+        // correct (header, DEFLATE body, CRC32+ISIZE trailer).
         let unlock = UnlockData(masterPassword: "interop")
         var content = KDBXContent.makeEmpty(databaseName: "AttachInterop", kdf: .fast)
 

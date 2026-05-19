@@ -7,7 +7,6 @@
 import CommonCrypto
 import Crypto
 import Foundation
-import SwiftGzip
 
 /// Parser for the `.kdbx` file format.
 ///
@@ -402,10 +401,9 @@ public struct KDBXReader: Sendable {
             // Stream-decompress into a capped buffer so a malformed or
             // crafted payload that would inflate without bound fails
             // mid-inflation rather than after the fact.
-            let input = InputStream(data: payload)
             let output = CappedDataOutputStream(cap: maxDecompressedPayloadSize)
             do {
-                try GzipDecompressor().unzip(inputStream: input, outputStream: output)
+                try GzipStreamReader.decompress(payload, into: output)
             } catch {
                 if output.overflowed {
                     throw Error.decompressedPayloadTooLarge(limit: maxDecompressedPayloadSize)

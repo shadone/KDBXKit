@@ -6,7 +6,6 @@
 
 import Crypto
 import Foundation
-import SwiftGzip
 
 /// Writes a `KDBXContent` to a `.kdbx` byte stream.
 ///
@@ -272,7 +271,7 @@ public struct KDBXWriter {
 
         case .gzip:
             do {
-                payload = try GzipCompressor().zip(data: payload)
+                payload = try GzipOneShot.compress(payload)
             } catch {
                 throw .compressionFailed(reason: "\(error)")
             }

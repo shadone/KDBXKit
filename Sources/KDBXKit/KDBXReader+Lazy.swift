@@ -7,7 +7,6 @@
 import CommonCrypto
 import Crypto
 import Foundation
-import SwiftGzip
 
 /// Lazy / streaming variants of `KDBXReader.parse`. The eager `parse`
 /// produces a `KDBXContent` with every binary's bytes resident on
@@ -345,10 +344,9 @@ internal extension KDBXReader {
         case .none:
             break
         case .gzip:
-            let input = InputStream(data: payload)
             let output = CappedDataOutputStream(cap: maxDecompressedPayloadSize)
             do {
-                try GzipDecompressor().unzip(inputStream: input, outputStream: output)
+                try GzipStreamReader.decompress(payload, into: output)
             } catch {
                 if output.overflowed {
                     throw KDBXReader.Error.decompressedPayloadTooLarge(limit: maxDecompressedPayloadSize)

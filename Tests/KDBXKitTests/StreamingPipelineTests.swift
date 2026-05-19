@@ -6,7 +6,6 @@
 
 import Crypto
 import Foundation
-import SwiftGzip
 import Testing
 @testable import KDBXKit
 
@@ -66,7 +65,7 @@ struct StreamingPipelineTests {
         #expect(bytes.count == expected)
     }
 
-    @Test("GzipStreamWriter round-trip via SwiftGzip decompressor")
+    @Test("GzipStreamWriter round-trip via GzipStreamReader")
     func gzip_roundtrip() throws {
         let collector = CollectingSink()
         let gzip = try GzipStreamWriter(downstream: collector)
@@ -80,14 +79,9 @@ struct StreamingPipelineTests {
         #expect(collector.collected.count >= 18) // 10 header + 8 footer
         #expect(collector.collected.prefix(2) == Data([0x1F, 0x8B]))
 
-        let decompressed = try GzipDecompressor().unzip(data: collector.collected)
+        let output = OutputStream(toMemory: ())
+        try GzipStreamReader.decompress(collector.collected, into: output)
+        let decompressed = (output.property(forKey: .dataWrittenToMemoryStreamKey) as? Data) ?? Data()
         #expect(decompressed == payload)
-    }
-
-    @Test("CRC32 matches known value")
-    func crc32_known() {
-        var crc = CRC32()
-        crc.update(Data("123456789".utf8))
-        #expect(crc.finalized == 0xCBF43926)
     }
 }
