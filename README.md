@@ -86,7 +86,7 @@ sudo dnf install zlib-devel        # Fedora
 
 ## Library usage
 
-The basic open / walk / save flow is in the [intro snippet](#what-is-kdbxkit) above. The sections below cover the less obvious bits.
+The basic open / walk / save flow is in the [intro snippet](#what-is-kdbxkit) above. A runnable end-to-end example lives in [`Examples/HelloKDBX/`](Examples/HelloKDBX/) — open it with `swift run HelloKDBX` for a working `.kdbx` reader in ~70 lines. The sections below cover the less obvious bits.
 
 ### Header-only inspection (no credentials)
 
