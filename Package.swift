@@ -21,6 +21,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-crypto.git", from: "3.0.0"),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.5.0"),
         .package(url: "https://github.com/P-H-C/phc-winner-argon2.git", branch: "master"),
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
         .package(url: "https://github.com/mihai8804858/swift-gzip", branch: "main"),
@@ -60,6 +61,7 @@ let package = Package(
             dependencies: [
                 .product(name: "Crypto", package: "swift-crypto"),
                 .product(name: "_CryptoExtras", package: "swift-crypto"),
+                .product(name: "Logging", package: "swift-log"),
                 .product(name: "argon2", package: "phc-winner-argon2"),
                 .product(name: "SwiftGzip", package: "swift-gzip"),
             ],
