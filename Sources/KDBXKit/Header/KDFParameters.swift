@@ -6,14 +6,39 @@
 
 import Foundation
 
+/// Key derivation function parameters carried in the file header —
+/// the algorithm choice plus the per-vault tuning that controls how
+/// long an unlock takes.
+///
+/// On open the reader picks one of the four cases based on the KDF
+/// UUID in the header; on save the writer serializes it back. The
+/// `additional` `VariantDictionary` on each case preserves any
+/// non-standard entries unknown to KDBXKit so a round-trip through
+/// the library doesn't lose data plugins or other tools wrote.
+///
+/// For fresh vaults, prefer the pre-tuned profiles via
+/// ``recommended(_:)`` rather than constructing the cases directly.
+/// To upgrade a vault's KDF (legacy AES-KDF → modern Argon2id)
+/// without breaking unlock with the same master password, use
+/// ``KDBXContent/upgradeToArgon2id(profile:)``.
 public enum KDFParameters: Sendable, Equatable {
+    /// AES-KDF parameters — legacy "AES iterated transform"
+    /// KDF inherited from KeePass 1.x. Cryptographically much
+    /// weaker than Argon2 against GPU/ASIC offline attackers; kept
+    /// for compatibility with older files. New vaults should use
+    /// Argon2id.
     public struct AES: Sendable, Equatable {
         /// Salt/seed (⟳).
         ///
         /// Value: `Byte[32]`
         public let salt: Data
 
-        /// Rounds
+        /// Number of AES iterations. Higher is slower (and stronger
+        /// against offline attackers). KeePass 1.x defaults were
+        /// 6000–60000; modern vaults that stick with AES-KDF
+        /// typically use millions. Migrating to Argon2id (see
+        /// ``KDFParameters/argon2id(_:additional:)``) is the better
+        /// long-term answer.
         public let rounds: UInt64
 
         public init(salt: Data, rounds: UInt64) {
@@ -22,7 +47,17 @@ public enum KDFParameters: Sendable, Equatable {
         }
     }
 
+    /// Argon2 parameters (shared between argon2d and argon2id).
+    ///
+    /// Argon2 is the password-hashing-competition winner; it's
+    /// memory-hard, which makes GPU/ASIC offline attacks expensive.
+    /// Argon2id is the recommended variant for password hashing —
+    /// argon2d is also defined here for compatibility with vaults
+    /// that originally chose it.
     public struct Argon2: Sendable, Equatable {
+        /// Argon2 algorithm version. 0x10 (1.0) or 0x13 (1.3).
+        /// KDBXKit only supports 1.3 — 1.0 had a known bug and
+        /// shouldn't be used.
         public enum Version: UInt32, CustomStringConvertible, Sendable {
             case v1_0 = 0x10
             case v1_3 = 0x13
@@ -75,15 +110,28 @@ public enum KDFParameters: Sendable, Equatable {
         }
     }
 
-    /// AES KDF
+    /// AES iterated KDF — the KeePass 1.x / early KDBX 4 default.
+    /// `additional` preserves any vendor-specific entries from the
+    /// header's KDF variant dictionary that KDBXKit doesn't model.
     case aes(AES, additional: VariantDictionary)
 
-    /// Argon2d
+    /// Argon2 in **data-dependent** mode. Stronger than AES-KDF
+    /// against GPU offline attacks; weaker than Argon2id against
+    /// side-channel attacks. Kept for compatibility with files that
+    /// originally chose this variant.
     case argon2d(Argon2, additional: VariantDictionary)
 
+    /// Argon2 in **hybrid (id)** mode — the recommended choice for
+    /// password hashing and the default for new vaults KDBXKit
+    /// creates via ``recommended(_:)`` / ``KDBXContent/makeEmpty(databaseName:kdf:generator:)``.
     case argon2id(Argon2, additional: VariantDictionary)
 
-    /// The KDF UUID value is not implemented.
+    /// A KDF whose UUID isn't one KDBXKit implements. The reader
+    /// emits this case when it parses a header with an unknown KDF
+    /// UUID; attempting to unlock such a file throws
+    /// ``UnlockDataError/unsupportedKDF(_:)``. The writer rejects
+    /// `.unknown` outright — there's no path through which a vault
+    /// with an unsupported KDF can be saved.
     case unknown(uuid: UUID)
 
     var aes: (params: AES, additional: VariantDictionary)? {

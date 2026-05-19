@@ -6,10 +6,31 @@
 
 import Foundation
 
+/// The outer file header of a `.kdbx` file — the cleartext envelope
+/// that wraps the encrypted vault.
+///
+/// Carries everything a reader needs *before* unlocking: the format
+/// version, the outer cipher choice, the compression mode, the
+/// master salt + encryption nonce (regenerated on every save), the
+/// KDF parameters, and any public custom data plugins want
+/// accessible without credentials. Surfaced as
+/// ``KDBXContent/header``; available without credentials via
+/// ``KDBXReader/parseHeader(_:)``.
+///
+/// On save the writer regenerates ``masterSalt`` and
+/// ``encryptionNonce`` from a CSPRNG unless explicitly opted out
+/// via `regenerateSalts: false` (only meaningful for golden-file
+/// testing).
 public struct Header: Sendable, Equatable {
     static let signature1: UInt32 = 0x9AA2D903
     static let signature2: UInt32 = 0xB54BFB67
 
+    /// The KDBX format version a file claims on disk —
+    /// `major.minor`, e.g. `4.1`.
+    ///
+    /// KDBXKit reads 3.1, 4.0, and 4.1; writes 4.1. Use
+    /// ``isLegacy3x`` to branch on "is this a pre-4 file" without
+    /// re-implementing the version comparison.
     public struct FormatVersion: CustomStringConvertible, Equatable, Sendable {
         public let major: UInt16
         public let minor: UInt16
@@ -71,6 +92,8 @@ public struct Header: Sendable, Equatable {
     ///   ignoring any unknown items. Certain data may be lost in this case, thus showing a confirmation/warning is recommended.
     public let formatVersion: FormatVersion
 
+    /// Outer cipher used to encrypt the vault's block stream.
+    /// Identified on disk by a 16-byte UUID.
     public enum EncryptionAlgorithm: UInt128, Sendable, Equatable {
         /// AES-256 (NIST FIPS 197, CBC mode, PKCS #7 padding).
         case AES256CBC = 0xFF5AFC6A210558BE504371BFE6F2C131
@@ -79,10 +102,18 @@ public struct Header: Sendable, Equatable {
         case ChaCha20 = 0x9AB5DB319A3324A5B54C6F8B2B8A03D6
     }
 
+    /// The outer cipher used to encrypt the encrypted block stream.
     public let encryptionAlgorithm: EncryptionAlgorithm
 
+    /// Compression applied to the cleartext payload before
+    /// encryption. KDBX 4 default is ``gzip``; ``none`` is rare in
+    /// the wild.
     public enum CompressionAlgorithm: UInt32, CustomStringConvertible, Sendable, Equatable {
+        /// No compression — cleartext payload is encrypted as-is.
         case none = 0
+
+        /// gzip-compressed cleartext payload (with the inner header
+        /// and XML inside the gzip stream).
         case gzip = 1
 
         public var description: String {

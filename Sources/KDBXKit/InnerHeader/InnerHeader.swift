@@ -6,6 +6,20 @@
 
 import Foundation
 
+/// The inner header of a `.kdbx` file — vault metadata that lives
+/// *inside* the encrypted block stream rather than in the outer
+/// envelope.
+///
+/// Two things go here: the inner-stream cipher's key (used to
+/// per-field XOR-encrypt protected strings in the XML, on top of
+/// the outer cipher) and the deduplicated binary attachment pool.
+/// Surfaced as ``KDBXContent/innerHeader``.
+///
+/// Inner-stream encryption is what makes "protected in memory"
+/// meaningful: passwords land in the parsed XML as ciphertext, and
+/// the reader only decrypts them when a caller asks. See
+/// ``EncryptionAlgorithm-swift.enum`` and
+/// <https://keepass.info/help/kb/kdbx.html#ienc>.
 public struct InnerHeader: Sendable, Equatable {
     /// Most XML parsers work with regular strings, which may be difficult to erase from the process memory.
     /// So, if sensitive data would be stored unencryptedly in the XML document, a process memory protection could not be realized
@@ -55,9 +69,23 @@ public struct InnerHeader: Sendable, Equatable {
     /// string in the file.
     public var encryptionKey: SecureBytes
 
+    /// A single attachment payload in the binary pool.
+    ///
+    /// KDBX 4 stores attachments here once, deduplicated by content;
+    /// each ``KDBX/Entry/binaries`` entry references a pool slot by
+    /// index via ``KDBX/ProtectedBinary/Value/ref(_:)``. Two
+    /// byte-identical attachments on different entries share one
+    /// `BinaryContent`.
     public struct BinaryContent: Sendable, Equatable {
-        /// The flag indicates that the binary content should be protected in the process memory.
+        /// Whether the payload should be held in protected memory
+        /// while resident — i.e. encrypted under the inner-stream
+        /// cipher and decrypted only on demand. Mirrors the
+        /// `protected` flag a referencing
+        /// ``KDBX/ProtectedBinary/Value/inline(_:protected:)`` would
+        /// have carried.
         public var shouldBeProtected: Bool
+
+        /// Raw bytes of the attachment.
         public var data: Data
 
         public init(shouldBeProtected: Bool, data: Data) {
@@ -66,8 +94,9 @@ public struct InnerHeader: Sendable, Equatable {
         }
     }
 
-    /// A binary content is referenced in the XML document by its index in the inner header (the first binary content has
-    /// index 0, the second one has index 1, etc.).
+    /// The deduplicated binary pool. Each entry's
+    /// ``KDBX/ProtectedBinary/Value/ref(_:)`` carries an index into
+    /// this array — slot 0, 1, 2 … in declaration order.
     public var binaryContent: [BinaryContent]
 
     public init(

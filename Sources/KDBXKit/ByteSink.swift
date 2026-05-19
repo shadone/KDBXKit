@@ -15,7 +15,14 @@ import Foundation
 /// need to flush (e.g. `URLSink` closing its file handle) can do so
 /// without the caller juggling lifetime.
 public protocol ByteSink {
+    /// Consume `chunk` — append to a buffer, write to a file
+    /// handle, etc. Called zero or more times per stream, never
+    /// after ``finalize()``.
     mutating func write(_ chunk: UnsafeRawBufferPointer) throws
+
+    /// Called once after the last ``write(_:)``. Sinks that need to
+    /// flush state (close file handles, materialize the result) do
+    /// it here. Subsequent ``write(_:)`` calls are not permitted.
     mutating func finalize() throws
 }
 
@@ -28,10 +35,15 @@ public extension ByteSink {
 }
 
 /// Default sink for unprotected binaries — accumulates into a `Data`
-/// buffer. Caller reads `.data` after `finalize()`.
+/// buffer. Caller reads ``data`` after ``finalize()``.
 public struct DataSink: ByteSink {
+    /// Accumulated bytes. Safe to read after ``finalize()``; reading
+    /// mid-stream is permitted but the buffer is still growing.
     public private(set) var data: Data
 
+    /// - Parameter capacityHint: pre-allocates the underlying `Data`
+    ///   to avoid copies on each grow. Use the known
+    ///   ``BinaryMetadata/sizeBytes`` for a tight fit.
     public init(capacityHint: Int = 0) {
         data = Data(capacity: capacityHint)
     }
@@ -50,6 +62,9 @@ public struct DataSink: ByteSink {
 public struct SecureBytesSink: ByteSink {
     private var buffer: [UInt8]
 
+    /// - Parameter capacityHint: reserves the underlying storage to
+    ///   avoid copies during accumulation. Use the known
+    ///   ``BinaryMetadata/sizeBytes`` for a tight fit.
     public init(capacityHint: Int = 0) {
         buffer = []
         buffer.reserveCapacity(capacityHint)
@@ -87,8 +102,12 @@ public struct SecureBytesSink: ByteSink {
 /// closed at `finalize`.
 public struct URLSink: ByteSink {
     private let handle: FileHandle
+
+    /// Destination URL the sink is writing to.
     public let url: URL
 
+    /// Create / truncate the file at `url` and open it for writing.
+    /// The file handle is closed when ``finalize()`` runs.
     public init(writingTo url: URL) throws {
         self.url = url
         // Touch the file to ensure it exists and is empty.
