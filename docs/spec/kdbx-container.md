@@ -30,9 +30,22 @@ document are to be interpreted as described in RFC 2119 [RFC2119].
 
 Byte grammars are expressed in ABNF [RFC5234]. All multi-byte integer
 fields in the KDBX container are little-endian unless explicitly stated
-otherwise. UUID values are stored in the 16-byte big-endian-byte
-serialisation used by RFC 4122 [RFC4122], not the Microsoft
-mixed-endian guid layout.
+otherwise.
+
+UUID values are stored on disk as the **little-endian byte serialisation
+of the 128-bit value** — equivalently, the full byte reversal of the
+RFC 4122 [RFC4122] byte sequence. This document writes each UUID in two
+forms when the distinction matters:
+
+- **Canonical form** — the 8-4-4-4-12 hex-string representation used by
+  KeePass.info, KeePassXC, and `Foundation.UUID.uuidString`. Use this to
+  cross-reference other documentation.
+- **On-disk bytes** — the 16-byte sequence as it appears in a KDBX file.
+  Use this when reading or writing the binary container directly.
+
+For example, the AES-KDF UUID is canonically
+`C9D9F39A-628A-4460-BF74-0D08C18A4FEA` and on disk is
+`EA4F8AC1 080D74BF 60448A62 9AF3D9C9`.
 
 Hexadecimal byte sequences are written in uppercase, grouped by four
 bytes, separated by single spaces (e.g. `9AA2D903 B54BFB67`). String
@@ -319,12 +332,13 @@ KDF-specific parameter keys.
 
 ### 6.1 AES-KDF
 
-UUID: `EA4F8AC1-080D-74BF-6044-8A629AF3D9C9`
+- Canonical UUID: `C9D9F39A-628A-4460-BF74-0D08C18A4FEA`
+- On-disk bytes: `EA4F8AC1 080D74BF 60448A62 9AF3D9C9`
 
-This is the `Foundation.UUID` string representation of the 16 raw bytes
-stored in `KDFParameters.KDF.AES` (see `KDFParameters.swift`). On disk
-the bytes are written in little-endian UUID layout via
-`toUInt128().toDataLittleEndian()`.
+Implementations comparing UUIDs MUST be explicit about which form is in
+use; the canonical form is what KeePass.info, KeePassXC, and
+`Foundation.UUID.uuidString` produce, while the on-disk form is what
+actually appears in the `$UUID` ByteArray value.
 
 Parameters:
 
@@ -347,7 +361,8 @@ sequential single-block AES-256-ECB encryptions.
 
 ### 6.2 Argon2d
 
-UUID: `0C0AE303-A4A9-F791-4B44-298CDF6D63EF`
+- Canonical UUID: `EF636DDF-8C29-444B-91F7-A9A403E30A0C`
+- On-disk bytes: `0C0AE303 A4A9F791 4B44298C DF6D63EF`
 
 Parameters (Argon2 RFC 9106 [RFC9106] terminology):
 
@@ -371,7 +386,8 @@ implementation.
 
 ### 6.3 Argon2id
 
-UUID: `E6A1F0C6-3EFC-3DB2-7347-DB56198B299E`
+- Canonical UUID: `9E298B19-56DB-4773-B23D-FC3EC6F0A1E6`
+- On-disk bytes: `E6A1F0C6 3EFC3DB2 7347DB56 198B299E`
 
 Parameters and rules are identical to Argon2d (§6.2); only the variant
 selector differs. KDBXKit and the upstream KeePass clients RECOMMEND
