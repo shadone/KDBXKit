@@ -4,7 +4,13 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
+#if canImport(Darwin)
 import Darwin
+#elseif canImport(Glibc)
+import Glibc
+#elseif canImport(Musl)
+import Musl
+#endif
 import Foundation
 
 /// A buffer of sensitive bytes that
@@ -67,7 +73,7 @@ public final class SecureBytes: @unchecked Sendable, Equatable, CustomStringConv
         // Best-effort mlock — silently ignore failures (e.g. when the
         // RLIMIT_MEMLOCK rlimit prevents pinning; the page can still hold
         // the bytes, it just isn't pinned against swap).
-        _ = Darwin.mlock(buffer, allocated)
+        _ = mlock(buffer, allocated)
 
         if count > 0 {
             array.withUnsafeBufferPointer { source in
@@ -94,10 +100,16 @@ public final class SecureBytes: @unchecked Sendable, Equatable, CustomStringConv
     public static var empty: SecureBytes { SecureBytes([] as [UInt8]) }
 
     deinit {
-        // memset_s is the standards-mandated "won't be optimized away"
-        // zeroing function. Then unlock the page and return it to the heap.
+        // Zero the buffer with a function the compiler can't optimize
+        // away. On Apple/BSD we use `memset_s` (C11 Annex K); on Linux
+        // we use `explicit_bzero` (glibc ≥ 2.25, musl ≥ 1.1.20). Then
+        // unlock the page and return it to the heap.
+        #if canImport(Darwin)
         memset_s(buffer, allocated, 0, allocated)
-        _ = Darwin.munlock(buffer, allocated)
+        #else
+        explicit_bzero(buffer, allocated)
+        #endif
+        _ = munlock(buffer, allocated)
         free(buffer)
     }
 
