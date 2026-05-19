@@ -7,7 +7,17 @@
 import Foundation
 
 public extension KDBX {
-    /// Database-wide settings stored in the KDBX `<Meta>` element.
+    /// Vault-level settings — name, description, recycle-bin pointer,
+    /// custom icons, default username, master-key-rotation policy,
+    /// history limits, memory-protection defaults, and the
+    /// per-setting modification timestamps that sync / merge tooling
+    /// uses to pick the freshest side.
+    ///
+    /// Lives at ``KDBX/meta``. Most fields are user-visible
+    /// preferences a host app exposes through a "vault settings"
+    /// dialog; a few (the various `*Changed` timestamps,
+    /// ``settingsChanged``, ``headerHash``) are bookkeeping that
+    /// KDBXKit keeps consistent automatically.
     ///
     /// **Invariant:** mutating any user-visible field bumps
     /// `settingsChanged` (the umbrella "settings touched at" timestamp
@@ -73,7 +83,9 @@ public extension KDBX {
         // and `DatabaseNameChanged` always advance together when the
         // name is edited.
 
-        /// The name of the database.
+        /// User-visible vault name (the string a host app shows in
+        /// the title bar / file list). Mutating it auto-bumps
+        /// ``databaseNameChanged`` and ``settingsChanged``.
         public var databaseName: String? {
             didSet {
                 guard databaseName != oldValue else { return }
@@ -83,6 +95,9 @@ public extension KDBX {
             }
         }
 
+        /// When ``databaseName`` was last edited. Bumped by the
+        /// observer on `databaseName`; sync / merge tooling reads
+        /// this to pick the freshest name on conflict.
         public var databaseNameChanged: Date? {
             didSet {
                 guard databaseNameChanged != oldValue else { return }
@@ -90,6 +105,9 @@ public extension KDBX {
             }
         }
 
+        /// Free-form vault description shown alongside the name in
+        /// vault chooser / settings UIs. Optional. Mutating bumps
+        /// ``databaseDescriptionChanged`` and ``settingsChanged``.
         public var databaseDescription: String? {
             didSet {
                 guard databaseDescription != oldValue else { return }
@@ -99,6 +117,8 @@ public extension KDBX {
             }
         }
 
+        /// When ``databaseDescription`` was last edited. Bumped by
+        /// the observer on `databaseDescription`.
         public var databaseDescriptionChanged: Date? {
             didSet {
                 guard databaseDescriptionChanged != oldValue else { return }
@@ -116,6 +136,7 @@ public extension KDBX {
             }
         }
 
+        /// When ``defaultUserName`` was last edited.
         public var defaultUserNameChanged: Date? {
             didSet {
                 guard defaultUserNameChanged != oldValue else { return }
@@ -134,6 +155,9 @@ public extension KDBX {
             }
         }
 
+        /// When the recycle-bin pointer or enabled flag was last
+        /// edited. Bumped by observers on ``recycleBinUUID`` and
+        /// ``recycleBinEnabled``.
         public var recycleBinChanged: Date? {
             didSet {
                 guard recycleBinChanged != oldValue else { return }
@@ -141,6 +165,10 @@ public extension KDBX {
             }
         }
 
+        /// UUID of a group whose entries the UI offers as templates
+        /// when creating new entries (a "starter set" of common
+        /// shapes — bank login, credit card, secure note). Nil
+        /// disables the templates feature for the vault.
         public var entryTemplatesGroup: UUID? {
             didSet {
                 guard entryTemplatesGroup != oldValue else { return }
@@ -150,6 +178,7 @@ public extension KDBX {
             }
         }
 
+        /// When ``entryTemplatesGroup`` was last edited.
         public var entryTemplatesGroupChanged: Date? {
             didSet {
                 guard entryTemplatesGroupChanged != oldValue else { return }
@@ -220,6 +249,12 @@ public extension KDBX {
             }
         }
 
+        /// Per-standard-field protection defaults the UI applies to
+        /// new entries — whether `Title` / `UserName` / `Password` /
+        /// `URL` / `Notes` are marked `Protected="True"` on creation.
+        /// See ``MemoryProtectionConfig`` for the field-by-field
+        /// details (and the spec's caveat that KeePass may reset
+        /// these on open).
         public var memoryProtection: MemoryProtectionConfig? {
             didSet {
                 guard memoryProtection != oldValue else { return }
@@ -227,6 +262,9 @@ public extension KDBX {
             }
         }
 
+        /// Vault-embedded images that entries and groups can use as
+        /// custom icons via ``Entry/customIconUUID`` /
+        /// ``Group/customIconUUID``. See ``CustomIcon``.
         public var customIcons: [CustomIcon] {
             didSet {
                 guard customIcons != oldValue else { return }
@@ -234,6 +272,16 @@ public extension KDBX {
             }
         }
 
+        /// Whether the recycle-bin workflow is enabled. When `false`,
+        /// deleting an entry or group removes it outright (a
+        /// tombstone is added to ``Root/deletedObjects``); when
+        /// `true`, the item is moved to ``recycleBinUUID`` instead.
+        /// `nil` defers to the client's default (`true` in KeePass).
+        ///
+        /// > Note: Only bumps ``settingsChanged``, not
+        /// > ``recycleBinChanged`` — the spec ties the latter to the
+        /// > recycle-bin *pointer* (``recycleBinUUID``), not the
+        /// > enable flag.
         public var recycleBinEnabled: Bool? {
             didSet {
                 guard recycleBinEnabled != oldValue else { return }
@@ -259,6 +307,9 @@ public extension KDBX {
             }
         }
 
+        /// UI hint: UUID of whichever group was selected when the
+        /// vault was last viewed. Lets clients restore the user's
+        /// place on next open. Not security-relevant.
         public var lastSelectedGroup: UUID? {
             didSet {
                 guard lastSelectedGroup != oldValue else { return }
@@ -266,6 +317,9 @@ public extension KDBX {
             }
         }
 
+        /// UI hint: UUID of whichever group was scrolled to the top
+        /// of the tree view when the vault was last viewed. Not
+        /// security-relevant.
         public var lastTopVisibleGroup: UUID? {
             didSet {
                 guard lastTopVisibleGroup != oldValue else { return }
@@ -279,6 +333,12 @@ public extension KDBX {
         /// instead.
         // public var binaries: [TProtectedBinaryDef]?
 
+        /// Vault-level custom key/value items with per-item
+        /// modification timestamps. Use this for plugin / host-app
+        /// metadata that applies to the whole vault (sync-server
+        /// pointer, last-export marker, etc.). Per-entry and
+        /// per-group custom data uses the plainer
+        /// ``CustomDataItem``.
         public var customData: [CustomDataWithTimes] {
             didSet {
                 guard customData != oldValue else { return }

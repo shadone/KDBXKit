@@ -5,11 +5,23 @@
 //
 
 public extension KDBX {
-    /// A hexadecimal CSS color of the form "#RRGGBB". For example, "#FFFF00" is yellow.
-    /// An empty string means to use the default value (chosen by the application, suitable
-    /// for the current UI).
+    /// An RGB color used for UI hints — vault-level accent
+    /// (``Meta/color``) and per-entry foreground / background
+    /// (``Entry/foregroundColor`` / ``Entry/backgroundColor``).
+    ///
+    /// On disk the color is serialized as a CSS-style hex string
+    /// `"#RRGGBB"` (e.g. `"#FFFF00"` for yellow). An empty string is
+    /// the KDBX spec's way of saying "no preference, let the client
+    /// pick" and decodes to ``default``.
+    ///
+    /// Not security-relevant; UI hint only.
     enum Color: Sendable, CustomStringConvertible, Equatable {
+        /// An explicit RGB color.
         case color(red: UInt8, green: UInt8, blue: UInt8)
+
+        /// "No color preference, let the client pick a sensible
+        /// default for the current UI." Serialized as an empty
+        /// string.
         case `default`
 
         init?(stringValue: String) {
@@ -32,6 +44,9 @@ public extension KDBX {
             }
         }
 
+        /// CSS-hex form: `"#RRGGBB"` for ``color(red:green:blue:)``,
+        /// empty string for ``default``. Matches the on-disk
+        /// serialization used by KDBX.
         public var description: String {
             switch self {
             case let .color(red, green, blue):
