@@ -108,4 +108,50 @@ struct MalformedInputTests {
             _ = try KDBXReader.parse(data, unlockData: .init(masterPassword: "123"))
         }
     }
+
+    /// The HMAC-protected block stream ends with a size-0 sentinel block
+    /// whose HMAC binds the "this is the end of the stream" signal to the
+    /// unlock key. If the sentinel's HMAC is not checked, an attacker can
+    /// substitute an interior block for the sentinel and truncate the
+    /// authenticated payload without detection.
+    @Test
+    func tamperedEndBlockHMACIsRejected() throws {
+        let path = Bundle.module.path(forResource: "Resources/simple-argon2id-aes256", ofType: "kdbx")!
+        var data = try Data(contentsOf: URL(filePath: path))
+
+        // The end-block HMAC sits at offset (fileSize - 36): 32 bytes of
+        // HMAC followed by the 4-byte size-0 length field. Flip a bit in
+        // the first byte of the HMAC tag.
+        let endBlockHmacOffset = data.count - 36
+        data[endBlockHmacOffset] ^= 0x01
+
+        #expect(throws: KDBXReader.Error.self) {
+            _ = try KDBXReader.parse(data, unlockData: .init(masterPassword: "123"))
+        }
+    }
+
+    /// Companion to ``tamperedEndBlockHMACIsRejected``: the lazy reader
+    /// shares the truncation-attack surface and MUST also reject a
+    /// tampered sentinel HMAC.
+    @Test
+    func tamperedEndBlockHMACIsRejectedLazy() throws {
+        let path = Bundle.module.path(forResource: "Resources/simple-argon2id-aes256", ofType: "kdbx")!
+        var data = try Data(contentsOf: URL(filePath: path))
+
+        let endBlockHmacOffset = data.count - 36
+        data[endBlockHmacOffset] ^= 0x01
+
+        // Write to a temp file so we can hit the lazy/file-source path.
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kdbxkit-endblock-tamper-\(UUID().uuidString).kdbx")
+        try data.write(to: tmp)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        #expect(throws: KDBXReader.Error.self) {
+            _ = try KDBXReader.openMetadataOnly(
+                from: .file(tmp),
+                unlockData: .init(masterPassword: "123")
+            )
+        }
+    }
 }

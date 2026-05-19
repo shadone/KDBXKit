@@ -326,17 +326,12 @@ public struct KDBXReader: Sendable {
             let size = try readInt32()
             let block = try readData(length: Int(size))
 
-            if size != 0 {
-                blockSizes.append(size)
-            }
-
-            // The HMAC-protected block stream is terminated by an output block for an empty
-            // input block (i.e. M empty, s = 0).
-            if size == 0 {
-                assert(block.isEmpty)
-                break
-            }
-
+            // Authenticate every block, including the size-0 sentinel that
+            // terminates the stream. Verifying the sentinel binds the
+            // "this is the end" signal to the unlock key and blocks
+            // truncation attacks where an attacker swaps an interior
+            // block for a size-0 marker — the substituted marker won't
+            // carry a valid HMAC at the next blockIndex.
             let blockKey = HMACProtectedBlockStream.keyForBlock(
                 at: blockIndex,
                 masterSalt: header.masterSalt,
@@ -350,13 +345,17 @@ public struct KDBXReader: Sendable {
             let hmac = Data(digest.finalize())
 
             if !ConstantTime.equals(hmac, hmacFromFile) {
-                // A mismatched block HMAC means the encrypted stream has been
-                // tampered with (or the file is truncated). Stopping the stream
-                // is the right move; treating this as corruption is more useful
-                // to callers than the previous "print and silently break".
                 throw Error.corruptedHMAC(reason: "Block \(blockIndex) HMAC mismatch")
             }
 
+            // The HMAC-protected block stream is terminated by an output block for an empty
+            // input block (i.e. M empty, s = 0).
+            if size == 0 {
+                assert(block.isEmpty)
+                break
+            }
+
+            blockSizes.append(size)
             payload.append(block)
 
             blockIndex += 1

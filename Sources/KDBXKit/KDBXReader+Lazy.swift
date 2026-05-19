@@ -302,9 +302,10 @@ extension KDBXReader {
             let hmacFromFile = try reader.readDataPublic(length: 32)
             let size = try reader.readInt32Public()
             let block = try reader.readDataPublic(length: Int(size))
-            if size == 0 {
-                break
-            }
+
+            // Authenticate every block, including the size-0 sentinel.
+            // Skipping the sentinel HMAC opens a truncation attack — see
+            // the matching comment in KDBXReader.swift's eager path.
             let blockKey = HMACProtectedBlockStream.keyForBlock(
                 at: blockIndex,
                 masterSalt: header.masterSalt,
@@ -317,6 +318,10 @@ extension KDBXReader {
             let hmac = Data(digest.finalize())
             if !ConstantTime.equals(hmac, hmacFromFile) {
                 throw KDBXReader.Error.corruptedHMAC(reason: "Block \(blockIndex) HMAC mismatch")
+            }
+
+            if size == 0 {
+                break
             }
             payload.append(block)
             blockIndex += 1
