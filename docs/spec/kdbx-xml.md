@@ -388,3 +388,126 @@ Implementation reference: `KDBX/Group.swift`,
 `Database/XMLDocumentReader.swift` (`parseGroup`,
 `parseNullableBoolEx`),
 `Database/XMLDocumentWriter.swift` (`write(_:KDBX.Group:to:)`).
+
+## 5. Entry element
+
+An Entry is a record holding the user-visible password-manager
+fields, optional attachments, an auto-type configuration, and a
+history of previous versions of itself. Entries live inside Groups
+(§4).
+
+### 5.1 Child elements
+
+| Element             | Type                                  | Cardinality | Since | Notes |
+|---------------------|---------------------------------------|-------------|-------|-------|
+| UUID                | UUID                                  | exactly 1   | 4.0   | Stable identifier. |
+| IconID              | UInt32                                | exactly 1   | 4.0   | Built-in KeePass icon index. KDBXKit always emits this element (default 0). |
+| CustomIconUUID      | UUID                                  | 0 or 1      | 4.0   | If set and non-zero, references `Meta/CustomIcons/Icon/UUID`. All-zero UUID is treated as unset. |
+| ForegroundColor     | Color (hex string)                    | 0 or 1      | 4.0   | Empty string = unset. See §10. |
+| BackgroundColor     | Color (hex string)                    | 0 or 1      | 4.0   | Empty string = unset. See §10. |
+| OverrideURL         | String                                | 0 or 1      | 4.0   | Custom URL launcher template (e.g. `cmd://...`). When absent or empty, the entry's standard `URL` field is used. |
+| QualityCheck        | Bool                                  | 0 or 1      | 4.1   | Whether KeePass should evaluate Password strength. Absent = inherit host default. |
+| Tags                | String (comma-or-semicolon separated) | 0 or 1      | 4.0   | Writer emits `,`-separated; reader splits on either `,` or `;`. See §10. |
+| PreviousParentGroup | UUID                                  | 0 or 1      | 4.1   | The Group this Entry was last moved out of (e.g. recycle bin). Used to offer restore-to-original-location affordances. |
+| Times               | Times (§8)                            | 0 or 1      | 4.0   | Per-entry timestamps. |
+| String              | String entry (§5.2)                   | 0+          | 4.0   | Named field. `Title`, `UserName`, `Password`, `URL`, `Notes` are the five conventional keys. |
+| Binary              | Binary entry (§5.3)                   | 0+          | 4.0   | Attachment reference into the binary pool (§7). |
+| AutoType            | AutoType config (§5.4)                | 0 or 1      | 4.0   | Per-entry keystroke automation configuration. |
+| CustomData          | CustomData (§9)                       | 0 or 1      | 4.0   | Arbitrary string key/value pairs. |
+| History             | History container (§5.5)              | 0 or 1      | 4.0   | Previous versions of this entry. |
+
+The writer omits optional elements whose Swift value is `nil` (for
+`Optional` fields) or empty (for array fields). The reader treats
+absent optional elements as `nil` / empty array without error.
+
+### 5.2 String child elements
+
+A `<String>` element is a named field:
+
+    <String>
+      <Key>Title</Key>
+      <Value>Bank of Foo</Value>
+    </String>
+
+For protected fields the `Value` carries a `Protected="True"`
+attribute and a Base64-encoded ciphertext body:
+
+    <String>
+      <Key>Password</Key>
+      <Value Protected="True">base64-keystream-XOR-cleartext</Value>
+    </String>
+
+The five conventional Keys are `Title`, `UserName`, `Password`,
+`URL`, and `Notes`. Producers MAY emit additional `<String>` children
+with any key. Keys SHOULD be unique within an Entry. KDBXKit's reader
+does not enforce uniqueness: duplicate Keys are silently appended to
+the `strings` array; `entry.strings` may therefore contain two
+elements with the same `key`. Producers MUST NOT emit duplicate Keys.
+
+See §6 for the protected-value encoding.
+
+### 5.3 Binary child elements
+
+A `<Binary>` element references a pool entry:
+
+    <Binary>
+      <Key>screenshot.png</Key>
+      <Value Ref="0"/>
+    </Binary>
+
+`Key` is the filename shown to the user. `Value` is a self-closing
+element with a `Ref` attribute whose value is a decimal integer index
+into the binary pool (§7). The pool lives in the inner header
+(container §12.2, ID 3) for KDBX 4.x, or inline in
+`Meta/Binaries` for KDBX 3.1.
+
+### 5.4 AutoType child
+
+`<AutoType>` configures per-entry keystroke automation:
+
+| Element                 | Type               | Cardinality | Notes |
+|-------------------------|--------------------|-------------|-------|
+| Enabled                 | Bool               | 0 or 1      | Absent or `nil` = inherit from parent Group (`Group/EnableAutoType`). `False` disables AutoType for this entry regardless of the inherited policy. |
+| DataTransferObfuscation | Int32              | 0 or 1      | `0` = no obfuscation; `1` = two-channel obfuscation (clipboard + keystrokes). Absent = treat as `0`. |
+| DefaultSequence         | String             | 0 or 1      | Overrides the inherited default keystroke sequence. Absent or empty = inherit from `Group/DefaultAutoTypeSequence`. |
+| Association             | Association (§5.4) | 0+          | Per-window keystroke overrides, evaluated in order. |
+
+Each `<Association>` has two children, both required:
+
+| Element           | Type   | Notes |
+|-------------------|--------|-------|
+| Window            | String | Window-title match expression (plain substring or `*`-wildcard). Empty string = match any window. |
+| KeystrokeSequence | String | The keystroke sequence to send when this association matches. Empty string = inherit from `DefaultSequence`. |
+
+KDBXKit throws `.corrupted(reason:)` if either `Window` or
+`KeystrokeSequence` is missing from an `<Association>`.
+
+### 5.5 History container
+
+`<History>` holds previous versions of this Entry. Each child is a
+full `<Entry>` element (same schema as the parent entry) representing
+a snapshot taken before the entry was last modified. Snapshots are
+ordered oldest-first.
+
+Nested History entries MUST NOT themselves contain a `<History>`
+child (history is non-recursive by definition). KDBXKit's reader does
+not enforce this constraint: if a nested History entry carries a
+`<History>` child, the parser recurses and silently materialises the
+inner snapshots into the snapshot's `history` array. Producers MUST
+emit flat (non-recursive) History.
+
+`Meta/HistoryMaxItems` (§2.1) caps the number of snapshots retained
+per entry; `Meta/HistoryMaxSize` caps the total estimated in-memory
+size. Both caps are applied on write.
+
+Implementation reference: `KDBX/Entry.swift`,
+`KDBX/AutoType.swift`, `KDBX/ProtectedString.swift`,
+`KDBX/ProtectedBinary.swift`,
+`Database/XMLDocumentReader.swift` (`parseEntry`,
+`parseProtectedString`, `parseProtectedBinary`,
+`parseAutoType`, `parseAutoTypeAssociation`,
+`parseDataTransferObfuscation`, `parseEntryList`),
+`Database/XMLDocumentWriter.swift` (`write(_:KDBX.Entry:to:)`,
+`write(_:KDBX.ProtectedString:to:)`,
+`write(_:KDBX.ProtectedBinary:to:)`,
+`write(_:KDBX.AutoType:to:)`).
