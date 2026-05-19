@@ -847,3 +847,102 @@ observing `legacyFormatNotice == .willMigrate(from: .v3_1)`.
 Implementation reference: `Header3xReader.swift`,
 `KDBXReader+Legacy3x.swift`, `HeaderFieldType3x.swift`,
 `KDBXContent+upgradeKDF.swift` (KDF migration helper).
+
+---
+
+## Appendix B (Normative): Test vectors
+
+All vectors are reproducible from files in
+`KDBXKit/Tests/KDBXKitTests/Resources/`. The xxd offsets are relative
+to the start of the named fixture. The byte sequences shown were
+captured from the fixture as it exists at the cited commit; if the
+fixture is regenerated the vector MUST be regenerated to match.
+
+### B.1 VariantDictionary (Argon2id KDFParameters)
+
+Source: `Tests/KDBXKitTests/Resources/simple-argon2id-aes256.kdbx`,
+the `KDFParameters` header record (outer header ID 11, type byte
+`0x0B`).
+
+KDFParameters TLV record:
+
+- File offset of type byte: `0x0064` (decimal 100)
+- File offset of length field: `0x0065` (decimal 101)
+- Length field (UInt32-LE): `8b 00 00 00` = 139 bytes
+- File offset of value (start of VariantDictionary): `0x0069` (decimal 105)
+
+Decoded VariantDictionary structure (items in observed emission order):
+
+```
+Version            = 00 01                      ; UInt16-LE = 0x0100
+
+Item("$UUID")      Type=0x42  KeyLen=5
+                   Key="$UUID"  (24 55 55 49 44)
+                   ValueLen=16
+                   Value=9e 29 8b 19 56 db 47 73 b2 3d fc 3e c6 f0 a1 e6
+                   (Argon2id UUID in RFC 4122 canonical byte order:
+                    9E298B19-56DB-4773-B23D-FC3EC6F0A1E6)
+
+Item("I")          Type=0x05  KeyLen=1
+                   Key="I"  (49)
+                   ValueLen=8
+                   Value=0a 00 00 00 00 00 00 00  ; UInt64-LE = 10 (iterations)
+
+Item("M")          Type=0x05  KeyLen=1
+                   Key="M"  (4d)
+                   ValueLen=8
+                   Value=00 00 00 04 00 00 00 00  ; UInt64-LE = 67108864 (64 MiB)
+
+Item("P")          Type=0x04  KeyLen=1
+                   Key="P"  (50)
+                   ValueLen=4
+                   Value=0c 00 00 00              ; UInt32-LE = 12 (parallelism)
+
+Item("S")          Type=0x42  KeyLen=1
+                   Key="S"  (53)
+                   ValueLen=32
+                   Value=14 4c 62 06 ad 60 ea 2b b3 fe 92 52 2a 85 53 b7
+                         06 e2 85 96 44 40 f3 0b 7d bf 1d 27 40 5c 81 ef
+                   (Argon2 salt — random per fixture)
+
+Item("V")          Type=0x04  KeyLen=1
+                   Key="V"  (56)
+                   ValueLen=4
+                   Value=13 00 00 00              ; UInt32-LE = 0x13 = 19 (Argon2 version 1.3)
+
+Terminator         00
+```
+
+**Note on item order**: the fixture emits `$UUID, I, M, P, S, V` —
+not the `$UUID, S, V, I, M, P` order that might be inferred from the
+KeePass spec. A compliant reader MUST accept items in any order (§4.3).
+
+**Note on `$UUID` encoding**: the 16 UUID bytes appear in RFC 4122
+canonical byte order (`9e 29 8b 19 56 db 47 73 b2 3d fc 3e c6 f0 a1 e6`),
+which matches the standard string form
+`9E298B19-56DB-4773-B23D-FC3EC6F0A1E6` read left-to-right. This is
+consistent with the §4.2 convention that UUIDs are stored in canonical
+byte order.
+
+Raw bytes of the entire VariantDictionary value field (139 bytes),
+as they appear at file offset `0x0069`:
+
+```
+00 01 42 05 00 00 00 24 55 55 49 44 10 00 00 00
+9e 29 8b 19 56 db 47 73 b2 3d fc 3e c6 f0 a1 e6
+05 01 00 00 00 49 08 00 00 00 0a 00 00 00 00 00
+00 00 05 01 00 00 00 4d 08 00 00 00 00 00 00 04
+00 00 00 00 04 01 00 00 00 50 04 00 00 00 0c 00
+00 00 42 01 00 00 00 53 20 00 00 00 14 4c 62 06
+ad 60 ea 2b b3 fe 92 52 2a 85 53 b7 06 e2 85 96
+44 40 f3 0b 7d bf 1d 27 40 5c 81 ef 04 01 00 00
+00 56 04 00 00 00 13 00 00 00 00
+```
+
+A round-trip test:
+
+1. Parse the fixture via `KDBXReader.parseHeader`.
+2. Re-serialise the resulting `KDFParameters` via
+   `toVariantDictionary()` and `VariantDictionaryWriter`.
+3. The output byte sequence MUST be byte-identical to the input
+   (when `regenerateSalts: false` is used at the writer level).
