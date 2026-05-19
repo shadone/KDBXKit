@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [develop]
+  pull_request:
+    branches: [develop]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: macOS (Swift ${{ matrix.swift }})
+    runs-on: macos-15
+    strategy:
+      fail-fast: false
+      matrix:
+        swift: ["6.1"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Build
+        run: swift build --configuration debug
+
+      - name: Test
+        run: swift test --parallel
+
+  linux:
+    name: Linux (Swift ${{ matrix.swift }})
+    runs-on: ubuntu-latest
+    container:
+      image: swift:${{ matrix.swift }}-jammy
+    strategy:
+      fail-fast: false
+      matrix:
+        swift: ["6.1"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends zlib1g-dev
+
+      - name: Swift version
+        run: swift --version
+
+      - name: Build
+        run: swift build --configuration debug
+
+      - name: Test
+        run: swift test --parallel
+
+  format:
+    name: SwiftFormat lint
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install mint
+        run: brew install mint
+
+      - name: Bootstrap mint
+        run: mint bootstrap
+
+      - name: SwiftFormat --lint
+        run: mint run swiftformat --lint .
