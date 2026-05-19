@@ -8,7 +8,7 @@ License: BSD 2-Clause (see `LICENSE`).
 ## Module layout
 
 - `Sources/KDBXKit/` - the library
-  - `KDBXReader.swift` / `KDBXWriter.swift` - main entry points for file I/O
+  - `KDBXReader.swift` / `KDBXWriter.swift` - main entry points for file I/O. **Writer has two paths**: eager `KDBXWriter.write` and `streamingWrite` (in `Streaming/KDBXWriter+Streaming.swift`, the production save path on Apple platforms). Serialization-level invariants (format clamps, salt regen) must be applied to **both** - a regression in one isn't visible from the other's tests.
   - `KDBXContent.swift` (+ `+Factory.swift`, `+validate.swift`) - top-level in-memory representation
   - `KDBXReader+Lazy.swift` / `LazyKDBXContent.swift` - lazy decryption path
   - `KDBXSource.swift` - abstraction over file / data / URL inputs
@@ -23,11 +23,11 @@ License: BSD 2-Clause (see `LICENSE`).
   - `AtomicFileWriter.swift` - write-temp + rename-into-place
   - `UnlockData.swift` - the 32-byte pre-hash representing an unlocked credential set
   - `MainKey.swift` - composite key derivation pipeline
-  - `BinaryMetadata.swift`, `ByteSink.swift`, `CappedDataOutputStream.swift` - I/O helpers
+  - `BinaryMetadata.swift`, `ByteSink.swift` - I/O helpers
   - `ValidationFailure.swift` - structured validation errors
 - `Sources/KDBXCLICore/` - reusable CLI core (driven by `swift-argument-parser`). Contains `App.swift` root command, `Commands/` (one file per subcommand tree), `TreeMutator`, `RecycleBinManager`, `AddressResolver` (path resolution like `/Banking/Chase`), `EntryFieldOps`, `EntryHistory`, `VaultWriting`, `CredentialOptions` / `NewCredentialOptions` / `EntryPasswordOptions` / `SecretsOptions`, `OutputFormat`.
 - `Sources/kdbx-cli/` - thin `@main` entry point that wires `KDBXCLICore.App` to `ArgumentParser`.
-- `Tests/KDBXKitTests/` - 74 tests across crypto, header, KDF, encryption x KDF x compression matrix, key-file, malformed-input fuzz, validate, salt regeneration, SecureBytes. Fixtures in `Tests/KDBXKitTests/Resources/`.
+- `Tests/KDBXKitTests/` - ~225 tests across crypto, header, KDF, encryption x KDF x compression matrix, key-file, malformed-input fuzz, validate, salt regeneration, SecureBytes, KeePassXC interop (gated on `keepassxc-cli` availability — see `KeePassXCInteropTests`). Fixtures in `Tests/KDBXKitTests/Resources/`.
 - `Tests/KDBXCLICoreTests/` - covers `AddressResolver`, `EntryFilterPredicate`, `GroupPath`, `PathComponents`, `RecycleBin`, `RecycleBinManager`, `TreeMutator`, `EntryField`, `EntryHistory`, `SnapshotEncoder`, `VaultWriting`, plus end-to-end. `Fixtures.swift` builds synthetic `KDBX` trees in memory. `EndToEndTests.swift` drives `App.parseAsRoot([...])` on a tmp-file vault and uses `--key-file` to avoid stdin / TTY / env-var plumbing.
 
 ## Build & test
@@ -64,7 +64,7 @@ In-tree (not external):
 - `Sources/CArgon2/` - vendored P-H-C reference Argon2 (pin: upstream commit `f57e61e`, 2021-06-25). Target name `argon2`, so `import argon2` works unchanged. Sources are CC0 / Apache 2.0 dual; `LICENSE` + `UPSTREAM.md` document the pin.
 
 System libraries:
-- `zlib` (linked via `linkerSettings: [.linkedLibrary("z")]`) - gzip compress + decompress for the inner payload. `Sources/KDBXKit/Streaming/Zlib.swift` is the push-based wrapper.
+- `zlib` - gzip compress + decompress for the inner payload. Exposed to Swift via a small `Sources/CZlib/` system-library target (`module.modulemap` + shim header) that declares `link "z"` in the map. `Sources/KDBXKit/Streaming/Zlib.swift` is the push-based wrapper that uses `CZlib`.
 - `pthread` - transitively required by argon2's `thread.c`; auto-linked on Apple, comes via swift runtime on Linux.
 
 ## KDBX format handling - the API surface
@@ -108,7 +108,7 @@ KDBXKit reads KDBX 3.1 and migrates it to 4.1 on save. **The writer only ever em
 
 ## Security primitives
 
-- **`SecureBytes`** - page-locked (`mlock`), zero-on-deinit (`memset_s`). Any cleartext key material crossing this module must be `SecureBytes` or scoped through `withRevealedString { ... }` / `withRevealedBytes { ... }`, never `Swift.String`.
+- **`SecureBytes`** - page-locked (`mlock`), zero-on-deinit (`memset_s` on Apple/BSD, `explicit_bzero` on Linux). Any cleartext key material crossing this module must be `SecureBytes` or scoped through `withRevealedString { ... }` / `withRevealedBytes { ... }`, never `Swift.String`.
 - **`ProtectedString.Value`** - access via `.withRevealedString { ... }` or `.bytes`; the old `.stringValue` getter is gone. When designing new APIs that surface protected fields, mirror this pattern - never return a raw `String`.
 - **`ConstantTime`** - use for any comparison of secret-derived bytes.
 - **`SecureRandom`** - canonical entropy source for salts, IVs, nonces.
