@@ -663,3 +663,91 @@ ordering rule).
 Implementation reference: `InnerHeaderFieldType.swift`,
 `InnerHeader.swift`, `InnerHeaderReader.swift`,
 `InnerHeaderWriter.swift`.
+
+## 13. Inner stream cipher
+
+Selected fields inside the XML payload carry sensitive data — entry
+passwords by default, plus any custom field with `Protected="True"`.
+These values are XOR-masked by a keystream cipher whose ID is given
+by the inner-header `InnerStreamCipherID` record (Section 12.2,
+field ID 1, Swift name `encryptionAlgorithm`).
+
+### 13.1 Defined cipher IDs
+
+| ID   | Cipher    | Where used        |
+|------|-----------|-------------------|
+| 0x02 | Salsa20   | KDBX 3.x only     |
+| 0x03 | ChaCha20  | KDBX 4.x          |
+
+In KDBXKit these are named enum cases `InnerHeader.EncryptionAlgorithm.Salsa20`
+(raw value `2`) and `.ChaCha20` (raw value `3`), stored as `Int32-LE`.
+
+ID `0x00` (no protection) and `0x01` (ArcFour) MUST NOT appear in
+KDBX 4.x files; readers MUST reject them with a parse error. KDBXKit
+emits only `0x03`.
+
+### 13.2 Key and nonce derivation
+
+The `InnerStreamKey` byte array is taken from inner-header record ID 2
+(Swift field `encryptionKey`).
+
+For ChaCha20 (ID `0x03`):
+
+    K   = InnerStreamKey               ; 64 bytes as stored in the inner header
+    H   = SHA-512( K )                 ; 64-byte hash
+    key   = H[0 .. 31]                 ; first 32 bytes
+    nonce = H[32 .. 43]                ; next 12 bytes
+    counter = 0
+
+For Salsa20 (ID `0x02`):
+
+    K   = InnerStreamKey               ; 32 bytes as stored in the inner header
+    key = SHA-256( K )                 ; 32 bytes
+    iv  = E8 30 09 4B 97 20 5D 2A      ; hardcoded 8 bytes (KDBX spec constant)
+
+Implementation reference: `InnerHeader+cryptor.swift` lines 33–68
+(eager encryptor/decryptor path) and lines 94–126 (lazy keystream-
+source path).
+
+### 13.3 Keystream consumption order
+
+The inner stream cipher masks only **protected XML string values**.
+The keystream is consumed in the order in which `Protected="True"`
+string nodes are encountered during a depth-first, document-order
+traversal of the inner XML payload. Each such node advances the
+running keystream position by the byte length of its base64-decoded
+ciphertext.
+
+KDBXKit implements this as a random-access façade (`KeystreamSource`)
+rather than a stateful sequential cipher. When parsing, the reader
+records `(ciphertext, offset, source)` for each protected node — the
+offset is the value of a running cursor at the moment the node is
+encountered, and the cursor advances by `ciphertext.count` after each
+node. Decryption happens lazily on first access, seeking the cipher
+to the recorded block and byte offset.
+
+The writer drives the same traversal order as the reader, consuming
+the cipher sequentially. As long as both sides visit protected string
+nodes in the same document order, the recorded offsets and the
+cipher's sequential output agree.
+
+**Inner-header binary pool entries are not XOR-masked by the inner
+stream cipher.** The `shouldBeProtected` flag (bit 0 of the flags
+byte in a `Binary` record; Section 12.3) is a process-memory
+protection hint for client applications, not an on-disk encryption
+instruction. Binary data in the inner-header pool is stored
+verbatim in both KDBXKit's reader and writer; no keystream bytes are
+consumed for binary pool entries.
+
+Note: the claim in Section 12.3 that "Protected binaries are XOR'd
+with keystream bytes" reflects the KDBX format specification's stated
+intent but does not match KDBXKit's current implementation.
+Interoperability against other KDBX clients for the protected-binary
+case has not been tested.
+
+Implementation reference: `InnerHeader+cryptor.swift` (key/nonce
+derivation), `KeystreamSource.swift` (random-access keystream
+interface), `Database/XMLDocumentReader.swift` (cursor advancement
+during parse), `Database/XMLDocumentWriter.swift` (sequential
+encryption during write), `Crypto/ChaCha20.swift`,
+`Crypto/Salsa20.swift`.
