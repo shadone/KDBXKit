@@ -1026,3 +1026,92 @@ Implementation reference: `KDBX/Color.swift`,
 `Extensions/Data+asUUIDLE.swift`,
 `Extensions/UUID+uint128.swift`,
 `KDBXKit/CLAUDE.md §Format dialects we round-trip`.
+
+## Appendix A (Normative): XML Schema reference
+
+The canonical XML schema for KDBX 4.x is checked into KDBXKit at
+`Sources/KDBXKit/Database/KDBX_XML.xsd`. That file is the
+authoritative reference for element names, attribute names,
+cardinalities, and value types. It is copyright (C) 2007-2025
+Dominik Reichl and is published at
+<https://keepass.info/help/kb/kdbx.html>. This appendix does not
+reproduce the XSD; instead it notes where real-world files diverge
+from what the XSD declares, and lists the elements that were added
+in KDBX 4.1.
+
+### A.1 Permissive cardinalities
+
+The XSD declares the `Meta` children using `xs:all` with
+`minOccurs="0"` on every child element. A reader MUST tolerate any
+missing optional element by treating it as unset, not by rejecting
+the document.
+
+`TGroup` and `TEntry` are declared as `xs:sequence`. The XSD
+itself carries an inline comment on both types: "this is actually
+unordered except for the Entry and Group child elements, where the
+order matters." A reader MUST NOT rely on a fixed order of metadata
+children within a Group or Entry; only the relative order of sibling
+Entry and Group elements within a parent Group is significant.
+
+### A.2 Real-world divergences
+
+The XSD does not fully capture the following dialect variations
+(cf. §10):
+
+| Topic | XSD says | Real-world fact |
+|---|---|---|
+| Tag separator | `Tags` content type is `xs:string`; XSD documentation says `;` | KeePassXC writes `,`-separated; KeePass 2.x writes `;`-separated. Readers MUST accept either separator. |
+| NullableBoolEx | `TNullableBoolEx` enumerates `Null`, `null`, `False`, `false`, `True`, `true` | The XSD already enumerates both casings. Writers SHOULD emit title-case (`Null`, `True`, `False`); readers MUST accept both. |
+| Child element order | `TGroup` and `TEntry` are `xs:sequence` | XSD comments acknowledge the sequence is notionally unordered for metadata children; KeePassXC and KeePass 2.x emit differing orders. Readers MUST NOT rely on order. |
+| XML declaration encoding attribute | Schema is silent on the declaration | KDBXKit writes `encoding="UTF-8"` (uppercase); Foundation's `XMLParser` is case-insensitive on the encoding attribute. Readers MUST be case-insensitive here. |
+| Color pattern | `TColor` restricts to `#[0-9A-F]{6}` (uppercase hex digits only) | KeePassXC may emit lowercase hex (`#ff8800`). Readers SHOULD accept lowercase; producers SHOULD emit uppercase to match the schema. |
+
+### A.3 Validation in practice
+
+KDBXKit does NOT validate parsed XML against the XSD at runtime;
+the schema is checked in for reference and for offline tooling
+(e.g. generating type bindings, validating test fixtures during
+development). Producers SHOULD validate output against the schema
+before shipping a new fixture file. Readers MUST NOT assume that
+input is schema-valid.
+
+`KDBXContent.parserWarnings` accumulates silently-dropped elements
+and attributes encountered during parse (see §1.2). When adding a
+fixture produced by a third-party client, asserting
+`parserWarnings == []` is the recommended way to catch schema
+extensions that KDBXKit does not yet model.
+
+### A.4 Schema versioning
+
+The bundled XSD is authored against KDBX 4.1 (its header comment
+reads "KDBX 4.1 XML Schema"). It covers both KDBX 4.0 and 4.1
+payloads because all 4.1 additions are declared with
+`minOccurs="0"`, making them optional for a 4.0-only producer
+without invalidating the schema for a 4.1 producer.
+
+The 4.1 additions relative to 4.0 are:
+
+| Location | Added element | Notes |
+|---|---|---|
+| `Meta/CustomIcons/Icon` | `Name` | Optional human-readable icon name. |
+| `Meta/CustomIcons/Icon` | `LastModificationTime` | When the icon was last edited. |
+| `Meta/CustomData/Item` | `LastModificationTime` | Per-item modification timestamp on vault-level custom data. Not present on Group or Entry custom data. |
+| `Group` | `PreviousParentGroup` | UUID of the group's previous parent; enables recycle-bin restore. |
+| `Group` | `Tags` | Semicolon-separated tag list per the XSD; in practice comma-separated on write (see §A.2). |
+| `Entry` | `QualityCheck` | Whether KeePass should evaluate the entry's password strength. |
+| `Entry` | `PreviousParentGroup` | UUID of the entry's previous parent group. |
+
+Note: `Entry/OverrideURL` and `Entry/Tags` are present in the XSD
+as fields on `TEntry` but were already present in KDBX 4.0; they
+are not 4.1 additions.
+
+A 4.0-only reader MUST tolerate the presence of all elements listed
+above by ignoring them; it MUST NOT reject a 4.1 file that carries
+them.
+
+There is no version attribute on the XML document itself. The KDBX
+format version is determined entirely by the binary container header
+(container §2); the shape of the XML payload follows from that
+binary-level version. Readers determine which 4.1 additions to
+expect by inspecting the binary header's major/minor version fields,
+not by probing for the presence of 4.1 elements in the XML.
