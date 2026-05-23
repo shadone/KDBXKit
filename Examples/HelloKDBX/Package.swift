@@ -1,4 +1,9 @@
 // swift-tools-version: 6.1
+//
+// Copyright (c) 2025, Denis Dzyubenko <denis@ddenis.info>
+//
+// SPDX-License-Identifier: BSD-2-Clause
+//
 import PackageDescription
 
 let package = Package(

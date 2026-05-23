@@ -1,3 +1,7 @@
+// Copyright (c) 2025, Denis Dzyubenko <denis@ddenis.info>
+//
+// SPDX-License-Identifier: BSD-2-Clause
+//
 // HelloKDBX — a minimal example of opening a KDBX vault, walking the
 // group tree, and revealing protected fields.
 //

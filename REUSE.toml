@@ -1,0 +1,68 @@
+version = 1
+
+# Per-file SPDX headers cover all Swift sources (Sources/, Tests/). This file
+# declares licensing for everything that cannot carry a comment header
+# (binary fixtures), should not be edited (vendored third-party code), or where
+# a header would just be noise (config, docs, generated lockfiles).
+
+# --- Vendored third-party: phc-winner-argon2 (pinned upstream f57e61e) ---
+# Dual-licensed by upstream; we keep its tree byte-for-byte. See
+# Sources/CArgon2/LICENSE and Sources/CArgon2/UPSTREAM.md.
+[[annotations]]
+path = "Sources/CArgon2/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = [
+    "2015 Daniel Dinu, Dmitry Khovratovich, Jean-Philippe Aumasson, Samuel Neves",
+    "2015 Thomas Pornin <pornin@bolet.org>",
+]
+SPDX-License-Identifier = "CC0-1.0 OR Apache-2.0"
+
+# --- Third-party reference schema (Dominik Reichl, KeePass) ---
+# Reference-only; not built or bundled.
+[[annotations]]
+path = "docs/spec/KDBX_XML.xsd"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2007-2025 Dominik Reichl <dominik.reichl@t-online.de>"
+SPDX-License-Identifier = "BSD-2-Clause"
+
+# --- Binary / data test fixtures (cannot hold a comment header) ---
+[[annotations]]
+path = [
+    "Tests/KDBXKitTests/Resources/**",
+    "Examples/HelloKDBX/demo.kdbx",
+    "Sources/KDBXKit/PrivacyInfo.xcprivacy",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Denis Dzyubenko <denis@ddenis.info>"
+SPDX-License-Identifier = "BSD-2-Clause"
+
+# --- Documentation (Markdown, DocC) ---
+[[annotations]]
+path = [
+    "README.md",
+    "SECURITY.md",
+    "CLAUDE.md",
+    "docs/**/*.md",
+    "Examples/HelloKDBX/README.md",
+    "Sources/KDBXKit/KDBXKit.docc/**",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Denis Dzyubenko <denis@ddenis.info>"
+SPDX-License-Identifier = "BSD-2-Clause"
+
+# --- Project config, CI, scripts, and generated lockfiles ---
+[[annotations]]
+path = [
+    "LICENSE",
+    ".gitignore",
+    ".swiftformat",
+    ".spi.yml",
+    "Mintfile",
+    "Package.resolved",
+    "Examples/HelloKDBX/Package.resolved",
+    ".github/**",
+    "scripts/**",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Denis Dzyubenko <denis@ddenis.info>"
+SPDX-License-Identifier = "BSD-2-Clause"
