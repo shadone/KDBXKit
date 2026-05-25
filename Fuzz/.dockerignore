@@ -1,0 +1,10 @@
+# Keep the Docker build context tiny. The image bakes nothing from the repo
+# (run-fuzz.sh bind-mounts the source at runtime); the context only needs the
+# Dockerfile itself. Exclude everything heavy / generated.
+.build
+.build-linux
+.build-fuzz
+Fuzz/corpus
+Fuzz/crashers
+**/.git
+**/.DS_Store

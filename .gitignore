@@ -113,6 +113,18 @@ xcuserdata/
 # Linux build path used by scripts/test-linux.sh
 .build-linux/
 
+# Linux build path used by Fuzz/run-fuzz.sh (the in-container fuzz build).
+.build-fuzz/
+.build-fuzz-probe/
+
+# Stray libFuzzer artifacts. run-fuzz.sh routes these into
+# Fuzz/crashers/<target>/, but a manual fuzzer invocation can drop them in the
+# cwd; never commit them (a real crasher gets triaged, not committed).
+crash-*
+leak-*
+timeout-*
+oom-*
+
 # Xcode-style build/ dir (different from SwiftPM's .build/). Some IDE
 # configurations and `xcodebuild` invocations drop intermediates here.
 build/
