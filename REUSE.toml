@@ -36,6 +36,13 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "2025 Denis Dzyubenko <denis@ddenis.info>"
 SPDX-License-Identifier = "BSD-2-Clause"
 
+# --- Fuzz corpus seed data (generated/seed inputs; cannot hold a comment header) ---
+[[annotations]]
+path = "Fuzz/corpus/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2025 Denis Dzyubenko <denis@ddenis.info>"
+SPDX-License-Identifier = "BSD-2-Clause"
+
 # --- Documentation (Markdown, DocC) ---
 [[annotations]]
 path = [
@@ -62,6 +69,7 @@ path = [
     "Examples/HelloKDBX/Package.resolved",
     ".github/**",
     "scripts/**",
+    "Fuzz/.dockerignore",
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2025 Denis Dzyubenko <denis@ddenis.info>"

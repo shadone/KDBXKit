@@ -128,3 +128,9 @@ oom-*
 # Xcode-style build/ dir (different from SwiftPM's .build/). Some IDE
 # configurations and `xcodebuild` invocations drop intermediates here.
 build/
+
+# libFuzzer-grown corpus entries (run-fuzz.sh grows the corpus in place).
+# Keep the .gitkeep placeholders and the committed XML seed; ignore the rest.
+Fuzz/corpus/*/*
+!Fuzz/corpus/*/.gitkeep
+!Fuzz/corpus/xml/seed-fixture.xml
