@@ -3,11 +3,27 @@
 //
 // SPDX-License-Identifier: BSD-2-Clause
 //
-// Placeholder — replaced by a later task with the real fuzz harness.
+// libFuzzer entry point for the full KDBXReader.parse pipeline. A deliberately
+// tiny KDFParameterLimits makes any input declaring real KDF cost throw
+// kdfParametersOutOfRange immediately, so the engine spends its time in the
+// parser rather than the KDF. Safety in production comes from the library's
+// .default limits, not from this clamp.
+
+import Foundation
+import KDBXKit
+
+private let unlock = UnlockData(masterPassword: "fuzz")
+private let tinyLimits = KDFParameterLimits(
+    maxArgon2Memory: 1 << 20,   // 1 MiB
+    maxArgon2Iterations: 2,
+    maxArgon2Parallelism: 2,
+    maxAESKDFRounds: 10_000
+)
 
 @_cdecl("LLVMFuzzerTestOneInput")
 public func LLVMFuzzerTestOneInput(_ start: UnsafePointer<UInt8>?, _ count: Int) -> CInt {
-    _ = start
-    _ = count
+    guard let start else { return 0 }
+    let data = Data(bytes: start, count: count)
+    _ = try? KDBXReader.parse(data, unlockData: unlock, kdfLimits: tinyLimits)
     return 0
 }
