@@ -51,6 +51,15 @@ swift package generate-documentation --target KDBXKit  # Build the DocC archive.
 act -j linux                       # Same idea via nektos/act: runs the actual CI workflow's
                                    # Linux job against local Docker. Heavier; reach for it
                                    # when debugging the workflow itself rather than the code.
+
+Fuzz/run-fuzz.sh <header|parse|xml|variantdict|blockstream> [secs]
+                                   # Coverage-guided libFuzzer campaign, run in Docker. macOS
+                                   # toolchains CANNOT build libFuzzer (Xcode rejects
+                                   # -sanitize=fuzzer; swift.org needs fragile hacks), so it runs
+                                   # on Linux. Targets are gated behind KDBXKIT_FUZZ=1 and are
+                                   # absent from a normal build/test/Xcode. Crashers land in
+                                   # Fuzz/crashers/<t>/ and are replayed by FuzzRegressionTests in
+                                   # plain `swift test`. See Fuzz/README.md.
 ```
 
 **Swift Testing**, not XCTest. Use `@Suite("...")`, `@Test("...")`, `#expect(...)`.
@@ -125,6 +134,7 @@ KDBXKit reads KDBX 3.1 and migrates it to 4.1 on save. **The writer only ever em
 - **`ProtectedString.Value`** - access via `.withRevealedString { ... }` or `.bytes`; the old `.stringValue` getter is gone. When designing new APIs that surface protected fields, mirror this pattern - never return a raw `String`.
 - **`ConstantTime`** - use for any comparison of secret-derived bytes.
 - **`SecureRandom`** - canonical entropy source for salts, IVs, nonces.
+- **`KDFParameterLimits`** - caller-injected ceiling on KDF cost (generous `.default` ~1 GiB Argon2 memory; pass a tighter device policy via `parse(..., kdfLimits:)`). Enforced inside `UnlockData.computeUnlockKey` - the single chokepoint every parse path (eager, lazy, 3.x) and both writer paths funnel through - so a new KDF-running path inherits the bound only by going through it. NOT enforced in `parseHeader`, which stays pure so callers can inspect params first. Out-of-policy params throw `KDBXReader.Error.kdfParametersOutOfRange` before any KDF allocates (a DoS defense against KDF-bomb headers).
 
 ## CLI (`kdbx`)
 
