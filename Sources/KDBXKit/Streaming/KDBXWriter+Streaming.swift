@@ -98,6 +98,8 @@ public extension KDBXWriter {
                 throw KDBXWriter.Error.encryptionFailed(reason: "KDF rejected parameters: \(reason)")
             case let .unsupportedKDFParameter(name):
                 throw KDBXWriter.Error.encryptionFailed(reason: "Unsupported KDF parameter: \(name)")
+            case let .kdfParametersOutOfRange(reason):
+                throw KDBXWriter.Error.encryptionFailed(reason: "KDF parameters exceed policy: \(reason)")
             }
         }
     }

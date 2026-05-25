@@ -244,6 +244,8 @@ public struct KDBXWriter {
                 throw .encryptionFailed(reason: "KDF rejected parameters: \(reason)")
             case let .unsupportedKDFParameter(name):
                 throw .encryptionFailed(reason: "Unsupported KDF parameter: \(name)")
+            case let .kdfParametersOutOfRange(reason):
+                throw .encryptionFailed(reason: "KDF parameters exceed policy: \(reason)")
             }
         }
 

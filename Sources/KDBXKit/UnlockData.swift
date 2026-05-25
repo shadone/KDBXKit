@@ -47,6 +47,12 @@ public enum UnlockDataError: Error, Sendable, Equatable {
     /// documentation does not mention `K` or `A` in the standard
     /// parameter set.
     case unsupportedKDFParameter(name: String)
+
+    /// The KDF parameters in the header exceed the caller's
+    /// ``KDFParameterLimits`` policy. Thrown before any KDF allocation/compute,
+    /// closing the denial-of-service vector where a crafted file declares an
+    /// absurd Argon2 memory or iteration cost.
+    case kdfParametersOutOfRange(reason: String)
 }
 
 /// Container for the key data needed to unlock a `.kdbx` file.
@@ -150,7 +156,13 @@ public struct UnlockData: Sendable {
     /// Public so callers can time the same code path the real unlock
     /// uses — useful for showing an estimated unlock time when the
     /// user is configuring KDF parameters for a fresh vault.
-    public func computeUnlockKey(kdfParameters: KDFParameters) throws(UnlockDataError) -> SecureBytes {
+    public func computeUnlockKey(
+        kdfParameters: KDFParameters,
+        limits: KDFParameterLimits = .default
+    ) throws(UnlockDataError) -> SecureBytes {
+        if let reason = limits.breach(for: kdfParameters) {
+            throw .kdfParametersOutOfRange(reason: reason)
+        }
         switch kdfParameters {
         case let .aes(params, _):
             return AESKDF.derive(salt: params.salt, rounds: params.rounds, keyData)

@@ -92,6 +92,8 @@ extension KDBXReader {
                 // Unreachable in 3.x: AES-KDF doesn't take Argon2 K/A.
                 // Still required for switch exhaustiveness.
                 throw .corruptedHeader(reason: "Unsupported KDF parameter: \(name)")
+            case let .kdfParametersOutOfRange(reason):
+                throw .corruptedHeader(reason: "KDF parameters exceed policy: \(reason)")
             }
         }
 

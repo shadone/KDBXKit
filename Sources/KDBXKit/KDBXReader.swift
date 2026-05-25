@@ -306,6 +306,8 @@ public struct KDBXReader: Sendable {
                 throw .corruptedHeader(reason: "KDF rejected header parameters: \(reason)")
             case let .unsupportedKDFParameter(name):
                 throw .corruptedHeader(reason: "Unsupported KDF parameter: \(name)")
+            case let .kdfParametersOutOfRange(reason):
+                throw .corruptedHeader(reason: "KDF parameters exceed policy: \(reason)")
             }
         }
 

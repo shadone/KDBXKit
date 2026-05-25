@@ -228,6 +228,8 @@ extension KDBXReader {
                 throw KDBXReader.Error.corruptedHeader(reason: "KDF rejected header parameters: \(reason)")
             case let .unsupportedKDFParameter(name):
                 throw KDBXReader.Error.corruptedHeader(reason: "Unsupported KDF parameter: \(name)")
+            case let .kdfParametersOutOfRange(reason):
+                throw KDBXReader.Error.corruptedHeader(reason: "KDF parameters exceed policy: \(reason)")
             }
         }
         let headerKey = HMACProtectedBlockStream.keyForHeader(masterSalt: header.masterSalt, unlockKey: unlockKey)
