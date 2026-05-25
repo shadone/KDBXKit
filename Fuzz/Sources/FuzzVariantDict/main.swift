@@ -3,11 +3,16 @@
 //
 // SPDX-License-Identifier: BSD-2-Clause
 //
-// Placeholder — replaced by a later task with the real fuzz harness.
+// libFuzzer entry point for the header VariantDictionary reader.
+
+import Foundation
+@testable import KDBXKit
 
 @_cdecl("LLVMFuzzerTestOneInput")
 public func LLVMFuzzerTestOneInput(_ start: UnsafePointer<UInt8>?, _ count: Int) -> CInt {
-    _ = start
-    _ = count
+    guard let start else { return 0 }
+    let data = Data(bytes: start, count: count)
+    var reader = VariantDictionaryReader(data: data)
+    _ = try? reader.parse()
     return 0
 }
