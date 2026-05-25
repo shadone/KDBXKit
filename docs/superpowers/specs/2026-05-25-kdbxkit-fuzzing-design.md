@@ -88,31 +88,71 @@ Rationale: the `@testable` targets need `-enable-testing` and would break a
 plain `swift build`; gating keeps default `swift build` / `swift test` / Xcode
 completely unaffected. The script sets `KDBXKIT_FUZZ=1` before building.
 
-### 3. KDF parameter bound (the DoS fix — lands first)
+### 3. KDF parameter limits (the DoS fix — lands first)
 
-Enforce a real upper bound on KDF parameters at parse time, before any KDF runs.
-A header whose Argon2 parameters exceed the ceiling throws a typed error rather
-than allocating.
+Make the acceptable KDF cost a **caller-injected policy**, not a hardcoded
+constant, and enforce it at the point the KDF actually runs.
 
-- Add `KDBXReader.Error.kdfParametersOutOfRange(reason: String)` (or reuse
-  `.corruptedHeader(reason:)` — to be settled in the plan).
-- Ceilings (initial values, revisit in plan/review):
-  - Argon2 `memory` ≤ 1 GiB
-  - Argon2 `iterations` ≤ a sane cap
-  - Argon2 `parallelism` ≤ a sane cap
-- Enforced in the header-reading path so both `parseHeader` and `parse` benefit.
+**Where enforced:** only at KDF execution — `KDBXReader.parse(_:unlockData:)`
+and `UnlockData.computeUnlockKey(kdfParameters:)`. `parseHeader(Data)` is left
+pure: it always reads and reports the KDF parameters so a caller can inspect
+them and present a tailored message ("this vault needs 2 GB; this device allows
+256 MB") *before* attempting an unlock. The DoS only exists when the KDF
+allocates/computes, so that is the only boundary that needs the gate.
 
-This change is independently covered by a **deterministic** unit test in
-`KDBXKitTests`: a hand-built header declaring `memory = 16 GB` must throw, not
-allocate. Per the repo's cross-repo conventions it lands as its own focused
-commit ahead of the fuzz tooling.
+**API shape:** a value type carrying the ceilings, e.g.
+
+```swift
+public struct KDFParameterLimits: Sendable, Equatable {
+    public var maxMemory: UInt64          // Argon2 memory, bytes
+    public var maxIterations: UInt64      // Argon2 iterations / AES-KDF rounds
+    public var maxParallelism: UInt32     // Argon2 lanes
+    public static let `default`: KDFParameterLimits  // generous safe ceiling
+}
+```
+
+Threaded through as a defaulted parameter so existing call sites are unaffected:
+
+```swift
+KDBXReader.parse(_ data: Data, unlockData: UnlockData,
+                 kdfLimits: KDFParameterLimits = .default) throws(Error) -> KDBXContent
+UnlockData.computeUnlockKey(kdfParameters:,
+                 limits: KDFParameterLimits = .default) throws(UnlockDataError) -> SecureBytes
+```
+
+When parameters exceed `limits`, throw `KDBXReader.Error.kdfParametersOutOfRange`
+(carrying which limit was breached and the offending value) before any
+allocation or KDF round runs. `computeUnlockKey` surfaces the equivalent through
+its own error type.
+
+**Default policy (`.default`):** a generous-but-finite ceiling that real
+KeePass/KeePassXC vaults never exceed but absurd DoS values do. Initial values
+(revisit in plan/review):
+
+- `maxMemory` = 1 GiB (KeePass defaults are ~64 MiB)
+- `maxIterations` — a sane cap covering both Argon2 iterations and AES-KDF
+  transform rounds (AES-KDF rounds is a `UInt64`; a huge value is the same DoS
+  via CPU instead of memory)
+- `maxParallelism` — a sane cap
+
+Existing callers get DoS protection automatically via `.default`. Passie passes
+a tighter, device-specific policy (e.g. 256 MiB on iPhone).
+
+**Tests:** a **deterministic** unit test in `KDBXKitTests`: a hand-built header
+declaring `memory = 16 GB` must throw `.kdfParametersOutOfRange`, not allocate;
+the same header under a permissive custom `KDFParameterLimits` must get past the
+limit check (i.e. the policy is actually honored); and an AES-KDF header with an
+absurd round count must throw. Per the repo's cross-repo conventions this lands
+as its own focused commit ahead of the fuzz tooling.
 
 ### 4. Harness-side clamp (speed, not correctness)
 
-`FuzzParse` parses the header cheaply first and **skips running the KDF** when
-parameters exceed a tiny fuzz threshold set well below the library ceiling. This
-keeps exec/s high without coupling the harness to library internals. Safety
-comes from the library bound (section 3), not from this clamp.
+`FuzzParse` passes a deliberately tiny `KDFParameterLimits` (memory/iterations
+well below `.default`) to `parse`, so any input declaring non-trivial KDF cost
+throws `.kdfParametersOutOfRange` immediately instead of running the KDF. This
+reuses the same configurable-policy mechanism added in section 3 — no separate
+pre-parse or library coupling — and keeps exec/s high. Safety in production
+still comes from the library enforcing `.default`, not from this clamp.
 
 ### 5. Corpus seeding
 
