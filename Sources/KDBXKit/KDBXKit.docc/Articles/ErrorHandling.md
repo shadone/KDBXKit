@@ -64,7 +64,7 @@ do {
 
 ## Credential derivation
 
-``UnlockDataError`` is the inner error for credential → unlock key derivation. The reader and writer wrap it into their own enums, so application code typically catches ``KDBXReader/Error`` rather than this — but it's surfaced directly if you call ``UnlockData/computeUnlockKey(kdfParameters:)`` (used by callers timing the KDF for UI feedback).
+``UnlockDataError`` is the inner error for credential → unlock key derivation. The reader and writer wrap it into their own enums, so application code typically catches ``KDBXReader/Error`` rather than this — but it's surfaced directly if you call ``UnlockData/computeUnlockKey(kdfParameters:limits:)`` (used by callers timing the KDF for UI feedback).
 
 ```swift
 let kdfStart = Date.now
@@ -88,7 +88,7 @@ For a typical password-manager UI, the cases group into three buckets:
 | `wrongCredentials` | "Incorrect password. Try again." |
 | `unsupportedFormatVersion`, `unsupportedKDF`, `unsupportedEncryption`, `unsupportedCompression` | "This vault uses a feature we don't support." Include version / UUID for diagnostics. |
 | `corruptedHMAC`, `corruptedHeader`, `corruptedHeaderDigest`, `corruptedInnerHeader`, `corruptedXML`, `invalidFileSignature` | "This file appears damaged." Offer to back up before further attempts. |
-| `decompressedPayloadTooLarge` | "This file appears damaged or malicious." Same UI as corruption. |
+| `decompressedPayloadTooLarge`, `kdfParametersOutOfRange` | "This file appears damaged or malicious." Same UI as corruption. |
 | `unlockDataRequired` | Programmer error — you forgot to pass credentials. Crash in debug. |
 | `unexpectedEOF` | "This file appears truncated." |
 
