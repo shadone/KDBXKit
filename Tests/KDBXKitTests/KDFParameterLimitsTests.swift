@@ -48,4 +48,26 @@ struct KDFParameterLimitsTests {
     func unknownKDFNotFlagged() {
         #expect(KDFParameterLimits.default.breach(for: .unknown(uuid: UUID())) == nil)
     }
+
+    @Test("value exactly at the Argon2 memory limit does not breach")
+    func atArgon2MemoryLimit_noBreach() {
+        let limits = KDFParameterLimits.default
+        #expect(limits.breach(for: argon2id(memory: limits.maxArgon2Memory)) == nil)
+    }
+
+    @Test("value exactly at the AES-KDF round limit does not breach")
+    func atAESRoundLimit_noBreach() {
+        let limits = KDFParameterLimits.default
+        let params = KDFParameters.aes(.init(salt: Data(repeating: 0, count: 32), rounds: limits.maxAESKDFRounds), additional: [:])
+        #expect(limits.breach(for: params) == nil)
+    }
+
+    @Test("default policy rejects a 16 GB memory bomb on the argon2d path")
+    func defaultRejectsArgon2dMemoryBomb() {
+        let params = KDFParameters.argon2d(
+            .init(version: .v1_3, salt: Data(repeating: 0, count: 32), iterations: 1, memory: 16 * 1024 * 1024 * 1024, parallelism: 1),
+            additional: [:]
+        )
+        #expect(KDFParameterLimits.default.breach(for: params) != nil)
+    }
 }
