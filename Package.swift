@@ -7,6 +7,27 @@
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
+import Foundation
+
+// Fuzz targets are declared only under KDBXKIT_FUZZ=1 so a normal build/test/Xcode
+// build never sees them. They require the swift.org toolchain + -sanitize=fuzzer
+// (the Xcode toolchain cannot build them); see Fuzz/README.md.
+let fuzzSwiftSettings: [SwiftSetting] = [
+    .swiftLanguageMode(.v6),
+    .unsafeFlags(["-parse-as-library"]),
+]
+
+var fuzzTargets: [Target] = []
+if ProcessInfo.processInfo.environment["KDBXKIT_FUZZ"] == "1" {
+    fuzzTargets = [
+        .executableTarget(name: "FuzzHeader", dependencies: ["KDBXKit"], path: "Fuzz/Sources/FuzzHeader", swiftSettings: fuzzSwiftSettings),
+        .executableTarget(name: "FuzzParse", dependencies: ["KDBXKit"], path: "Fuzz/Sources/FuzzParse", swiftSettings: fuzzSwiftSettings),
+        .executableTarget(name: "FuzzXML", dependencies: ["KDBXKit"], path: "Fuzz/Sources/FuzzXML", swiftSettings: fuzzSwiftSettings),
+        .executableTarget(name: "FuzzVariantDict", dependencies: ["KDBXKit"], path: "Fuzz/Sources/FuzzVariantDict", swiftSettings: fuzzSwiftSettings),
+        .executableTarget(name: "FuzzBlockStream", dependencies: ["KDBXKit"], path: "Fuzz/Sources/FuzzBlockStream", swiftSettings: fuzzSwiftSettings),
+        .executableTarget(name: "FuzzSeedGen", dependencies: ["KDBXKit"], path: "Fuzz/Sources/FuzzSeedGen", swiftSettings: [.swiftLanguageMode(.v6)]),
+    ]
+}
 
 let package = Package(
     name: "KDBXKit",
@@ -122,5 +143,5 @@ let package = Package(
                 .enableUpcomingFeature("StrictConcurrency"),
             ],
         ),
-    ]
+    ] + fuzzTargets
 )
