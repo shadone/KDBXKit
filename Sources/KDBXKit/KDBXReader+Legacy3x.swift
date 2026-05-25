@@ -93,7 +93,7 @@ extension KDBXReader {
                 // Still required for switch exhaustiveness.
                 throw .corruptedHeader(reason: "Unsupported KDF parameter: \(name)")
             case let .kdfParametersOutOfRange(reason):
-                throw .corruptedHeader(reason: "KDF parameters exceed policy: \(reason)")
+                throw .kdfParametersOutOfRange(reason: reason)
             }
         }
 

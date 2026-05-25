@@ -229,7 +229,7 @@ extension KDBXReader {
             case let .unsupportedKDFParameter(name):
                 throw KDBXReader.Error.corruptedHeader(reason: "Unsupported KDF parameter: \(name)")
             case let .kdfParametersOutOfRange(reason):
-                throw KDBXReader.Error.corruptedHeader(reason: "KDF parameters exceed policy: \(reason)")
+                throw KDBXReader.Error.kdfParametersOutOfRange(reason: reason)
             }
         }
         let headerKey = HMACProtectedBlockStream.keyForHeader(masterSalt: header.masterSalt, unlockKey: unlockKey)

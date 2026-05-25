@@ -74,6 +74,8 @@ func read(
             throw .corrupted("Not a KDBX file (invalid signature)")
         case let .corruptedHeader(reason):
             throw .corrupted("Corrupted header: \(reason)")
+        case let .kdfParametersOutOfRange(reason):
+            throw .corrupted("KDF parameters exceed policy: \(reason)")
         case .corruptedHeaderDigest:
             throw .corrupted("Corrupted header digest")
         case let .corruptedHMAC(reason):

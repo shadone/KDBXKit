@@ -70,6 +70,11 @@ public struct KDBXReader: Sendable {
         /// The file header (cleartext) is structurally invalid.
         case corruptedHeader(reason: String)
 
+        /// The header's KDF parameters exceed the limits the caller passed via
+        /// `kdfLimits` (defaulting to ``KDFParameterLimits/default``). Surfaced
+        /// before any KDF runs — a defense against KDF-bomb denial of service.
+        case kdfParametersOutOfRange(reason: String)
+
         /// The header's SHA-256 digest stored alongside it doesn't match the
         /// header we read — suggests on-disk corruption rather than tampering
         /// (the SHA-256 isn't a MAC).
@@ -307,7 +312,7 @@ public struct KDBXReader: Sendable {
             case let .unsupportedKDFParameter(name):
                 throw .corruptedHeader(reason: "Unsupported KDF parameter: \(name)")
             case let .kdfParametersOutOfRange(reason):
-                throw .corruptedHeader(reason: "KDF parameters exceed policy: \(reason)")
+                throw .kdfParametersOutOfRange(reason: reason)
             }
         }
 
