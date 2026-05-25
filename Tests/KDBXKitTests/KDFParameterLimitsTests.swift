@@ -78,8 +78,12 @@ struct KDFParameterLimitsTests {
         do {
             _ = try unlock.computeUnlockKey(kdfParameters: bomb, limits: .default)
             Issue.record("Expected kdfParametersOutOfRange")
-        } catch let error {
-            #expect(error == .kdfParametersOutOfRange(reason: error.reasonForOutOfRange ?? ""))
+        } catch {
+            guard case let .kdfParametersOutOfRange(reason) = error else {
+                Issue.record("Expected kdfParametersOutOfRange, got \(error)")
+                return
+            }
+            #expect(!reason.isEmpty)
         }
     }
 
@@ -90,12 +94,5 @@ struct KDFParameterLimitsTests {
         let small = argon2id(memory: 8 * 1024 * 1024, iterations: 1, parallelism: 1)
         let key = try unlock.computeUnlockKey(kdfParameters: small, limits: .default)
         #expect(key.count == 32)
-    }
-}
-
-private extension UnlockDataError {
-    var reasonForOutOfRange: String? {
-        if case let .kdfParametersOutOfRange(reason) = self { return reason }
-        return nil
     }
 }
