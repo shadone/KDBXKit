@@ -12,7 +12,7 @@ import Foundation
 public func LLVMFuzzerTestOneInput(_ start: UnsafePointer<UInt8>?, _ count: Int) -> CInt {
     guard let start else { return 0 }
     let data = Data(bytes: start, count: count)
-    var reader = VariantDictionaryReader(data: data)
+    let reader = VariantDictionaryReader(data: data)
     _ = try? reader.parse()
     return 0
 }
