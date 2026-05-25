@@ -107,6 +107,9 @@ struct KDFParameterLimitsTests {
             maxAESKDFRounds: 1
         )
         do {
+            // Wrong password on purpose: the KDF-limit check runs before HMAC
+            // credential verification, so a tiny policy yields .kdfParametersOutOfRange
+            // rather than .wrongCredentials. This pins that ordering.
             _ = try KDBXReader.parse(data, unlockData: UnlockData(masterPassword: "wrong"), kdfLimits: tiny)
             Issue.record("Expected kdfParametersOutOfRange")
         } catch {

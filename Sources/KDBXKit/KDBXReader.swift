@@ -162,6 +162,11 @@ public struct KDBXReader: Sendable {
     /// (e.g. the parsed `Header` after a wrong-credentials error so you can
     /// show the user the file name + format), construct a `KDBXReader`
     /// directly and call the mutating `parse(unlockData:)` instead.
+    ///
+    /// - Parameter kdfLimits: Caller-supplied ceiling on KDF cost (memory, iterations,
+    ///   parallelism, AES-KDF rounds). Defaults to ``KDFParameterLimits/default``. Pass a
+    ///   tighter policy in untrusted contexts to defend against KDF-bomb payloads. Enforced
+    ///   before the KDF runs; out-of-policy parameters throw ``Error/kdfParametersOutOfRange(reason:)``.
     public static func parse(
         _ data: Data,
         unlockData: UnlockData,
@@ -234,6 +239,10 @@ public struct KDBXReader: Sendable {
 
     // MARK: Public API
 
+    /// - Parameter kdfLimits: Caller-supplied ceiling on KDF cost (memory, iterations,
+    ///   parallelism, AES-KDF rounds). Defaults to ``KDFParameterLimits/default``. Pass a
+    ///   tighter policy in untrusted contexts to defend against KDF-bomb payloads. Enforced
+    ///   before the KDF runs; out-of-policy parameters throw ``Error/kdfParametersOutOfRange(reason:)``.
     public mutating func parse(
         unlockData: UnlockData?,
         retainsXMLForDiagnostics: Bool = false,

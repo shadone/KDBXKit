@@ -184,7 +184,7 @@ extension KDBXReader {
         _ data: Data,
         unlockData: UnlockData,
         maxDecompressedPayloadSize: Int,
-        kdfLimits: KDFParameterLimits = .default
+        kdfLimits: KDFParameterLimits
     ) throws -> DecryptedKDBXPayload {
         var reader = KDBXReader(data)
         // 1. Header
