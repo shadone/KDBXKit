@@ -95,4 +95,25 @@ struct KDFParameterLimitsTests {
         let key = try unlock.computeUnlockKey(kdfParameters: small, limits: .default)
         #expect(key.count == 32)
     }
+
+    @Test("parse() honors a tiny caller policy and rejects a real fixture's KDF")
+    func parseHonorsTinyPolicy() throws {
+        let url = try #require(Bundle.module.url(forResource: "simple-argon2id-aes256", withExtension: "kdbx"))
+        let data = try Data(contentsOf: url)
+        let tiny = KDFParameterLimits(
+            maxArgon2Memory: 1024,          // 1 KiB — below any real vault
+            maxArgon2Iterations: 1,
+            maxArgon2Parallelism: 1,
+            maxAESKDFRounds: 1
+        )
+        do {
+            _ = try KDBXReader.parse(data, unlockData: UnlockData(masterPassword: "wrong"), kdfLimits: tiny)
+            Issue.record("Expected kdfParametersOutOfRange")
+        } catch {
+            guard case .kdfParametersOutOfRange = error else {
+                Issue.record("Expected kdfParametersOutOfRange, got \(error)")
+                return
+            }
+        }
+    }
 }

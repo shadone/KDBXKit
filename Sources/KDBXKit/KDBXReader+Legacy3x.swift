@@ -34,7 +34,8 @@ extension KDBXReader {
     mutating func parse3x(
         unlockData: UnlockData?,
         retainsXMLForDiagnostics: Bool,
-        maxDecompressedPayloadSize: Int
+        maxDecompressedPayloadSize: Int,
+        kdfLimits: KDFParameterLimits
     ) throws(KDBXReader.Error) -> KDBXContent {
         // MARK: 1. Cleartext header
 
@@ -81,7 +82,7 @@ extension KDBXReader {
 
         let unlockKey: SecureBytes
         do throws(UnlockDataError) {
-            unlockKey = try unlockData.computeUnlockKey(kdfParameters: header.kdfParameters)
+            unlockKey = try unlockData.computeUnlockKey(kdfParameters: header.kdfParameters, limits: kdfLimits)
         } catch {
             switch error {
             case let .unsupportedKDF(uuid):

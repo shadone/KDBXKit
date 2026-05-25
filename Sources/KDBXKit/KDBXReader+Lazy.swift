@@ -42,13 +42,15 @@ public extension KDBXReader {
     static func openMetadataOnly(
         from source: KDBXSource,
         unlockData: UnlockData,
-        maxDecompressedPayloadSize: Int = KDBXReader.maxDecompressedPayloadSize
+        maxDecompressedPayloadSize: Int = KDBXReader.maxDecompressedPayloadSize,
+        kdfLimits: KDFParameterLimits = .default
     ) throws -> LazyKDBXContent {
         let encrypted = try source.readAll()
         let decrypted = try decryptAndDecompress(
             encrypted,
             unlockData: unlockData,
-            maxDecompressedPayloadSize: maxDecompressedPayloadSize
+            maxDecompressedPayloadSize: maxDecompressedPayloadSize,
+            kdfLimits: kdfLimits
         )
 
         // Parse inner header in metadata mode — captures offsets +
@@ -181,7 +183,8 @@ extension KDBXReader {
     static func decryptAndDecompress(
         _ data: Data,
         unlockData: UnlockData,
-        maxDecompressedPayloadSize: Int
+        maxDecompressedPayloadSize: Int,
+        kdfLimits: KDFParameterLimits = .default
     ) throws -> DecryptedKDBXPayload {
         var reader = KDBXReader(data)
         // 1. Header
@@ -219,7 +222,7 @@ extension KDBXReader {
         // 3. HMAC-SHA256 of header
         let unlockKey: SecureBytes
         do throws(UnlockDataError) {
-            unlockKey = try unlockData.computeUnlockKey(kdfParameters: header.kdfParameters)
+            unlockKey = try unlockData.computeUnlockKey(kdfParameters: header.kdfParameters, limits: kdfLimits)
         } catch {
             switch error {
             case let .unsupportedKDF(uuid):

@@ -162,9 +162,13 @@ public struct KDBXReader: Sendable {
     /// (e.g. the parsed `Header` after a wrong-credentials error so you can
     /// show the user the file name + format), construct a `KDBXReader`
     /// directly and call the mutating `parse(unlockData:)` instead.
-    public static func parse(_ data: Data, unlockData: UnlockData) throws(Error) -> KDBXContent {
+    public static func parse(
+        _ data: Data,
+        unlockData: UnlockData,
+        kdfLimits: KDFParameterLimits = .default
+    ) throws(Error) -> KDBXContent {
         var reader = KDBXReader(data)
-        return try reader.parse(unlockData: unlockData)
+        return try reader.parse(unlockData: unlockData, kdfLimits: kdfLimits)
     }
 
     /// Inspect a KDBX file's header without unlocking it. No password / key
@@ -233,7 +237,8 @@ public struct KDBXReader: Sendable {
     public mutating func parse(
         unlockData: UnlockData?,
         retainsXMLForDiagnostics: Bool = false,
-        maxDecompressedPayloadSize: Int = KDBXReader.maxDecompressedPayloadSize
+        maxDecompressedPayloadSize: Int = KDBXReader.maxDecompressedPayloadSize,
+        kdfLimits: KDFParameterLimits = .default
     ) throws(Error) -> KDBXContent {
         // Peek the format major version before committing to a header
         // parser. KDBX 3.x and 4.x diverge starting at the first header
@@ -244,7 +249,8 @@ public struct KDBXReader: Sendable {
             return try parse3x(
                 unlockData: unlockData,
                 retainsXMLForDiagnostics: retainsXMLForDiagnostics,
-                maxDecompressedPayloadSize: maxDecompressedPayloadSize
+                maxDecompressedPayloadSize: maxDecompressedPayloadSize,
+                kdfLimits: kdfLimits
             )
         }
 
@@ -302,7 +308,7 @@ public struct KDBXReader: Sendable {
         // calculate HMAC-SHA256 of the header
         let unlockKey: SecureBytes
         do throws(UnlockDataError) {
-            unlockKey = try unlockData.computeUnlockKey(kdfParameters: header.kdfParameters)
+            unlockKey = try unlockData.computeUnlockKey(kdfParameters: header.kdfParameters, limits: kdfLimits)
         } catch {
             switch error {
             case let .unsupportedKDF(uuid):
