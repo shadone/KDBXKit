@@ -10,9 +10,13 @@
 
 ---
 
+## BUILD APPROACH UPDATE (2026-05-26): Linux/Docker, not macOS
+
+During implementation, building the libFuzzer targets on macOS proved too fragile (SwiftPM `executableTarget` + `-parse-as-library` doesn't emit the `main` symbol libFuzzer needs, requiring a C stub + `dlsym` + release-only + an Apple-`ld` workaround). **Decision: build and run the fuzzers in a Linux container** where plain `-sanitize=fuzzer` is well-trodden. The harness `main.swift` files (Tasks 6, 7) are portable and unchanged. Only Task 9 (was: swift.org-toolchain `run-fuzz.sh`) and Task 11 (README) change to Docker, and Tasks 6/7/8 are verified inside the container. The regression suite (Task 10) still runs in normal macOS `swift test`.
+
 ## Reference: verified facts
 
-- libFuzzer works locally via `~/Library/Developer/Toolchains/swift-6.1.2-RELEASE.xctoolchain/usr/bin/swiftc` with `-sanitize=fuzzer -sdk $(xcrun --show-sdk-path)`. The Xcode default toolchain rejects `-sanitize=fuzzer`.
+- libFuzzer is NOT cleanly buildable on macOS (see update above). Fuzzing happens in Docker on Linux.
 - `KDBXReader.parse(_:unlockData:)` (static, `KDBXReader.swift:160`) and the mutating `parse(unlockData:retainsXMLForDiagnostics:maxDecompressedPayloadSize:)` (`:228`) and `parseHeader(_:)` (`:168`).
 - `UnlockData.computeUnlockKey(kdfParameters:)` (`UnlockData.swift:153`, `throws(UnlockDataError)`) is called by the eager path (`KDBXReader.swift:300`), the lazy path (`KDBXReader+Lazy.swift:222`), and the 3.x path (`KDBXReader+Legacy3x.swift:84`).
 - `KDBXReader.Error` enum at `KDBXReader.swift:29`; `UnlockDataError` at `UnlockData.swift:28` with cases `unsupportedKDF(UUID)`, `kdfFailed(reason:)`, `unsupportedKDFParameter(name:)`.
