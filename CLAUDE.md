@@ -132,6 +132,7 @@ KDBXKit reads KDBX 3.1 and migrates it to 4.1 on save. **The writer only ever em
 
 - **`SecureBytes`** - page-locked (`mlock`), zero-on-deinit (`memset_s` on Apple/BSD, `explicit_bzero` on Linux). Any cleartext key material crossing this module must be `SecureBytes` or scoped through `withRevealedString { ... }` / `withRevealedBytes { ... }`, never `Swift.String`.
 - **`ProtectedString.Value`** - access via `.withRevealedString { ... }` or `.bytes`; the old `.stringValue` getter is gone. When designing new APIs that surface protected fields, mirror this pattern - never return a raw `String`.
+- **Writer `ProtectedString.Value` -> on-disk mapping (security-critical):** `.regular` writes plaintext XML (`Protected="False"`); `.unprotected` and `.lazyInnerCipher` run the inner-stream cipher and emit `Protected="True"` (encrypted on disk); `.protectedInMemory` emits `ProtectInMemory="True"` with the value **in cleartext on disk** (a not-yet-implemented hint that also raises a parserWarning). For any secret that must be encrypted at rest, use `.unprotected`, NEVER `.protectedInMemory` - the case name is misleading. A reopened encrypted field comes back as `.lazyInnerCipher`.
 - **`ConstantTime`** - use for any comparison of secret-derived bytes.
 - **`SecureRandom`** - canonical entropy source for salts, IVs, nonces.
 - **`KDFParameterLimits`** - caller-injected ceiling on KDF cost (generous `.default` ~1 GiB Argon2 memory; pass a tighter device policy via `parse(..., kdfLimits:)`). Enforced inside `UnlockData.computeUnlockKey` - the single chokepoint every parse path (eager, lazy, 3.x) and both writer paths funnel through - so a new KDF-running path inherits the bound only by going through it. NOT enforced in `parseHeader`, which stays pure so callers can inspect params first. Out-of-policy params throw `KDBXReader.Error.kdfParametersOutOfRange` before any KDF allocates (a DoS defense against KDF-bomb headers).
@@ -177,6 +178,7 @@ Bare `Set.self` in a `subcommands:` array collides with `Swift.Set<...>.Type`. U
 - Internal round-trip tests (read -> write -> read) prove **self-consistency, not interop correctness**. Three real bugs in the past slipped through internal round-trips and only surfaced via real-binary interop tests with KeePassXC: missing `<?xml version>` declaration, tag `;`-only emission, keyfile non-normalization.
 - Round-trip tests that need byte-equality should pass `regenerateSalts: false` to `KDBXWriter.write` (default-on regen otherwise produces a byte-different file every save).
 - When adding a fixture from a third-party client, assert `KDBXContent.parserWarnings == []` to catch features we don't model.
+- **CLI tests that capture stdout/stdin must not use `KDBX_PASSWORD`** - the process-global env var leaks into other (parallel) suites that unlock differently. Feed the password via `--password-stdin`, mark the suite `.serialized` (it mutates global fds), and restore the saved stdout fd BEFORE `readDataToEndOfFile()` (reading first deadlocks). Reference: `PasskeyCommandTests`.
 
 ### Interop testing with KeePassXC
 
