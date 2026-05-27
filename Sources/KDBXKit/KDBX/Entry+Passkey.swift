@@ -11,10 +11,24 @@ public extension KDBX.Entry {
     /// convention so vaults round-trip across clients. KDBXKit knows only
     /// these field names; it does not interpret WebAuthn semantics.
     enum PasskeyField {
+        /// The display name or email stored by KeePassXC as the WebAuthn userName.
+        /// KeePassXC key: `KPEX_PASSKEY_USERNAME`.
         public static let username = "KPEX_PASSKEY_USERNAME"
+
+        /// Base64url-encoded credential ID byte string assigned by the authenticator.
+        /// KeePassXC key: `KPEX_PASSKEY_CREDENTIAL_ID`.
         public static let credentialID = "KPEX_PASSKEY_CREDENTIAL_ID"
+
+        /// PKCS#8 PEM-encoded private key (EC or RSA depending on the algorithm).
+        /// KeePassXC key: `KPEX_PASSKEY_PRIVATE_KEY_PEM`.
         public static let privateKeyPEM = "KPEX_PASSKEY_PRIVATE_KEY_PEM"
+
+        /// Relying-party identifier (e.g. `"example.com"`).
+        /// KeePassXC key: `KPEX_PASSKEY_RELYING_PARTY`.
         public static let relyingParty = "KPEX_PASSKEY_RELYING_PARTY"
+
+        /// Base64url-encoded user-handle bytes assigned by the relying party.
+        /// KeePassXC key: `KPEX_PASSKEY_USER_HANDLE`.
         public static let userHandle = "KPEX_PASSKEY_USER_HANDLE"
     }
 
@@ -22,11 +36,20 @@ public extension KDBX.Entry {
     /// passkey (relying party + credential ID + private key), independent of
     /// any cosmetic template tag, so KeePassXC-authored passkeys are
     /// recognised even if their Passie template field is unset.
+    ///
+    /// Detection is based on raw field presence, NOT on whether the credential
+    /// ID decodes successfully, so an entry with a malformed base64url value is
+    /// still flagged as a passkey rather than silently dropped.
     var isPasskey: Bool {
-        passkeyRelyingParty != nil && passkeyCredentialID != nil && passkeyPrivateKeyPEM != nil
+        plainPasskeyString(PasskeyField.relyingParty) != nil
+            && plainPasskeyString(PasskeyField.credentialID) != nil
+            && passkeyPrivateKeyPEM != nil
     }
 
+    /// Relying-party identifier string (e.g. `"example.com"`), or nil if absent.
     var passkeyRelyingParty: String? { plainPasskeyString(PasskeyField.relyingParty) }
+
+    /// The WebAuthn userName stored alongside the credential, or nil if absent.
     var passkeyUsername: String? { plainPasskeyString(PasskeyField.username) }
 
     /// Credential ID, base64url-decoded. Nil if absent or undecodable.
@@ -41,8 +64,12 @@ public extension KDBX.Entry {
 
     /// PKCS#8 PEM private key as `SecureBytes`. Never materialised into a
     /// long-lived `String`; callers use the SecureBytes reveal accessor.
+    /// Returns nil when the field is absent or its byte content is empty.
     var passkeyPrivateKeyPEM: SecureBytes? {
-        strings.first { $0.key == PasskeyField.privateKeyPEM }?.value.bytes
+        guard let bytes = strings.first(where: { $0.key == PasskeyField.privateKeyPEM })?.value.bytes,
+              !bytes.isEmpty
+        else { return nil }
+        return bytes
     }
 
     private func plainPasskeyString(_ key: String) -> String? {
@@ -52,22 +79,18 @@ public extension KDBX.Entry {
     }
 }
 
+/// Decode base64url (RFC 4648 section 5, no padding) into bytes. Tolerates
+/// standard base64 too. Named to avoid clashing with any existing helper.
+///
+/// Kept `internal` (not `private`) so tests can assert the `-`/`_` substitution
+/// directly without going through a full vault parse. The `toPasskeyBase64URL`
+/// encoder is intentionally absent until the setters task adds a caller for it.
 extension Data {
-    /// Decode base64url (RFC 4648 section 5, no padding) into bytes. Tolerates
-    /// standard base64 too. Named to avoid clashing with any existing helper.
     static func fromPasskeyBase64URL(_ string: String) -> Data? {
         var s = string.replacingOccurrences(of: "-", with: "+")
             .replacingOccurrences(of: "_", with: "/")
         let pad = s.count % 4
         if pad != 0 { s += String(repeating: "=", count: 4 - pad) }
         return Data(base64Encoded: s)
-    }
-
-    /// Encode as base64url with no padding (for writing in Task 2).
-    func toPasskeyBase64URL() -> String {
-        base64EncodedString()
-            .replacingOccurrences(of: "+", with: "-")
-            .replacingOccurrences(of: "/", with: "_")
-            .replacingOccurrences(of: "=", with: "")
     }
 }
