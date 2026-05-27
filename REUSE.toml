@@ -29,6 +29,7 @@ SPDX-License-Identifier = "BSD-2-Clause"
 [[annotations]]
 path = [
     "Tests/KDBXKitTests/Resources/**",
+    "Tests/KDBXCLICoreTests/Resources/**",
     "Examples/HelloKDBX/demo.kdbx",
     "Sources/KDBXKit/PrivacyInfo.xcprivacy",
 ]

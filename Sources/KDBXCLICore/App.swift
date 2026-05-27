@@ -20,6 +20,7 @@ public struct App: ParsableCommand {
             Entry.self,
             Group.self,
             Attach.self,
+            Passkey.self,
         ]
     )
 

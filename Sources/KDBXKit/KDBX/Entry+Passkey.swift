@@ -134,7 +134,9 @@ public extension KDBX.Entry {
 /// existing helper.
 ///
 /// Both directions are `internal` (not `private`) so tests can exercise the
-/// substitution logic directly at the unit level.
+/// substitution logic directly at the unit level. `toPasskeyBase64URL()` is
+/// `public` so out-of-module callers (the `kdbx` CLI) can render the
+/// `Data`-returning passkey accessors back into the on-the-wire form.
 extension Data {
     static func fromPasskeyBase64URL(_ string: String) -> Data? {
         var s = string.replacingOccurrences(of: "-", with: "+")
@@ -145,7 +147,7 @@ extension Data {
     }
 
     /// Encodes the receiver as base64url (RFC 4648 section 5) with no padding.
-    func toPasskeyBase64URL() -> String {
+    public func toPasskeyBase64URL() -> String {
         base64EncodedString()
             .replacingOccurrences(of: "+", with: "-")
             .replacingOccurrences(of: "/", with: "_")

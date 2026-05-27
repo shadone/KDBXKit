@@ -85,6 +85,9 @@ let package = Package(
         .testTarget(
             name: "KDBXCLICoreTests",
             dependencies: ["KDBXCLICore", "KDBXKit"],
+            resources: [
+                .copy("Resources"),
+            ],
             swiftSettings: [
                 .swiftLanguageMode(.v6),
                 .enableUpcomingFeature("StrictConcurrency"),
