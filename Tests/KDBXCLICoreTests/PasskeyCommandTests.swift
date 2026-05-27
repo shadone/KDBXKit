@@ -46,7 +46,11 @@ struct PasskeyCommandTests {
         // Capture stdout.
         let outPipe = Pipe()
         let savedStdout = dup(STDOUT_FILENO)
-        fflush(stdout)
+        // fflush(nil) flushes every open output stream. We avoid naming
+        // `stdout` directly: on glibc it's a mutable global var that Swift 6
+        // strict concurrency rejects as non-Sendable (Darwin declares it as
+        // a function-like macro, so referencing it there compiles).
+        fflush(nil)
         dup2(outPipe.fileHandleForWriting.fileDescriptor, STDOUT_FILENO)
 
         var cmd = try App.parseAsRoot(argv + ["--password-stdin"])
@@ -55,7 +59,7 @@ struct PasskeyCommandTests {
         // Restore the real stdin/stdout *before* reading the pipe. While fd 1
         // is still duped onto the pipe's write end, the write end is "open" and
         // readDataToEndOfFile() would block forever waiting for EOF.
-        fflush(stdout)
+        fflush(nil)
         dup2(savedStdout, STDOUT_FILENO)
         close(savedStdout)
         dup2(savedStdin, STDIN_FILENO)
