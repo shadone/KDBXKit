@@ -174,4 +174,41 @@ struct ValidationTests {
         let failures = database.validate()
         #expect(failures.contains { $0.message.contains("PreviousParentGroup") && $0.message.contains(ghost.uuidString) })
     }
+
+    @Test("A binary Ref beyond the pool on a live entry is flagged")
+    func danglingLiveBinaryRef_warns() {
+        // makeEmpty has an empty binary pool, so any ref is dangling.
+        var content = KDBXContent.makeEmpty(databaseName: "Live", kdf: .fast)
+        let live = KDBX.Entry(
+            uuid: UUID(),
+            binaries: [KDBX.ProtectedBinary(key: "notes.txt", value: .ref(5))]
+        )
+        content.database.root.group.entries.append(live)
+
+        let failures = content.validate()
+        #expect(
+            failures.contains { $0.message.contains("Ref=5") && $0.message.contains("non-existing Binary") },
+            "live dangling ref not reported: \(failures.map(\.message))"
+        )
+    }
+
+    @Test("A binary Ref beyond the pool in a history snapshot is flagged")
+    func danglingHistoryBinaryRef_warns() {
+        // Regression: the validator used to ignore history binaries, so
+        // a corrupt save that left a dangling ref only in a history
+        // snapshot would slip through. History refs share the same pool.
+        var content = KDBXContent.makeEmpty(databaseName: "Hist", kdf: .fast)
+        let historic = KDBX.Entry(
+            uuid: UUID(),
+            binaries: [KDBX.ProtectedBinary(key: "notes.txt", value: .ref(0))]
+        )
+        let live = KDBX.Entry(uuid: UUID(), history: [historic])
+        content.database.root.group.entries.append(live)
+
+        let failures = content.validate()
+        #expect(
+            failures.contains { $0.message.contains("History") && $0.message.contains("Ref=0") },
+            "history dangling ref not reported: \(failures.map(\.message))"
+        )
+    }
 }

@@ -14,20 +14,23 @@ public extension KDBXContent {
         results += header.validate()
         results += innerHeader.validate()
 
-        // Check that ProtectedBinaries Ref points to the existing Binary
+        // Check that ProtectedBinaries Ref points to the existing Binary.
+        // History snapshots carry their own binaries and reference the
+        // same inner-header pool, so they're validated too — a dangling
+        // ref in a history entry is just as corrupt as one on the live
+        // entry, and the save-time pool remap touches both.
         let numberOfBinaries = UInt32(innerHeader.binaryContent.count)
-        database.visitEntries(in: database.root.group) { entry in
+        func validateBinaries(of entry: KDBX.Entry, context: String) {
             for binary in entry.binaries {
-                switch binary.value {
-                case let .ref(ref):
-                    if ref >= numberOfBinaries {
-                        results.append(.warning("Entry[\(entry.uuid)].Binaries Ref=\(ref) points to a non-existing Binary"))
-                    }
-
-                case .inline:
-                    // Ok
-                    break
+                if case let .ref(ref) = binary.value, ref >= numberOfBinaries {
+                    results.append(.warning("\(context).Binaries Ref=\(ref) points to a non-existing Binary"))
                 }
+            }
+        }
+        database.visitEntries(in: database.root.group) { entry in
+            validateBinaries(of: entry, context: "Entry[\(entry.uuid)]")
+            for historic in entry.history {
+                validateBinaries(of: historic, context: "Entry[\(entry.uuid)].History")
             }
         }
 
