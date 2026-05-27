@@ -75,4 +75,100 @@ import Testing
         let decoded = Data.fromPasskeyBase64URL(base64url)
         #expect(decoded == raw)
     }
+
+    // MARK: - Setter tests
+
+    @Test func writesAndReadsBackPasskeyFields() throws {
+        var entry = KDBX.Entry(uuid: UUID())
+        entry.setPasskeyRelyingParty("example.com")
+        entry.setPasskeyUsername("alice")
+        entry.setPasskeyCredentialID(Data([0x01, 0x02, 0x03, 0x04]))
+        entry.setPasskeyUserHandle(Data([0xAA, 0xBB]))
+        entry.setPasskeyPrivateKeyPEM("-----BEGIN PRIVATE KEY-----\nMIG...\n-----END PRIVATE KEY-----")
+
+        #expect(entry.isPasskey)
+        #expect(entry.passkeyRelyingParty == "example.com")
+        #expect(entry.passkeyUsername == "alice")
+        #expect(entry.passkeyCredentialID == Data([0x01, 0x02, 0x03, 0x04]))
+        #expect(entry.passkeyUserHandle == Data([0xAA, 0xBB]))
+
+        // Protection markers must match KeePassXC.
+        func proto(_ key: String) -> KDBX.ProtectedString.Value? {
+            entry.strings.first { $0.key == key }?.value
+        }
+        if case .regular = proto(KDBX.Entry.PasskeyField.relyingParty) {} else {
+            Issue.record("RP must be .regular")
+        }
+        if case .regular = proto(KDBX.Entry.PasskeyField.username) {} else {
+            Issue.record("username must be .regular")
+        }
+        if case .unprotected = proto(KDBX.Entry.PasskeyField.credentialID) {} else {
+            Issue.record("credID must be .unprotected")
+        }
+        if case .unprotected = proto(KDBX.Entry.PasskeyField.userHandle) {} else {
+            Issue.record("userHandle must be .unprotected")
+        }
+        if case .protectedInMemory = proto(KDBX.Entry.PasskeyField.privateKeyPEM) {} else {
+            Issue.record("PEM must be .protectedInMemory")
+        }
+    }
+
+    @Test func setterOverwritesExistingField() throws {
+        var entry = KDBX.Entry(uuid: UUID())
+        entry.setPasskeyRelyingParty("first.example")
+        entry.setPasskeyRelyingParty("second.example")
+        #expect(entry.passkeyRelyingParty == "second.example")
+        #expect(entry.strings.filter { $0.key == KDBX.Entry.PasskeyField.relyingParty }.count == 1)
+    }
+
+    @Test func passkeySurvivesWriteAndReopen() throws {
+        let path = Bundle.module.path(forResource: "Resources/kpxc-passkey", ofType: "kdbx")!
+        let data = try Data(contentsOf: URL(filePath: path))
+        let unlock = UnlockData(masterPassword: "123")
+        var reader = KDBXReader(data)
+        var content = try reader.parse(unlockData: unlock)
+
+        var entry = KDBX.Entry(uuid: UUID())
+        entry.setPasskeyRelyingParty("added.example")
+        entry.setPasskeyUsername("bob")
+        entry.setPasskeyCredentialID(Data([0xDE, 0xAD, 0xBE, 0xEF]))
+        entry.setPasskeyUserHandle(Data([0x01]))
+        entry.setPasskeyPrivateKeyPEM("-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----")
+        content.database.root.group.entries.append(entry)
+
+        let outPath = FileManager.default.temporaryDirectory
+            .appendingPathComponent("passkey-rt-\(UUID().uuidString).kdbx").path
+        defer { try? FileManager.default.removeItem(atPath: outPath) }
+        let os = OutputStream(toFileAtPath: outPath, append: false)!
+        os.open()
+        try KDBXWriter(to: os).write(content, unlockData: unlock)
+        os.close()
+
+        var reopenReader = KDBXReader(try Data(contentsOf: URL(filePath: outPath)))
+        let reopened = try reopenReader.parse(unlockData: unlock)
+        var found: KDBX.Entry?
+        reopened.database.visitEntries(in: reopened.database.root.group) {
+            if $0.passkeyRelyingParty == "added.example" { found = $0 }
+        }
+        let f = try #require(found)
+        #expect(f.passkeyCredentialID == Data([0xDE, 0xAD, 0xBE, 0xEF]))
+        #expect(f.passkeyUserHandle == Data([0x01]))
+        let pem = try #require(f.passkeyPrivateKeyPEM)
+        pem.withRevealedString { #expect($0.contains("AAAA")) }
+
+        // RP and username reopen as .regular (plaintext on disk).
+        func proto(_ k: String) -> KDBX.ProtectedString.Value? {
+            f.strings.first { $0.key == k }?.value
+        }
+        if case .regular = proto(KDBX.Entry.PasskeyField.relyingParty) {} else {
+            Issue.record("RP should reopen as .regular")
+        }
+        if case .regular = proto(KDBX.Entry.PasskeyField.username) {} else {
+            Issue.record("username should reopen as .regular")
+        }
+        // PEM must NOT reopen as .regular; it was written Protected="True".
+        if case .regular = proto(KDBX.Entry.PasskeyField.privateKeyPEM) {
+            Issue.record("PEM must NOT reopen as .regular (must stay protected)")
+        }
+    }
 }

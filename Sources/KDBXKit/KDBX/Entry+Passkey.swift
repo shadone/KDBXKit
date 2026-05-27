@@ -77,14 +77,59 @@ public extension KDBX.Entry {
         let revealed = s.value.revealedString
         return revealed.isEmpty ? nil : revealed
     }
+
+    // MARK: - Setters
+
+    /// Sets the relying-party identifier (e.g. `"example.com"`).
+    /// Stored plaintext (Protected="False") to match KeePassXC.
+    mutating func setPasskeyRelyingParty(_ value: String) {
+        setPasskeyField(PasskeyField.relyingParty, .regular(value))
+    }
+
+    /// Sets the WebAuthn userName stored alongside the credential.
+    /// Stored plaintext (Protected="False") to match KeePassXC.
+    mutating func setPasskeyUsername(_ value: String) {
+        setPasskeyField(PasskeyField.username, .regular(value))
+    }
+
+    /// Sets the credential ID from raw bytes. The bytes are base64url-encoded
+    /// and stored with Protected="True" (`.unprotected` in memory) to match
+    /// KeePassXC. The credential ID is not a private secret but is treated
+    /// as sensitive on disk.
+    mutating func setPasskeyCredentialID(_ data: Data) {
+        setPasskeyField(PasskeyField.credentialID, .unprotected(data.toPasskeyBase64URL()))
+    }
+
+    /// Sets the user handle from raw bytes. The bytes are base64url-encoded
+    /// and stored with Protected="True" (`.unprotected` in memory) to match
+    /// KeePassXC.
+    mutating func setPasskeyUserHandle(_ data: Data) {
+        setPasskeyField(PasskeyField.userHandle, .unprotected(data.toPasskeyBase64URL()))
+    }
+
+    /// Sets the PKCS#8 PEM private key.
+    /// Stored `.protectedInMemory` so the key is inner-stream encrypted in the
+    /// XML (Protected="True") and mlock'd/zeroed in memory, matching
+    /// KeePassXC's Protected="True".
+    mutating func setPasskeyPrivateKeyPEM(_ pem: String) {
+        setPasskeyField(PasskeyField.privateKeyPEM, .protectedInMemory(pem))
+    }
+
+    private mutating func setPasskeyField(_ key: String, _ value: KDBX.ProtectedString.Value) {
+        if let idx = strings.firstIndex(where: { $0.key == key }) {
+            strings[idx].value = value
+        } else {
+            strings.append(KDBX.ProtectedString(key: key, value: value))
+        }
+    }
 }
 
-/// Decode base64url (RFC 4648 section 5, no padding) into bytes. Tolerates
-/// standard base64 too. Named to avoid clashing with any existing helper.
+/// Decode and encode base64url (RFC 4648 section 5, no padding). Tolerates
+/// standard base64 in the decoder too. Named to avoid clashing with any
+/// existing helper.
 ///
-/// Kept `internal` (not `private`) so tests can assert the `-`/`_` substitution
-/// directly without going through a full vault parse. The `toPasskeyBase64URL`
-/// encoder is intentionally absent until the setters task adds a caller for it.
+/// Both directions are `internal` (not `private`) so tests can exercise the
+/// substitution logic directly at the unit level.
 extension Data {
     static func fromPasskeyBase64URL(_ string: String) -> Data? {
         var s = string.replacingOccurrences(of: "-", with: "+")
@@ -92,5 +137,13 @@ extension Data {
         let pad = s.count % 4
         if pad != 0 { s += String(repeating: "=", count: 4 - pad) }
         return Data(base64Encoded: s)
+    }
+
+    /// Encodes the receiver as base64url (RFC 4648 section 5) with no padding.
+    func toPasskeyBase64URL() -> String {
+        base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
     }
 }
