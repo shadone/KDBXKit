@@ -108,11 +108,16 @@ public extension KDBX.Entry {
     }
 
     /// Sets the PKCS#8 PEM private key.
-    /// Stored `.protectedInMemory` so the key is inner-stream encrypted in the
-    /// XML (Protected="True") and mlock'd/zeroed in memory, matching
-    /// KeePassXC's Protected="True".
+    ///
+    /// Stored `.unprotected` so the key is inner-stream encrypted in the XML
+    /// payload (`Protected="True"` on disk), matching KeePassXC. (In KDBXKit's
+    /// model `.unprotected` means "encrypted on disk, plain in memory"; the
+    /// `.protectedInMemory` case instead writes `ProtectInMemory="True"` with the
+    /// value in CLEARTEXT on disk, which we must not do for a private key.)
+    /// The caller passes a `String`, which lives briefly in the heap before being
+    /// wrapped; the read accessor returns `SecureBytes`.
     mutating func setPasskeyPrivateKeyPEM(_ pem: String) {
-        setPasskeyField(PasskeyField.privateKeyPEM, .protectedInMemory(pem))
+        setPasskeyField(PasskeyField.privateKeyPEM, .unprotected(pem))
     }
 
     private mutating func setPasskeyField(_ key: String, _ value: KDBX.ProtectedString.Value) {

@@ -108,8 +108,8 @@ import Testing
         if case .unprotected = proto(KDBX.Entry.PasskeyField.userHandle) {} else {
             Issue.record("userHandle must be .unprotected")
         }
-        if case .protectedInMemory = proto(KDBX.Entry.PasskeyField.privateKeyPEM) {} else {
-            Issue.record("PEM must be .protectedInMemory")
+        if case .unprotected = proto(KDBX.Entry.PasskeyField.privateKeyPEM) {} else {
+            Issue.record("PEM must be .unprotected")
         }
     }
 
@@ -150,13 +150,18 @@ import Testing
         reopened.database.visitEntries(in: reopened.database.root.group) {
             if $0.passkeyRelyingParty == "added.example" { found = $0 }
         }
+        #expect(reopened.parserWarnings.isEmpty)
+
         let f = try #require(found)
         #expect(f.passkeyCredentialID == Data([0xDE, 0xAD, 0xBE, 0xEF]))
         #expect(f.passkeyUserHandle == Data([0x01]))
+        #expect(f.passkeyUsername == "bob")
         let pem = try #require(f.passkeyPrivateKeyPEM)
         pem.withRevealedString { #expect($0.contains("AAAA")) }
 
         // RP and username reopen as .regular (plaintext on disk).
+        // Credential ID, user handle, and PEM reopen as .lazyInnerCipher
+        // (Protected="True" fields, inner-stream encrypted on disk).
         func proto(_ k: String) -> KDBX.ProtectedString.Value? {
             f.strings.first { $0.key == k }?.value
         }
@@ -166,9 +171,14 @@ import Testing
         if case .regular = proto(KDBX.Entry.PasskeyField.username) {} else {
             Issue.record("username should reopen as .regular")
         }
-        // PEM must NOT reopen as .regular; it was written Protected="True".
-        if case .regular = proto(KDBX.Entry.PasskeyField.privateKeyPEM) {
-            Issue.record("PEM must NOT reopen as .regular (must stay protected)")
+        if case .lazyInnerCipher = proto(KDBX.Entry.PasskeyField.credentialID) {} else {
+            Issue.record("credentialID must reopen as .lazyInnerCipher (Protected=True)")
+        }
+        if case .lazyInnerCipher = proto(KDBX.Entry.PasskeyField.userHandle) {} else {
+            Issue.record("userHandle must reopen as .lazyInnerCipher (Protected=True)")
+        }
+        if case .lazyInnerCipher = proto(KDBX.Entry.PasskeyField.privateKeyPEM) {} else {
+            Issue.record("PEM must reopen as .lazyInnerCipher (Protected=True, inner-stream encrypted)")
         }
     }
 }
