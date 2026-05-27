@@ -32,34 +32,39 @@ struct FuzzRegressionTests {
 
     private func data(of url: URL) throws -> Data { try Data(contentsOf: url) }
 
-    @Test func headerCrashersAreHandled() throws {
+    @Test
+    func headerCrashersAreHandled() throws {
         for url in Self.crasherFiles(target: "header") {
             _ = try? KDBXReader.parseHeader(try data(of: url))
         }
     }
 
-    @Test func parseCrashersAreHandled() throws {
+    @Test
+    func parseCrashersAreHandled() throws {
         let unlock = UnlockData(masterPassword: "fuzz")
-        let tiny = KDFParameterLimits(maxArgon2Memory: 1 << 20, maxArgon2Iterations: 2, maxArgon2Parallelism: 2, maxAESKDFRounds: 10_000)
+        let tiny = KDFParameterLimits(maxArgon2Memory: 1 << 20, maxArgon2Iterations: 2, maxArgon2Parallelism: 2, maxAESKDFRounds: 10000)
         for url in Self.crasherFiles(target: "parse") {
             _ = try? KDBXReader.parse(try data(of: url), unlockData: unlock, kdfLimits: tiny)
         }
     }
 
-    @Test func variantDictCrashersAreHandled() throws {
+    @Test
+    func variantDictCrashersAreHandled() throws {
         for url in Self.crasherFiles(target: "variantdict") {
             let reader = VariantDictionaryReader(data: try data(of: url))
             _ = try? reader.parse()
         }
     }
 
-    @Test func blockStreamCrashersAreHandled() throws {
+    @Test
+    func blockStreamCrashersAreHandled() throws {
         for url in Self.crasherFiles(target: "blockstream") {
             _ = try? HashedBlockStreamReader.decode(try data(of: url))
         }
     }
 
-    @Test func xmlCrashersAreHandled() throws {
+    @Test
+    func xmlCrashersAreHandled() throws {
         let keystream = KeystreamSource(algorithm: .chacha20, key: SecureBytes(Data(repeating: 0, count: 32)), nonce: Data(repeating: 0, count: 12))
         for url in Self.crasherFiles(target: "xml") {
             guard let xml = String(data: try data(of: url), encoding: .utf8) else { continue }

@@ -8,7 +8,8 @@ import Foundation
 import Testing
 @testable import KDBXKit
 
-@Suite struct PasskeyStorageTests {
+@Suite
+struct PasskeyStorageTests {
     private func loadFixture() throws -> KDBXContent {
         let path = Bundle.module.path(forResource: "Resources/kpxc-passkey", ofType: "kdbx")!
         let data = try Data(contentsOf: URL(filePath: path))
@@ -25,12 +26,14 @@ import Testing
         return found
     }
 
-    @Test func noParserWarningsOnKeePassXCFixture() throws {
+    @Test
+    func noParserWarningsOnKeePassXCFixture() throws {
         let content = try loadFixture()
         #expect(content.parserWarnings.isEmpty)
     }
 
-    @Test func readsPasskeysFromKeePassXCFixture() throws {
+    @Test
+    func readsPasskeysFromKeePassXCFixture() throws {
         let passkeys = try loadFixturePasskeys()
         #expect(passkeys.count == 6)
         let ctap = try #require(passkeys.first { $0.passkeyRelyingParty == "ctap.dev" })
@@ -41,19 +44,24 @@ import Testing
         pem.withRevealedString { #expect($0.contains("PRIVATE KEY")) }
     }
 
-    @Test func allPasskeysHaveDecodableCredentialIDAndUserHandle() throws {
+    @Test
+    func allPasskeysHaveDecodableCredentialIDAndUserHandle() throws {
         let passkeys = try loadFixturePasskeys()
         #expect(passkeys.count == 6)
         for passkey in passkeys {
             let rp = passkey.passkeyRelyingParty ?? "<nil>"
             let credID = passkey.passkeyCredentialID
             #expect(credID != nil, "expected non-nil credentialID for relying party \(rp)")
-            #expect((credID?.isEmpty == false) == true,
-                    "expected non-empty credentialID for relying party \(rp)")
+            #expect(
+                (credID?.isEmpty == false) == true,
+                "expected non-empty credentialID for relying party \(rp)"
+            )
             let userHandle = passkey.passkeyUserHandle
             #expect(userHandle != nil, "expected non-nil userHandle for relying party \(rp)")
-            #expect((userHandle?.isEmpty == false) == true,
-                    "expected non-empty userHandle for relying party \(rp)")
+            #expect(
+                (userHandle?.isEmpty == false) == true,
+                "expected non-empty userHandle for relying party \(rp)"
+            )
         }
     }
 
@@ -67,7 +75,8 @@ import Testing
     /// test can call it directly and assert the substitution behaviour at the
     /// unit level, rather than relying solely on indirect evidence through a
     /// full vault parse.
-    @Test func base64urlDecodeSubstitution() {
+    @Test
+    func base64urlDecodeSubstitution() {
         let raw = Data([0xFB, 0xFF, 0xBF])
         // Standard base64 of these bytes is "+/+/" (3 bytes = 4 base64 chars, no padding).
         // base64url form replaces + with - and / with _: "-_-_"
@@ -78,7 +87,8 @@ import Testing
 
     // MARK: - Setter tests
 
-    @Test func writesAndReadsBackPasskeyFields() throws {
+    @Test
+    func writesAndReadsBackPasskeyFields() throws {
         var entry = KDBX.Entry(uuid: UUID())
         entry.setPasskeyRelyingParty("example.com")
         entry.setPasskeyUsername("alice")
@@ -113,7 +123,8 @@ import Testing
         }
     }
 
-    @Test func setterOverwritesExistingField() throws {
+    @Test
+    func setterOverwritesExistingField() throws {
         var entry = KDBX.Entry(uuid: UUID())
         entry.setPasskeyRelyingParty("first.example")
         entry.setPasskeyRelyingParty("second.example")
@@ -121,7 +132,8 @@ import Testing
         #expect(entry.strings.filter { $0.key == KDBX.Entry.PasskeyField.relyingParty }.count == 1)
     }
 
-    @Test func passkeySurvivesWriteAndReopen() throws {
+    @Test
+    func passkeySurvivesWriteAndReopen() throws {
         let path = Bundle.module.path(forResource: "Resources/kpxc-passkey", ofType: "kdbx")!
         let data = try Data(contentsOf: URL(filePath: path))
         let unlock = UnlockData(masterPassword: "123")

@@ -44,10 +44,10 @@ public struct KDFParameterLimits: Sendable, Equatable {
     /// Generous defaults: real vaults sit far below these, absurd DoS values
     /// sit far above. KeePass Argon2 defaults are ~64 MiB / a few iterations.
     public static let `default` = KDFParameterLimits(
-        maxArgon2Memory: 1 << 30,          // 1 GiB
-        maxArgon2Iterations: 1_000,
-        maxArgon2Parallelism: 1 << 10,     // 1024 lanes
-        maxAESKDFRounds: 100_000_000       // completes in a few seconds
+        maxArgon2Memory: 1 << 30, // 1 GiB
+        maxArgon2Iterations: 1000,
+        maxArgon2Parallelism: 1 << 10, // 1024 lanes
+        maxAESKDFRounds: 100_000_000 // completes in a few seconds
     )
 
     /// Returns a human-readable reason when `params` exceed these limits, or

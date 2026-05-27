@@ -31,8 +31,8 @@ struct KDFParameterLimitsTests {
     func permissivePolicyAdmits() {
         let permissive = KDFParameterLimits(
             maxArgon2Memory: 32 * 1024 * 1024 * 1024,
-            maxArgon2Iterations: 1_000,
-            maxArgon2Parallelism: 1_024,
+            maxArgon2Iterations: 1000,
+            maxArgon2Parallelism: 1024,
             maxAESKDFRounds: 1_000_000_000
         )
         #expect(permissive.breach(for: argon2id(memory: 16 * 1024 * 1024 * 1024)) == nil)
@@ -101,7 +101,7 @@ struct KDFParameterLimitsTests {
         let url = try #require(Bundle.module.url(forResource: "simple-argon2id-aes256", withExtension: "kdbx"))
         let data = try Data(contentsOf: url)
         let tiny = KDFParameterLimits(
-            maxArgon2Memory: 1024,          // 1 KiB — below any real vault
+            maxArgon2Memory: 1024, // 1 KiB — below any real vault
             maxArgon2Iterations: 1,
             maxArgon2Parallelism: 1,
             maxAESKDFRounds: 1

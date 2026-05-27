@@ -6,8 +6,8 @@
 //
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
-import PackageDescription
 import Foundation
+import PackageDescription
 
 // Fuzz targets are declared only under KDBXKIT_FUZZ=1 so a normal build/test/Xcode
 // build never sees them. They require the swift.org toolchain + -sanitize=fuzzer

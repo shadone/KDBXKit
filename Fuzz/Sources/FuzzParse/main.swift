@@ -14,10 +14,10 @@ import KDBXKit
 
 private let unlock = UnlockData(masterPassword: "fuzz")
 private let tinyLimits = KDFParameterLimits(
-    maxArgon2Memory: 1 << 20,   // 1 MiB
+    maxArgon2Memory: 1 << 20, // 1 MiB
     maxArgon2Iterations: 2,
     maxArgon2Parallelism: 2,
-    maxAESKDFRounds: 10_000
+    maxAESKDFRounds: 10000
 )
 
 @_cdecl("LLVMFuzzerTestOneInput")

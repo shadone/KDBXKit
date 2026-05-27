@@ -19,6 +19,7 @@ guard args.count == 4 else {
     FileHandle.standardError.write(Data("usage: FuzzSeedGen <fixture.kdbx> <password> <corpus-root>\n".utf8))
     exit(2)
 }
+
 let fixturePath = args[1]
 let password = args[2]
 let corpusRoot = URL(fileURLWithPath: args[3])
