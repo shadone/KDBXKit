@@ -62,6 +62,13 @@ public extension KDBX.Entry {
         plainPasskeyString(PasskeyField.userHandle).flatMap(Data.fromPasskeyBase64URL)
     }
 
+    /// The credential ID as stored (base64url text), without decoding. Useful for
+    /// faithful display/inspection (shows the on-disk value even if malformed).
+    var passkeyCredentialIDBase64URL: String? { plainPasskeyString(PasskeyField.credentialID) }
+
+    /// The user handle as stored (base64url text), without decoding.
+    var passkeyUserHandleBase64URL: String? { plainPasskeyString(PasskeyField.userHandle) }
+
     /// PKCS#8 PEM private key as `SecureBytes`. Never materialised into a
     /// long-lived `String`; callers use the SecureBytes reveal accessor.
     /// Returns nil when the field is absent or its byte content is empty.
@@ -134,9 +141,8 @@ public extension KDBX.Entry {
 /// existing helper.
 ///
 /// Both directions are `internal` (not `private`) so tests can exercise the
-/// substitution logic directly at the unit level. `toPasskeyBase64URL()` is
-/// `public` so out-of-module callers (the `kdbx` CLI) can render the
-/// `Data`-returning passkey accessors back into the on-the-wire form.
+/// substitution logic directly at the unit level, and the passkey setters in
+/// this module use `toPasskeyBase64URL()` to encode raw bytes for storage.
 extension Data {
     static func fromPasskeyBase64URL(_ string: String) -> Data? {
         var s = string.replacingOccurrences(of: "-", with: "+")
@@ -147,7 +153,7 @@ extension Data {
     }
 
     /// Encodes the receiver as base64url (RFC 4648 section 5) with no padding.
-    public func toPasskeyBase64URL() -> String {
+    func toPasskeyBase64URL() -> String {
         base64EncodedString()
             .replacingOccurrences(of: "+", with: "-")
             .replacingOccurrences(of: "/", with: "_")

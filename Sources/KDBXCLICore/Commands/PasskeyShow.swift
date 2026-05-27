@@ -48,8 +48,8 @@ extension Passkey {
             // is deliberately never read or printed here.
             print("Relying party: \(entry.passkeyRelyingParty ?? "")")
             print("Username: \(entry.passkeyUsername ?? "")")
-            print("Credential ID: \(entry.passkeyCredentialID?.toPasskeyBase64URL() ?? "")")
-            print("User handle: \(entry.passkeyUserHandle?.toPasskeyBase64URL() ?? "")")
+            print("Credential ID: \(entry.passkeyCredentialIDBase64URL ?? "")")
+            print("User handle: \(entry.passkeyUserHandleBase64URL ?? "")")
             print("Private key: <protected — not shown>")
         }
     }
