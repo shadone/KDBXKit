@@ -37,9 +37,12 @@ precedence = "aggregate"
 SPDX-FileCopyrightText = "2025 Denis Dzyubenko <denis@ddenis.info>"
 SPDX-License-Identifier = "BSD-2-Clause"
 
-# --- Fuzz corpus seed data (generated/seed inputs; cannot hold a comment header) ---
+# --- Fuzz corpus seed data + crash reproducers (cannot hold a comment header) ---
 [[annotations]]
-path = "Fuzz/corpus/**"
+path = [
+    "Fuzz/corpus/**",
+    "Fuzz/crashers/**",
+]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2025 Denis Dzyubenko <denis@ddenis.info>"
 SPDX-License-Identifier = "BSD-2-Clause"
