@@ -118,40 +118,27 @@ public extension KDBXReader {
     /// to the sink. Peak memory during the call: ~file_size briefly;
     /// after return: nothing retained.
     ///
+    /// - important: This decrypts + decompresses the WHOLE file on
+    ///   every call. To resolve more than one binary — e.g. when
+    ///   rebuilding the pool for a save — do NOT call this in a loop:
+    ///   that is O(binaries × file_size). Use
+    ///   ``withDecryptedBinaries(from:_:)`` instead, which pays the
+    ///   decrypt cost once for any number of binaries.
+    ///
     /// `sink` is mutated and finalized by this call.
     static func streamBinary(
         from lazy: LazyKDBXContent,
         at index: Int,
         into sink: inout some ByteSink
     ) throws {
-        guard lazy.binaries.indices.contains(index) else {
-            throw KDBXReader.Error.corruptedInnerHeader(reason: "Binary index out of range: \(index)")
-        }
-        let meta = lazy.binaries[index]
+        let decrypted = try decryptWholePayload(of: lazy)
+        let slice = try binarySlice(at: index, in: decrypted.payload, binaries: lazy.binaries)
 
-        let encrypted = try lazy.source.readAll()
-        let decrypted = try decryptAndDecompressUsing(
-            encrypted,
-            unlockKey: lazy.unlockKey,
-            header: lazy.header,
-            maxDecompressedPayloadSize: lazy.maxDecompressedPayloadSize
-        )
-
-        // Slice the binary out of the decompressed payload and feed
-        // sink in chunks. The Data subdata is a view onto the parent
-        // buffer; no extra copy. Chunk writes let the sink stream
-        // (URLSink to disk, SecureBytesSink page-by-page) instead of
-        // materializing the full bytes into the sink's storage at
-        // once for very large attachments.
-        let start = decrypted.payload.startIndex + meta.decompressedOffset
-        let end = start + meta.decompressedLength
-        guard end <= decrypted.payload.endIndex else {
-            throw KDBXReader.Error.corruptedInnerHeader(
-                reason: "Binary slice [\(meta.decompressedOffset)..<\(end)] exceeds payload bounds"
-            )
-        }
-        let slice = decrypted.payload[start..<end]
-
+        // Feed the sink in chunks. The Data subdata is a view onto the
+        // parent buffer; no extra copy. Chunk writes let the sink
+        // stream (URLSink to disk, SecureBytesSink page-by-page)
+        // instead of materializing the full bytes into the sink's
+        // storage at once for very large attachments.
         let chunkSize = 64 * 1024
         var cursor = slice.startIndex
         while cursor < slice.endIndex {
@@ -162,6 +149,73 @@ public extension KDBXReader {
             cursor = next
         }
         try sink.finalize()
+    }
+
+    /// Decrypt + decompress the source ONCE, then hand `body` a
+    /// `resolve` closure that slices any binary out of the resident
+    /// payload by pool index. Use this — not a loop over
+    /// ``streamBinary(from:at:into:)`` — whenever more than one binary
+    /// is needed (rebuilding the binary pool for a save, exporting all
+    /// attachments, …): the single-binary API replays the full-file
+    /// decrypt on every call, so resolving the whole pool that way is
+    /// O(binaries × file_size). This pays the decrypt cost a single
+    /// time regardless of how many binaries `body` asks for.
+    ///
+    /// `resolve(index)` returns a `Data` that is a view onto the
+    /// single decrypted buffer (no per-binary copy); retaining one
+    /// keeps that buffer alive. It throws
+    /// ``KDBXReader/Error/corruptedInnerHeader(reason:)`` for an
+    /// out-of-range or out-of-bounds index, mirroring `streamBinary`.
+    ///
+    /// Peak memory during the call: ~the decompressed payload size,
+    /// the same as a single `streamBinary`. The decrypted payload is
+    /// released when the last `Data` handed out by `resolve` is
+    /// released (after return, that is whatever `body` kept).
+    static func withDecryptedBinaries<R>(
+        from lazy: LazyKDBXContent,
+        _ body: (_ resolve: (_ index: Int) throws -> Data) throws -> R
+    ) throws -> R {
+        let decrypted = try decryptWholePayload(of: lazy)
+        let binaries = lazy.binaries
+        return try body { index in
+            try binarySlice(at: index, in: decrypted.payload, binaries: binaries)
+        }
+    }
+
+    /// Read + decrypt + decompress the lazy source's whole payload.
+    /// Shared by `streamBinary`, `withDecryptedBinaries`, and
+    /// `LazyBinaryCache`.
+    internal static func decryptWholePayload(
+        of lazy: LazyKDBXContent
+    ) throws -> DecryptedKDBXPayload {
+        let encrypted = try lazy.source.readAll()
+        return try decryptAndDecompressUsing(
+            encrypted,
+            unlockKey: lazy.unlockKey,
+            header: lazy.header,
+            maxDecompressedPayloadSize: lazy.maxDecompressedPayloadSize
+        )
+    }
+
+    /// Slice one binary out of an already-decrypted payload. The
+    /// returned `Data` is a view onto `payload`; it shares storage.
+    internal static func binarySlice(
+        at index: Int,
+        in payload: Data,
+        binaries: [BinaryMetadata]
+    ) throws -> Data {
+        guard binaries.indices.contains(index) else {
+            throw KDBXReader.Error.corruptedInnerHeader(reason: "Binary index out of range: \(index)")
+        }
+        let meta = binaries[index]
+        let start = payload.startIndex + meta.decompressedOffset
+        let end = start + meta.decompressedLength
+        guard end <= payload.endIndex else {
+            throw KDBXReader.Error.corruptedInnerHeader(
+                reason: "Binary slice [\(meta.decompressedOffset)..<\(end)] exceeds payload bounds"
+            )
+        }
+        return payload[start..<end]
     }
 }
 

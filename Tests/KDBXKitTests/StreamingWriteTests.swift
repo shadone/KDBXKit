@@ -122,6 +122,68 @@ struct StreamingWriteTests {
         }
     }
 
+    @Test("Streaming write via a shared LazyBinaryCache is byte-identical to per-source streaming")
+    func streamRoundTrip_viaSharedCache() throws {
+        // Build a vault with several distinct attachments so the cache
+        // serves more than one binary from a single decrypt.
+        var content = try KDBXReader.parse(
+            try Data(contentsOf: fixtureURL("simple-argon2id-aes256")),
+            unlockData: .init(masterPassword: "123")
+        )
+        let payloads: [Data] = (0..<6).map { i in
+            Data((0..<(2048 + i)).map { UInt8(($0 &+ i) & 0xFF) })
+        }
+        content.innerHeader.binaryContent = payloads.enumerated().map { i, p in
+            .init(shouldBeProtected: i.isMultiple(of: 2), data: p)
+        }
+
+        // Seed an encrypted file, then reopen it lazily.
+        let seedURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString).kdbx")
+        try KDBXWriter.streamingWrite(
+            to: seedURL,
+            content: content,
+            binaries: payloads.enumerated().map { i, p in
+                DataBinarySource(p, shouldBeProtected: i.isMultiple(of: 2))
+            },
+            unlockData: .init(masterPassword: "123"),
+            regenerateSalts: false
+        )
+        let encrypted = try Data(contentsOf: seedURL)
+        try? FileManager.default.removeItem(at: seedURL)
+
+        let lazyContent = try KDBXReader.openMetadataOnly(
+            from: .data(encrypted),
+            unlockData: .init(masterPassword: "123")
+        )
+
+        // Re-save through a SHARED cache (one decrypt for all sources).
+        let cache = LazyBinaryCache(lazyContent)
+        let cachedSources: [any BinarySource] = lazyContent.binaries.indices.map { i in
+            LazyBinarySource(lazyContent, at: i, cache: cache)
+        }
+        let outURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString).kdbx")
+        defer { try? FileManager.default.removeItem(at: outURL) }
+        try KDBXWriter.streamingWrite(
+            to: outURL,
+            content: content,
+            binaries: cachedSources,
+            unlockData: .init(masterPassword: "123"),
+            regenerateSalts: false
+        )
+
+        // Every attachment round-trips byte-for-byte through the cache.
+        let reread = try KDBXReader.parse(
+            try Data(contentsOf: outURL),
+            unlockData: .init(masterPassword: "123")
+        )
+        try #require(reread.innerHeader.binaryContent.count == payloads.count)
+        for i in payloads.indices {
+            #expect(reread.innerHeader.binaryContent[i].data == payloads[i], "binary \(i) mismatch via cache")
+        }
+    }
+
     private func entriesIn(_ database: KDBX) -> Int {
         var count = 0
         database.visitEntries(in: database.root.group) { _ in count += 1 }

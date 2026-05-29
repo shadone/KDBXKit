@@ -182,6 +182,91 @@ struct LazyKDBXReaderTests {
         }
     }
 
+    // MARK: - Batched pool decrypt (withDecryptedBinaries)
+
+    /// Build a vault carrying several distinct, non-trivial
+    /// attachments and reopen it lazily. Returns the lazy handle plus
+    /// the original payloads keyed by pool index.
+    private func makeLazyVaultWithAttachments(
+        count: Int = 8,
+        password: String = "123"
+    ) throws -> (lazy: LazyKDBXContent, payloads: [Data]) {
+        var content = try KDBXReader.parse(
+            try Data(contentsOf: fixtureURL("simple-argon2id-aes256")),
+            unlockData: .init(masterPassword: password)
+        )
+        let payloads: [Data] = (0..<count).map { i in
+            // Distinct length + content per index so a mis-sliced
+            // binary can't accidentally match another.
+            Data((0..<(4096 + i)).map { UInt8(($0 &+ i) & 0xFF) })
+        }
+        content.innerHeader.binaryContent = payloads.enumerated().map { i, p in
+            .init(shouldBeProtected: i.isMultiple(of: 2), data: p)
+        }
+
+        let outURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString).kdbx")
+        try KDBXWriter.streamingWrite(
+            to: outURL,
+            content: content,
+            binaries: payloads.enumerated().map { i, p in
+                DataBinarySource(p, shouldBeProtected: i.isMultiple(of: 2))
+            },
+            unlockData: .init(masterPassword: password),
+            regenerateSalts: false
+        )
+        // Read the encrypted bytes back and drive the lazy reader from a
+        // `.data` source so the file's lifetime can't race the on-demand
+        // re-reads `streamBinary` / `withDecryptedBinaries` perform.
+        let encrypted = try Data(contentsOf: outURL)
+        try? FileManager.default.removeItem(at: outURL)
+
+        let lazy = try KDBXReader.openMetadataOnly(
+            from: .data(encrypted),
+            unlockData: .init(masterPassword: password)
+        )
+        return (lazy, payloads)
+    }
+
+    @Test("withDecryptedBinaries resolves every pool binary in one decrypt — parity with streamBinary")
+    func withDecryptedBinaries_parity() throws {
+        let (lazy, payloads) = try makeLazyVaultWithAttachments()
+        try #require(lazy.binaries.count == payloads.count)
+
+        // Reference bytes via the single-shot API.
+        var reference: [Data] = []
+        for i in lazy.binaries.indices {
+            var sink = DataSink()
+            try KDBXReader.streamBinary(from: lazy, at: i, into: &sink)
+            reference.append(sink.data)
+        }
+
+        // Batched: decrypt once, slice every binary out of the resident
+        // payload.
+        var batched: [Int: Data] = [:]
+        try KDBXReader.withDecryptedBinaries(from: lazy) { resolve in
+            for i in lazy.binaries.indices {
+                batched[i] = try resolve(i)
+            }
+        }
+
+        #expect(batched.count == payloads.count)
+        for i in lazy.binaries.indices {
+            #expect(batched[i] == reference[i], "binary \(i) bytes differ from streamBinary")
+            #expect(batched[i] == payloads[i], "binary \(i) bytes differ from original")
+        }
+    }
+
+    @Test("withDecryptedBinaries resolver rejects an out-of-range index")
+    func withDecryptedBinaries_outOfRange_throws() throws {
+        let (lazy, _) = try makeLazyVaultWithAttachments(count: 2)
+        #expect(throws: KDBXReader.Error.self) {
+            try KDBXReader.withDecryptedBinaries(from: lazy) { resolve in
+                _ = try resolve(Int.max)
+            }
+        }
+    }
+
     @Test("openMetadataOnly with wrong credentials throws wrongCredentials")
     func openMetadataOnly_wrongPassword_throws() throws {
         let url = fixtureURL("simple-argon2id-aes256")
