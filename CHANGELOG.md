@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-05-30
+
+### Added
+
+- **`KDBXReader.withDecryptedBinaries(from:_:)`.** Decrypts a lazy vault's
+  payload once and vends a `resolve(index)` closure that slices any binary out
+  of the resident buffer (views, no per-binary copy). Use it instead of looping
+  `streamBinary` when resolving more than one binary.
+- **`LazyBinaryCache`** plus `LazyBinarySource.init(_:at:cache:)`. Pass one
+  cache to every `LazyBinarySource` in a streaming write so all sources slice
+  from a single decrypt instead of re-decrypting the file per binary.
+- **Open-pipeline timing logs.** A `KDBXLog.perf` channel (debug level, quiet by
+  default) times each phase of `openMetadataOnly` and the KDF in isolation,
+  logging KDF parameters via `KDFParameters.perfSummary`. Surfaces where a slow
+  unlock is spent without an Instruments trace.
+
+### Fixed
+
+- **O(binaries × file_size) blowup resolving a lazy vault's binary pool.**
+  `streamBinary` re-reads, re-decrypts, and re-decompresses the whole file on
+  every call; both save paths looped it once per binary (eager `serializeVault`
+  and the streaming writer's `LazyBinarySource`), so a save/serialize of a large
+  attachment-heavy vault stalled for minutes — the pool walk runs once per entry
+  and once per history snapshot. Both paths now pay a single decrypt regardless
+  of attachment count.
+
 ## [1.1.0] - 2026-05-28
 
 ### Added
@@ -54,6 +80,7 @@ First stable release.
   KeePassXC, including test vectors and the canonical XSD schema.
 - **Example.** `Examples/HelloKDBX/` — a minimal vault-reading demo.
 
-[Unreleased]: https://github.com/shadone/KDBXKit/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/shadone/KDBXKit/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/shadone/KDBXKit/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/shadone/KDBXKit/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/shadone/KDBXKit/releases/tag/v1.0.0
