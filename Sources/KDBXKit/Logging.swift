@@ -35,4 +35,19 @@ enum KDBXLog {
     /// KDF parameter validation warnings (missing required fields,
     /// unsupported Argon2 version, etc.).
     static let kdf = Logger(label: "\(subsystem).kdf")
+
+    /// Open-pipeline timing breakdown (KDF / decrypt+decompress / parse).
+    /// Emitted at `.debug` so it stays invisible under default backend
+    /// filtering; a host debugging a slow unlock opts in by lowering its
+    /// log level.
+    static let perf = Logger(label: "\(subsystem).perf")
+}
+
+extension Duration {
+    /// Whole milliseconds, for perf-timing logs.
+    var kdbxLoggedMilliseconds: Int {
+        let c = components
+        // attoseconds (1e-18 s) → milliseconds (1e-3 s): divide by 1e15.
+        return Int(c.seconds * 1000 + c.attoseconds / 1_000_000_000_000_000)
+    }
 }

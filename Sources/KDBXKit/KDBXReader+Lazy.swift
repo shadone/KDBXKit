@@ -45,17 +45,24 @@ public extension KDBXReader {
         maxDecompressedPayloadSize: Int = KDBXReader.maxDecompressedPayloadSize,
         kdfLimits: KDFParameterLimits = .default
     ) throws -> LazyKDBXContent {
+        let clock = ContinuousClock()
+        let readStart = clock.now
         let encrypted = try source.readAll()
+        KDBXLog.perf.debug("openMetadataOnly: read file (\(encrypted.count) bytes) — \((clock.now - readStart).kdbxLoggedMilliseconds)ms")
+
+        let cryptoStart = clock.now
         let decrypted = try decryptAndDecompress(
             encrypted,
             unlockData: unlockData,
             maxDecompressedPayloadSize: maxDecompressedPayloadSize,
             kdfLimits: kdfLimits
         )
+        KDBXLog.perf.debug("openMetadataOnly: KDF + decrypt + decompress — \((clock.now - cryptoStart).kdbxLoggedMilliseconds)ms")
 
         // Parse inner header in metadata mode — captures offsets +
         // hashes for every binary, returns InnerHeader with empty
         // binaryContent.
+        let parseStart = clock.now
         let innerHeaderResult: (header: InnerHeader, binaries: [BinaryMetadata], length: Int)
         do {
             var reader = InnerHeaderReader(data: decrypted.payload)
@@ -68,6 +75,7 @@ public extension KDBXReader {
                 throw KDBXReader.Error.unexpectedEOF
             }
         }
+        KDBXLog.perf.debug("openMetadataOnly: inner-header parse (\(innerHeaderResult.binaries.count) binaries) — \((clock.now - parseStart).kdbxLoggedMilliseconds)ms")
 
         // Extract XML — everything after the inner header up to EOF.
         let xmlBytes = decrypted.payload.suffix(from: decrypted.payload.startIndex + innerHeaderResult.length)
@@ -83,6 +91,7 @@ public extension KDBXReader {
         } catch {
             throw KDBXReader.Error.corruptedInnerHeader(reason: "Inner-stream key derivation failed: \(error)")
         }
+        let xmlStart = clock.now
         do {
             let xmlDocumentReader = try XMLDocumentReader(
                 xmlDocument: xmlDocument,
@@ -96,6 +105,7 @@ public extension KDBXReader {
                 throw KDBXReader.Error.corruptedXML(reason: reason)
             }
         }
+        KDBXLog.perf.debug("openMetadataOnly: XML parse (\(xmlDocument.count) chars) — \((clock.now - xmlStart).kdbxLoggedMilliseconds)ms")
 
         // `decrypted.payload` goes out of scope here — binary bytes
         // and XML buffer are released. The returned LazyKDBXContent
@@ -274,6 +284,12 @@ extension KDBXReader {
         }
 
         // 3. HMAC-SHA256 of header
+        // Time the KDF in isolation — it dominates open cost for
+        // high-iteration vaults and is the usual answer to "why is unlock
+        // slow". Measured inline (not via a closure helper) so the typed
+        // `UnlockDataError` throw still propagates unwrapped.
+        let kdfClock = ContinuousClock()
+        let kdfStart = kdfClock.now
         let unlockKey: SecureBytes
         do throws(UnlockDataError) {
             unlockKey = try unlockData.computeUnlockKey(kdfParameters: header.kdfParameters, limits: kdfLimits)
@@ -289,6 +305,7 @@ extension KDBXReader {
                 throw KDBXReader.Error.kdfParametersOutOfRange(reason: reason)
             }
         }
+        KDBXLog.perf.debug("decryptAndDecompress: KDF [\(header.kdfParameters.perfSummary)] — \((kdfClock.now - kdfStart).kdbxLoggedMilliseconds)ms")
         let headerKey = HMACProtectedBlockStream.keyForHeader(masterSalt: header.masterSalt, unlockKey: unlockKey)
         let headerHMACSHA256 = headerData.hmacSha256(key: headerKey)
         let headerHMACSHA256FromFile = try reader.readDataPublic(length: 32)

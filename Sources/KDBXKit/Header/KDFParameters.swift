@@ -134,6 +134,21 @@ public enum KDFParameters: Sendable, Equatable {
     /// with an unsupported KDF can be saved.
     case unknown(uuid: UUID)
 
+    /// Compact one-line summary for perf/timing logs, e.g.
+    /// `argon2d m=65536KiB t=151 p=12`. Not localized; diagnostics only.
+    var perfSummary: String {
+        switch self {
+        case let .aes(aes, _):
+            return "aes-kdf rounds=\(aes.rounds)"
+        case let .argon2d(a, _):
+            return "argon2d m=\(a.memory / 1024)KiB t=\(a.iterations) p=\(a.parallelism)"
+        case let .argon2id(a, _):
+            return "argon2id m=\(a.memory / 1024)KiB t=\(a.iterations) p=\(a.parallelism)"
+        case let .unknown(uuid):
+            return "unknown-kdf \(uuid)"
+        }
+    }
+
     var aes: (params: AES, additional: VariantDictionary)? {
         guard case let .aes(aes, additional) = self else { return nil }
         return (aes, additional)
