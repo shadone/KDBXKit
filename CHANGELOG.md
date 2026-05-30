@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-05-30
+
+### Changed
+
+- **AES-256-CBC now uses CommonCrypto on Apple platforms.** swift-crypto's
+  `_CryptoExtras.AES._CBC` does not engage the CPU AES instructions and runs
+  at ~33 MB/s, which dominates the open time of vaults with sizeable
+  attachments (a 37 MB AES vault spent ~1100 ms in AES decrypt alone). The
+  Apple path now routes through CommonCrypto (AES-NI / ARMv8 crypto
+  extensions, ~6 GB/s); measured AES decrypt for that vault dropped from
+  ~1100 ms to ~8 ms. swift-crypto remains the fallback on non-Apple
+  platforms, so Linux behavior is unchanged. Output is byte-identical and
+  verified against the KeePassXC interop round-trip. Affects the eager read,
+  lazy read, 3.x legacy read, and eager write; the streaming save path is
+  unaffected (it uses a separate per-block cipher).
+
 ## [1.2.0] - 2026-05-30
 
 ### Added
