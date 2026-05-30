@@ -8,6 +8,10 @@ import _CryptoExtras
 import Crypto
 import Foundation
 
+#if canImport(CommonCrypto)
+import CommonCrypto
+#endif
+
 /// Streaming encryptor for the KDBX main payload. AES-256-CBC accumulates
 /// incoming bytes, emits complete 16-byte ciphertext blocks during
 /// `consume(_:)`, and appends a PKCS7-padded final block on `finalize()`.
@@ -78,10 +82,99 @@ final class EncryptingStreamWriter: StreamingByteConsumer {
     }
 }
 
+#if canImport(CommonCrypto)
+/// PKCS7-padded streaming AES-256-CBC encryptor over CommonCrypto, so the
+/// per-block cipher runs on the CPU's AES instructions. The Swift
+/// `AES.permute`-per-block fallback below encrypts at ~78 MB/s (one
+/// swift-crypto call + a fresh array per 16-byte block); a `CCCryptor`
+/// does the same payload at ~1 GB/s. `CCCryptorUpdate` buffers partial
+/// blocks across chunk boundaries internally and `CCCryptorFinal` emits
+/// the PKCS7 padding block, so this class just forwards bytes.
+private final class StreamingAESCBCEncryptor {
+    enum Error: Swift.Error, Sendable, Equatable {
+        case invalidIVSize(Int)
+        case invalidKeySize(Int)
+        case cryptoFailure(String)
+    }
+
+    private let cryptor: CCCryptorRef
+
+    init(key: Data, iv: Data) throws {
+        guard iv.count == 16 else { throw Error.invalidIVSize(iv.count) }
+        guard key.count == 32 else { throw Error.invalidKeySize(key.count) }
+        var ref: CCCryptorRef?
+        let status = key.withUnsafeBytes { keyPtr in
+            iv.withUnsafeBytes { ivPtr in
+                CCCryptorCreate(
+                    CCOperation(kCCEncrypt),
+                    CCAlgorithm(kCCAlgorithmAES),
+                    CCOptions(kCCOptionPKCS7Padding),
+                    keyPtr.baseAddress, key.count,
+                    ivPtr.baseAddress,
+                    &ref
+                )
+            }
+        }
+        guard status == CCCryptorStatus(kCCSuccess), let ref else {
+            throw Error.cryptoFailure("CCCryptorCreate failed with status \(status)")
+        }
+        cryptor = ref
+    }
+
+    deinit {
+        CCCryptorRelease(cryptor)
+    }
+
+    func update(_ chunk: Data) throws -> Data {
+        guard !chunk.isEmpty else { return Data() }
+        let outCapacity = CCCryptorGetOutputLength(cryptor, chunk.count, false)
+        return try run(input: chunk, outCapacity: outCapacity) { inPtr, outPtr, moved in
+            CCCryptorUpdate(cryptor, inPtr, chunk.count, outPtr, outCapacity, &moved)
+        }
+    }
+
+    func finalize() throws -> Data {
+        let outCapacity = CCCryptorGetOutputLength(cryptor, 0, true)
+        return try run(input: Data(), outCapacity: outCapacity) { _, outPtr, moved in
+            CCCryptorFinal(cryptor, outPtr, outCapacity, &moved)
+        }
+    }
+
+    /// Allocate an `outCapacity`-byte buffer, run `body` (an Update or
+    /// Final call) over `input`, and trim to the bytes actually written.
+    /// `body` is invoked even when `outCapacity` is 0 — a partial-block
+    /// `update` produces no ciphertext yet but must still feed
+    /// `CCCryptorUpdate` so the bytes are buffered for the next call.
+    private func run(
+        input: Data,
+        outCapacity: Int,
+        _ body: (_ inPtr: UnsafeRawPointer?, _ outPtr: UnsafeMutableRawPointer?, _ moved: inout Int) -> CCCryptorStatus
+    ) throws -> Data {
+        var output = Data(count: outCapacity)
+        var moved = 0
+        let status = output.withUnsafeMutableBytes { outPtr in
+            input.withUnsafeBytes { inPtr in
+                body(inPtr.baseAddress, outPtr.baseAddress, &moved)
+            }
+        }
+        guard status == CCCryptorStatus(kCCSuccess) else {
+            throw Error.cryptoFailure("CCCryptor failed with status \(status)")
+        }
+        if moved < output.count {
+            output.removeSubrange(moved..<output.count)
+        }
+        return output
+    }
+}
+#else
 /// PKCS7-padded streaming AES-256-CBC encryptor. Buffers up to 15 bytes
 /// of un-encrypted input across `update` calls so partial blocks survive
 /// chunk boundaries; on `finalize` appends a PKCS7 padding block (always
 /// 1..16 bytes) and emits one final ciphertext block.
+///
+/// swift-crypto fallback for non-Apple platforms (Linux/CI). CBC mode is
+/// encoded inline over the vetted single-block `AES.permute`; Apple builds
+/// use the CommonCrypto variant above for hardware AES.
 private final class StreamingAESCBCEncryptor {
     enum Error: Swift.Error, Sendable, Equatable {
         case invalidIVSize(Int)
@@ -148,3 +241,4 @@ private final class StreamingAESCBCEncryptor {
         out.append(contentsOf: block)
     }
 }
+#endif
