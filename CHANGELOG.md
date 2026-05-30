@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-05-30
+
+### Changed
+
+- **Streaming AES-256-CBC encrypt now uses CommonCrypto on Apple platforms.**
+  The production streaming save path encoded CBC over swift-crypto's
+  single-block `AES.permute` (one call + a fresh array per 16-byte block),
+  ~78 MB/s — paid on every save. It now runs through a CommonCrypto
+  `CCCryptor` (~1 GB/s); a 37 MB payload's AES encrypt drops from ~460 ms to
+  ~35 ms. swift-crypto remains the non-Apple fallback. Output is
+  byte-identical (StreamingWriteTests + KeePassXC interop).
+- **ChaCha20 hot path rewritten for ~8x throughput.** The CryptoSwift-derived
+  cipher ran at ~33 MB/s because `process` indexed an `any DataProtocol` per
+  byte and `core` re-parsed the key/nonce from existential slices on every
+  64-byte block. Key/nonce are now parsed once into little-endian words, the
+  keystream is cached per counter, and the XOR loop runs over a contiguous
+  buffer; the 20-round core arithmetic is unchanged. A 30 MB ChaCha20 vault
+  opens in ~0.2 s, down from ~7.8 s. Pure Swift, so the win applies on every
+  platform. Output is byte-identical, validated against the existing project
+  KATs, the KeePassXC interop round-trip, and a new authoritative RFC 8439
+  §2.4.2 known-answer vector plus a chunking-invariance test.
+
 ## [1.2.1] - 2026-05-30
 
 ### Changed
