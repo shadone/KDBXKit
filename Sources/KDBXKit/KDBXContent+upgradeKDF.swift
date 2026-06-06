@@ -45,9 +45,9 @@ public extension KDBXContent {
     /// memory-hard KDF era and is significantly cheaper for an
     /// attacker with custom hardware.
     ///
-    /// The default ``KDFParameters/Profile/balanced`` profile matches
-    /// modern KeePassXC defaults (~1.5 s unlock on contemporary Apple
-    /// Silicon). Pass ``KDFParameters/Profile/fast`` for vaults
+    /// The default ``KDFParameters/Profile/balanced`` profile targets
+    /// ~300 ms unlock on contemporary Apple Silicon (~1 s on the oldest
+    /// supported iPhones). Pass ``KDFParameters/Profile/fast`` for vaults
     /// unlocked often (menubar popover, autofill) or
     /// ``KDFParameters/Profile/paranoid`` for high-value targets.
     ///

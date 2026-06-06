@@ -45,10 +45,15 @@ struct MakeEmptyTests {
         }
 
         // Each profile must be strictly stronger than the previous.
+        // Argon2 cost scales with iterations x memory; memory itself is
+        // capped (AutoFill extension jetsam limit), so adjacent profiles
+        // may share a memory value and differ on iterations alone.
         #expect(fastParams.iterations < balancedParams.iterations)
         #expect(balancedParams.iterations < paranoidParams.iterations)
-        #expect(fastParams.memory < balancedParams.memory)
-        #expect(balancedParams.memory < paranoidParams.memory)
+        #expect(fastParams.memory <= balancedParams.memory)
+        #expect(balancedParams.memory <= paranoidParams.memory)
+        #expect(fastParams.iterations * fastParams.memory < balancedParams.iterations * balancedParams.memory)
+        #expect(balancedParams.iterations * balancedParams.memory < paranoidParams.iterations * paranoidParams.memory)
     }
 
     @Test("Defaults: 4.1 format, AES-256-CBC + gzip, ChaCha20 inner")
