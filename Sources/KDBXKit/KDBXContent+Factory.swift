@@ -21,6 +21,20 @@ public extension KDBXContent {
     ///     ``KDFParameters`` value to trade unlock latency against
     ///     offline-attack resistance for your deployment.
     ///   - generator: written into `Meta.generator`; defaults to `"KDBXKit"`.
+    /// Backwards-compatibility overload taking a pre-tuned
+    /// ``KDFParameters/Profile``. Deprecated in 1.3.0 — pass a
+    /// ``KDFParameters`` value (e.g. ``KDFParameters/argon2idDefault()``)
+    /// instead. The `kdf:` profile has no default here so a no-argument
+    /// call resolves unambiguously to the `KDFParameters` overload.
+    @available(*, deprecated, message: "Pass a KDFParameters value (e.g. .argon2idDefault()) instead of a Profile.")
+    static func makeEmpty(
+        databaseName: String,
+        kdf profile: KDFParameters.Profile,
+        generator: String = "KDBXKit"
+    ) -> KDBXContent {
+        makeEmpty(databaseName: databaseName, kdf: .recommended(profile), generator: generator)
+    }
+
     static func makeEmpty(
         databaseName: String,
         kdf: KDFParameters = .argon2idDefault(),

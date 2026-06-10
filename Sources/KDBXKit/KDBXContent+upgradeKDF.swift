@@ -57,4 +57,12 @@ public extension KDBXContent {
     mutating func upgradeToArgon2id(to kdf: KDFParameters = .argon2idDefault()) {
         upgradeKDF(to: kdf)
     }
+
+    /// Backwards-compatibility overload taking a pre-tuned
+    /// ``KDFParameters/Profile``. Deprecated in 1.3.0 — pass a
+    /// ``KDFParameters`` value to ``upgradeToArgon2id(to:)`` instead.
+    @available(*, deprecated, message: "Pass a KDFParameters value to upgradeToArgon2id(to:) instead of a Profile.")
+    mutating func upgradeToArgon2id(profile: KDFParameters.Profile) {
+        upgradeKDF(to: .recommended(profile))
+    }
 }
