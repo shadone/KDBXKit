@@ -79,28 +79,37 @@ struct KDFMigrationTests {
         #expect(password.value.bytes.withRevealedString { $0 } == "secret123")
     }
 
-    @Test("upgradeToArgon2id picks the requested profile")
-    func upgradeToArgon2id_honorsProfile() throws {
-        var fast = try Self.opened3xVault()
-        var balanced = try Self.opened3xVault()
-        var paranoid = try Self.opened3xVault()
+    @Test("upgradeToArgon2id with no argument applies the standard default")
+    func upgradeToArgon2id_usesDefault() throws {
+        var content = try Self.opened3xVault()
+        content.upgradeToArgon2id()
 
-        fast.upgradeToArgon2id(profile: .fast)
-        balanced.upgradeToArgon2id(profile: .balanced)
-        paranoid.upgradeToArgon2id(profile: .paranoid)
+        let params = try #require(content.header.kdfParameters.argon2id).params
+        // Matches KDFParameters.argon2idDefault() (RFC 9106 §4 second option).
+        #expect(params.iterations == 3)
+        #expect(params.memory == 64 * 1024 * 1024)
+        #expect(params.parallelism == 4)
+    }
 
-        let fastParams = try #require(fast.header.kdfParameters.argon2id).params
-        let balancedParams = try #require(balanced.header.kdfParameters.argon2id).params
-        let paranoidParams = try #require(paranoid.header.kdfParameters.argon2id).params
+    @Test("upgradeToArgon2id accepts caller-supplied parameters")
+    func upgradeToArgon2id_honorsExplicitParameters() throws {
+        var content = try Self.opened3xVault()
+        let custom: KDFParameters = .argon2id(
+            .init(
+                version: .v1_3,
+                salt: Data(repeating: 0xBB, count: 32),
+                iterations: 7,
+                memory: 96 * 1024 * 1024,
+                parallelism: 2
+            ),
+            additional: [:]
+        )
+        content.upgradeToArgon2id(to: custom)
 
-        // Profiles encode increasing iteration / memory cost. The
-        // exact numbers live in KDFParameters.recommended(_:) and
-        // can shift over time as hardware speeds up — assert the
-        // ordering rather than literal values.
-        #expect(fastParams.iterations <= balancedParams.iterations)
-        #expect(balancedParams.iterations <= paranoidParams.iterations)
-        #expect(fastParams.memory <= balancedParams.memory)
-        #expect(balancedParams.memory <= paranoidParams.memory)
+        let params = try #require(content.header.kdfParameters.argon2id).params
+        #expect(params.iterations == 7)
+        #expect(params.memory == 96 * 1024 * 1024)
+        #expect(params.parallelism == 2)
     }
 
     @Test("upgradeKDF is general — accepts any KDFParameters")

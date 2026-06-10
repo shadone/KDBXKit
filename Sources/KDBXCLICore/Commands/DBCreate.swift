@@ -10,18 +10,6 @@ import KDBXKit
 
 extension DB {
     struct Create: ParsableCommand {
-        enum KDFProfileArg: String, ExpressibleByArgument, CaseIterable {
-            case fast, balanced, paranoid
-
-            var toKDFKit: KDFParameters.Profile {
-                switch self {
-                case .fast: return .fast
-                case .balanced: return .balanced
-                case .paranoid: return .paranoid
-                }
-            }
-        }
-
         enum CipherArg: String, ExpressibleByArgument, CaseIterable {
             case chacha20
             case aes256
@@ -48,7 +36,7 @@ extension DB {
                 valueName: "fast|balanced|paranoid"
             )
         )
-        var kdfProfile: KDFProfileArg = .balanced
+        var kdfProfile: KDFProfile = .balanced
 
         @Option(
             name: .customLong("cipher"),
@@ -74,7 +62,7 @@ extension DB {
             let unlock = try newCredentialOptions.resolve(oldUsedStdin: false)
             let displayName = name ?? url.deletingPathExtension().lastPathComponent
 
-            var content = KDBXContent.makeEmpty(databaseName: displayName, kdf: kdfProfile.toKDFKit)
+            var content = KDBXContent.makeEmpty(databaseName: displayName, kdf: kdfProfile.kdfParameters)
 
             let cipherAlgo: Header.EncryptionAlgorithm
             switch cipher {

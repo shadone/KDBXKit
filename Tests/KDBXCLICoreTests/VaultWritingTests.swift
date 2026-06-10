@@ -17,7 +17,7 @@ struct VaultWritingTests {
         defer { try? FileManager.default.removeItem(at: dir) }
         let url = dir.appendingPathComponent("v.kdbx")
 
-        let content = KDBXContent.makeEmpty(databaseName: "Test", kdf: .fast)
+        let content = KDBXContent.makeEmpty(databaseName: "Test")
         let unlock = UnlockData(masterPassword: "first")
 
         try VaultWriting.writeAtomically(
@@ -39,7 +39,7 @@ struct VaultWritingTests {
         defer { try? FileManager.default.removeItem(at: dir) }
         let url = dir.appendingPathComponent("v.kdbx")
 
-        let original = KDBXContent.makeEmpty(databaseName: "Test", kdf: .fast)
+        let original = KDBXContent.makeEmpty(databaseName: "Test")
         let oldUnlock = UnlockData(masterPassword: "old")
         let newUnlock = UnlockData(masterPassword: "new")
 

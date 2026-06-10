@@ -10,10 +10,6 @@ import KDBXKit
 
 extension DB {
     struct SetKDF: ParsableCommand {
-        enum Profile: String, ExpressibleByArgument, CaseIterable {
-            case fast, balanced, paranoid
-        }
-
         static let configuration = CommandConfiguration(
             commandName: "set-kdf",
             abstract: "Change the vault's KDF profile (fast / balanced / paranoid). Argon2id under the hood."
@@ -32,7 +28,7 @@ extension DB {
                 valueName: "fast|balanced|paranoid"
             )
         )
-        var profile: Profile = .balanced
+        var profile: KDFProfile = .balanced
 
         mutating func run() throws {
             let unlock = try commonOptions.credentials.resolveRequired()
@@ -43,7 +39,7 @@ extension DB {
             }
 
             var updated = content
-            updated.header = content.header.with(kdfParameters: .recommended(profile.toKDFKitProfile()))
+            updated.header = content.header.with(kdfParameters: profile.kdfParameters)
 
             try VaultWriting.writeAtomically(
                 content: updated,
@@ -52,16 +48,6 @@ extension DB {
                 backup: backupOptions.backup
             )
             print("KDF profile updated to \(profile.rawValue): \(commonOptions.filepath)")
-        }
-    }
-}
-
-private extension DB.SetKDF.Profile {
-    func toKDFKitProfile() -> KDFParameters.Profile {
-        switch self {
-        case .fast: return .fast
-        case .balanced: return .balanced
-        case .paranoid: return .paranoid
         }
     }
 }

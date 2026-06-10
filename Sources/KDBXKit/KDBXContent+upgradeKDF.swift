@@ -37,7 +37,7 @@ public extension KDBXContent {
     }
 
     /// Convenience for the most common upgrade: switch to Argon2id at
-    /// a recommended security level.
+    /// the standard recommended cost.
     ///
     /// This is the right call to make when migrating a KDBX 3.x file
     /// (which can only use AES-KDF) to 4.1 — Argon2id is memory-hard
@@ -45,18 +45,16 @@ public extension KDBXContent {
     /// memory-hard KDF era and is significantly cheaper for an
     /// attacker with custom hardware.
     ///
-    /// The default ``KDFParameters/Profile/balanced`` profile targets
-    /// ~300 ms unlock on contemporary Apple Silicon (~1 s on the oldest
-    /// supported iPhones). Pass ``KDFParameters/Profile/fast`` for vaults
-    /// unlocked often (menubar popover, autofill) or
-    /// ``KDFParameters/Profile/paranoid`` for high-value targets.
+    /// Defaults to ``KDFParameters/argon2idDefault()`` (RFC 9106 §4
+    /// second recommended option). Pass your own ``KDFParameters`` to
+    /// tune the cost for your deployment.
     ///
     /// The library does not call this automatically as part of save —
     /// preserving the source file's KDF on round-trip is the default
     /// because it produces the smallest, most reversible diff. Apps
     /// that want the upgrade (and Passie does) invoke this explicitly
     /// after observing ``legacyFormatNotice``.
-    mutating func upgradeToArgon2id(profile: KDFParameters.Profile = .balanced) {
-        upgradeKDF(to: .recommended(profile))
+    mutating func upgradeToArgon2id(to kdf: KDFParameters = .argon2idDefault()) {
+        upgradeKDF(to: kdf)
     }
 }

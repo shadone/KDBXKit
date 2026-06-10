@@ -20,7 +20,7 @@ struct RecycleBinManagerTests {
             compressionAlgorithm: .gzip,
             masterSalt: Data(count: 32),
             encryptionNonce: Data(count: 12),
-            kdfParameters: .recommended(.fast),
+            kdfParameters: .argon2idDefault(),
             publicCustomData: [:]
         )
         let inner = InnerHeader(

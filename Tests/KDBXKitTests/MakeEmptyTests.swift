@@ -12,7 +12,7 @@ import Testing
 struct MakeEmptyTests {
     @Test("makeEmpty produces a writeable + reparseable vault")
     func writeRoundtrip() throws {
-        let content = KDBXContent.makeEmpty(databaseName: "Test", kdf: .fast)
+        let content = KDBXContent.makeEmpty(databaseName: "Test")
         let unlock = UnlockData(masterPassword: "pw")
 
         // Round-trip: write to memory, then read back.
@@ -30,35 +30,30 @@ struct MakeEmptyTests {
         #expect(reopened.database.root.group.entries.isEmpty)
     }
 
-    @Test("Profiles produce different KDF parameters")
-    func profilesDiffer() {
-        let fast = KDFParameters.recommended(.fast)
-        let balanced = KDFParameters.recommended(.balanced)
-        let paranoid = KDFParameters.recommended(.paranoid)
-
-        guard case let .argon2id(fastParams, _) = fast,
-              case let .argon2id(balancedParams, _) = balanced,
-              case let .argon2id(paranoidParams, _) = paranoid
-        else {
-            Issue.record("Expected Argon2id for all profiles")
+    @Test("argon2idDefault is RFC 9106 §4 second-option Argon2id")
+    func argon2idDefaultParameters() {
+        guard case let .argon2id(params, additional) = KDFParameters.argon2idDefault() else {
+            Issue.record("Expected Argon2id")
             return
         }
+        #expect(params.version == .v1_3)
+        #expect(params.iterations == 3)
+        #expect(params.memory == 64 * 1024 * 1024)
+        #expect(params.parallelism == 4)
+        #expect(params.salt.count == 32)
+        #expect(additional.isEmpty)
 
-        // Each profile must be strictly stronger than the previous.
-        // Argon2 cost scales with iterations x memory; memory itself is
-        // capped (AutoFill extension jetsam limit), so adjacent profiles
-        // may share a memory value and differ on iterations alone.
-        #expect(fastParams.iterations < balancedParams.iterations)
-        #expect(balancedParams.iterations < paranoidParams.iterations)
-        #expect(fastParams.memory <= balancedParams.memory)
-        #expect(balancedParams.memory <= paranoidParams.memory)
-        #expect(fastParams.iterations * fastParams.memory < balancedParams.iterations * balancedParams.memory)
-        #expect(balancedParams.iterations * balancedParams.memory < paranoidParams.iterations * paranoidParams.memory)
+        // Salt must be fresh on each call, never a fixed value.
+        guard case let .argon2id(again, _) = KDFParameters.argon2idDefault() else {
+            Issue.record("Expected Argon2id")
+            return
+        }
+        #expect(again.salt != params.salt)
     }
 
     @Test("Defaults: 4.1 format, AES-256-CBC + gzip, ChaCha20 inner")
     func defaults() {
-        let content = KDBXContent.makeEmpty(databaseName: "Defaults", kdf: .fast)
+        let content = KDBXContent.makeEmpty(databaseName: "Defaults")
         #expect(content.header.formatVersion == .v4_1)
         #expect(content.header.encryptionAlgorithm == .AES256CBC)
         #expect(content.header.compressionAlgorithm == .gzip)

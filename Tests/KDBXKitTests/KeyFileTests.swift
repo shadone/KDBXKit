@@ -17,7 +17,7 @@ import Testing
 struct KeyFileTests {
     @Test("Password + key file round-trips")
     func passwordAndKeyFile() throws {
-        let content = KDBXContent.makeEmpty(databaseName: "WithKeyFile", kdf: .fast)
+        let content = KDBXContent.makeEmpty(databaseName: "WithKeyFile")
         let keyFile = Data((0..<64).map { _ in UInt8.random(in: 0...255) })
         let unlock = try UnlockData(masterPassword: "pw", keyFile: keyFile)
 
@@ -28,7 +28,7 @@ struct KeyFileTests {
 
     @Test("Key file alone (no password) round-trips")
     func keyFileOnly() throws {
-        let content = KDBXContent.makeEmpty(databaseName: "KeyOnly", kdf: .fast)
+        let content = KDBXContent.makeEmpty(databaseName: "KeyOnly")
         let keyFile = Data((0..<64).map { _ in UInt8.random(in: 0...255) })
         let unlock = try UnlockData(keyFile: keyFile)
 
@@ -173,7 +173,7 @@ struct KeyFileTests {
 
     @Test("Right password but wrong key file is rejected")
     func wrongKeyFile() throws {
-        let content = KDBXContent.makeEmpty(databaseName: "X", kdf: .fast)
+        let content = KDBXContent.makeEmpty(databaseName: "X")
         let keyA = Data(repeating: 0xAA, count: 64)
         let keyB = Data(repeating: 0xBB, count: 64)
 
@@ -186,7 +186,7 @@ struct KeyFileTests {
 
     @Test("Password-only file rejects password+keyfile unlock")
     func componentsMustMatch() throws {
-        let content = KDBXContent.makeEmpty(databaseName: "X", kdf: .fast)
+        let content = KDBXContent.makeEmpty(databaseName: "X")
         let keyFile = Data(repeating: 0xAA, count: 64)
         let bytes = try writeToMemory(content, unlockData: .init(masterPassword: "pw"))
 

@@ -16,11 +16,12 @@ import Foundation
 /// non-standard entries unknown to KDBXKit so a round-trip through
 /// the library doesn't lose data plugins or other tools wrote.
 ///
-/// For fresh vaults, prefer the pre-tuned profiles via
-/// ``recommended(_:)`` rather than constructing the cases directly.
-/// To upgrade a vault's KDF (legacy AES-KDF → modern Argon2id)
-/// without breaking unlock with the same master password, use
-/// ``KDBXContent/upgradeToArgon2id(profile:)``.
+/// For fresh vaults, prefer the standard default via
+/// ``argon2idDefault()`` rather than constructing the cases directly,
+/// or build an ``argon2id(_:additional:)`` value with parameters tuned
+/// to your deployment. To upgrade a vault's KDF (legacy AES-KDF →
+/// modern Argon2id) without breaking unlock with the same master
+/// password, use ``KDBXContent/upgradeToArgon2id(to:)``.
 public enum KDFParameters: Sendable, Equatable {
     /// AES-KDF parameters — legacy "AES iterated transform"
     /// KDF inherited from KeePass 1.x. Cryptographically much
@@ -123,7 +124,7 @@ public enum KDFParameters: Sendable, Equatable {
 
     /// Argon2 in **hybrid (id)** mode — the recommended choice for
     /// password hashing and the default for new vaults KDBXKit
-    /// creates via ``recommended(_:)`` / ``KDBXContent/makeEmpty(databaseName:kdf:generator:)``.
+    /// creates via ``argon2idDefault()`` / ``KDBXContent/makeEmpty(databaseName:kdf:generator:)``.
     case argon2id(Argon2, additional: VariantDictionary)
 
     /// A KDF whose UUID isn't one KDBXKit implements. The reader

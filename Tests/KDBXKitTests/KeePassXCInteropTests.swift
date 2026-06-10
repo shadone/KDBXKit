@@ -164,7 +164,7 @@ struct KeePassXCInteropTests {
         // that promise so a future version that silently drops unknown
         // keys would surface as a build failure here.
         let unlock = UnlockData(masterPassword: "interop")
-        var content = KDBXContent.makeEmpty(databaseName: "Interop", kdf: .fast)
+        var content = KDBXContent.makeEmpty(databaseName: "Interop")
         let vaultID = UUID().uuidString
         let now = Date()
         content.database.meta.customData.append(.init(
@@ -212,7 +212,7 @@ struct KeePassXCInteropTests {
         // Only a real KeePassXC decode proves the gzip framing is
         // correct (header, DEFLATE body, CRC32+ISIZE trailer).
         let unlock = UnlockData(masterPassword: "interop")
-        var content = KDBXContent.makeEmpty(databaseName: "AttachInterop", kdf: .fast)
+        var content = KDBXContent.makeEmpty(databaseName: "AttachInterop")
 
         let payloads: [(name: String, data: Data, protected: Bool)] = [
             ("tiny.txt", Data("hi".utf8), false),
@@ -286,7 +286,7 @@ struct KeePassXCInteropTests {
         // would silently rewrite differently — DEFLATE framing, inner
         // header binary flags, pool index ordering.
         let unlock = UnlockData(masterPassword: "rt")
-        var content = KDBXContent.makeEmpty(databaseName: "AttachRT", kdf: .fast)
+        var content = KDBXContent.makeEmpty(databaseName: "AttachRT")
 
         let originals: [(name: String, data: Data, protected: Bool)] = [
             ("notes.txt", Data("first line\nsecond line — with é and 漢\n".utf8), false),
@@ -478,7 +478,7 @@ struct KeePassXCInteropTests {
         // ships such a placeholder, but no interop test exercises
         // one. Write via us, export via kpxc, and read it back.
         let unlock = UnlockData(masterPassword: "empty")
-        var content = KDBXContent.makeEmpty(databaseName: "EmptyAttach", kdf: .fast)
+        var content = KDBXContent.makeEmpty(databaseName: "EmptyAttach")
 
         content.innerHeader.binaryContent.append(.init(shouldBeProtected: false, data: Data()))
         let now = Date()
@@ -552,7 +552,7 @@ struct KeePassXCInteropTests {
         // field, missed flush — would surface as kpxc refusing to
         // open the file or the exported bytes diverging.
         let unlock = UnlockData(masterPassword: "big")
-        var content = KDBXContent.makeEmpty(databaseName: "BigAttach", kdf: .fast)
+        var content = KDBXContent.makeEmpty(databaseName: "BigAttach")
 
         // 1.5 MB of incompressible bytes — well past the 1 MB outer
         // block size, and DEFLATE won't shrink it appreciably.
@@ -609,7 +609,7 @@ struct KeePassXCInteropTests {
         // (the KDBX 4.1 spec allows either), so we assert byte-equality
         // per entry rather than pool cardinality.
         let unlock = UnlockData(masterPassword: "shared")
-        var content = KDBXContent.makeEmpty(databaseName: "SharedAttach", kdf: .fast)
+        var content = KDBXContent.makeEmpty(databaseName: "SharedAttach")
 
         let sharedPayload = randomBytes(count: 8 * 1024)
         content.innerHeader.binaryContent.append(.init(shouldBeProtected: false, data: sharedPayload))
@@ -753,10 +753,11 @@ struct KeePassXCInteropTests {
         let unlock = UnlockData(masterPassword: "test")
 
         var content = try KDBXReader.parse(data, unlockData: unlock)
-        // `.fast` keeps the unlock under ~500 ms — this test runs the
-        // KDF twice (write + kpxc decrypt), don't burn 8 seconds on
-        // .balanced just to prove the migration is well-formed.
-        content.upgradeToArgon2id(profile: .fast)
+        // The standard default keeps the unlock fast (t=3, 64 MiB) —
+        // this test runs the KDF twice (write + kpxc decrypt), so don't
+        // burn time on a heavier setting just to prove the migration is
+        // well-formed.
+        content.upgradeToArgon2id()
 
         let outPath = FileManager.default.temporaryDirectory
             .appendingPathComponent("kdbxkit-3x-argon2id-\(UUID().uuidString).kdbx").path

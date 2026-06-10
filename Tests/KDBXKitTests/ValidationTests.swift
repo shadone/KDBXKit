@@ -12,7 +12,7 @@ import Testing
 struct ValidationTests {
     @Test("A freshly built empty vault validates clean")
     func freshVaultClean() {
-        let content = KDBXContent.makeEmpty(databaseName: "Clean", kdf: .fast)
+        let content = KDBXContent.makeEmpty(databaseName: "Clean")
         let failures = content.database.validate()
         #expect(failures.isEmpty, "Unexpected validation failures: \(failures)")
     }
@@ -178,7 +178,7 @@ struct ValidationTests {
     @Test("A binary Ref beyond the pool on a live entry is flagged")
     func danglingLiveBinaryRef_warns() {
         // makeEmpty has an empty binary pool, so any ref is dangling.
-        var content = KDBXContent.makeEmpty(databaseName: "Live", kdf: .fast)
+        var content = KDBXContent.makeEmpty(databaseName: "Live")
         let live = KDBX.Entry(
             uuid: UUID(),
             binaries: [KDBX.ProtectedBinary(key: "notes.txt", value: .ref(5))]
@@ -197,7 +197,7 @@ struct ValidationTests {
         // Regression: the validator used to ignore history binaries, so
         // a corrupt save that left a dangling ref only in a history
         // snapshot would slip through. History refs share the same pool.
-        var content = KDBXContent.makeEmpty(databaseName: "Hist", kdf: .fast)
+        var content = KDBXContent.makeEmpty(databaseName: "Hist")
         let historic = KDBX.Entry(
             uuid: UUID(),
             binaries: [KDBX.ProtectedBinary(key: "notes.txt", value: .ref(0))]

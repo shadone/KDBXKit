@@ -10,10 +10,6 @@ import KDBXKit
 
 extension DB {
     struct Migrate: ParsableCommand {
-        enum Profile: String, ExpressibleByArgument, CaseIterable {
-            case fast, balanced, paranoid
-        }
-
         static let configuration = CommandConfiguration(
             commandName: "migrate",
             abstract:
@@ -35,7 +31,7 @@ extension DB {
                 valueName: "fast|balanced|paranoid"
             )
         )
-        var profile: Profile = .balanced
+        var profile: KDFProfile = .balanced
 
         @Flag(
             name: .customLong("keep-kdf"),
@@ -64,7 +60,7 @@ extension DB {
 
             var updated = content
             if !keepKDF {
-                updated.upgradeToArgon2id(profile: profile.toKDFKitProfile())
+                updated.upgradeToArgon2id(to: profile.kdfParameters)
             }
 
             try VaultWriting.writeAtomically(
@@ -83,16 +79,6 @@ extension DB {
                 summary = "migrated KDBX \(content.header.formatVersion) → 4.1; KDF upgraded to Argon2id (\(profile.rawValue))"
             }
             print("\(commonOptions.filepath): \(summary).")
-        }
-    }
-}
-
-private extension DB.Migrate.Profile {
-    func toKDFKitProfile() -> KDFParameters.Profile {
-        switch self {
-        case .fast: return .fast
-        case .balanced: return .balanced
-        case .paranoid: return .paranoid
         }
     }
 }

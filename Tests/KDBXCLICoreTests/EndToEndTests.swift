@@ -46,7 +46,7 @@ struct EndToEndTests {
         try keyBytes.write(to: keyFile)
 
         let unlock = try UnlockData(keyFile: keyBytes)
-        let content = KDBXContent.makeEmpty(databaseName: "test", kdf: .fast)
+        let content = KDBXContent.makeEmpty(databaseName: "test")
         try VaultWriting.writeAtomically(content: content, unlockData: unlock, to: vault, backup: false)
 
         return Sandbox(dir: dir, vault: vault, keyFile: keyFile)

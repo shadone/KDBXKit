@@ -10,19 +10,20 @@ public extension KDBXContent {
     /// Build a fresh, empty vault ready to be passed to `KDBXWriter`.
     ///
     /// Modern defaults: KDBX 4.1 file format, AES-256-CBC main encryption,
-    /// gzip compression, ChaCha20 inner stream cipher, Argon2id KDF tuned to
-    /// the requested security profile. The masterSalt, encryption nonce,
-    /// inner-header key, and KDF salt are filled with CSPRNG bytes.
+    /// gzip compression, ChaCha20 inner stream cipher, and the standard
+    /// Argon2id KDF. The masterSalt, encryption nonce, inner-header key,
+    /// and KDF salt are filled with CSPRNG bytes.
     ///
     /// - Parameters:
     ///   - databaseName: visible vault name, stored in `Meta.databaseName`.
-    ///   - profile: KDF profile; defaults to `.balanced`. Tune lower for snappy
-    ///     unlock at the cost of weaker offline-attack resistance, higher
-    ///     for valuable vaults that can afford slower unlock.
+    ///   - kdf: key-derivation parameters; defaults to
+    ///     ``KDFParameters/argon2idDefault()``. Pass your own
+    ///     ``KDFParameters`` value to trade unlock latency against
+    ///     offline-attack resistance for your deployment.
     ///   - generator: written into `Meta.generator`; defaults to `"KDBXKit"`.
     static func makeEmpty(
         databaseName: String,
-        kdf profile: KDFParameters.Profile = .balanced,
+        kdf: KDFParameters = .argon2idDefault(),
         generator: String = "KDBXKit"
     ) -> KDBXContent {
         let now = Date()
@@ -59,7 +60,7 @@ public extension KDBXContent {
             compressionAlgorithm: .gzip,
             masterSalt: SecureRandom.bytes(32),
             encryptionNonce: SecureRandom.bytes(16),
-            kdfParameters: .recommended(profile),
+            kdfParameters: kdf,
             publicCustomData: [:]
         )
 

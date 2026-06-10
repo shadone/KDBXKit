@@ -95,7 +95,7 @@ Both prose docs are normative downstream of the official KeePass implementation:
 - **Mutating form** `var reader = KDBXReader(data); try reader.parse(...)` exists for diagnostic access to `reader.header` / `reader.innerHeader` after a failure. Pass `retainsXMLForDiagnostics: true` to keep the decrypted XML around (default clears it on success - keeps plaintext out of process memory).
 - **`KDBXWriter.write`** - byte-identical round-trip tests must pass `regenerateSalts: false`. The writer otherwise rolls fresh salts on every save, breaking `KDBXContent ==` on `header`.
 - **`KDBXContent.parserWarnings: [String]`** accumulates silently-dropped XML elements/attributes during parse. Assert `== []` when adding a fixture from a third-party client to catch features we don't model.
-- **`KDBXContent.makeEmpty(databaseName:kdf:)`** builds a fresh vault with modern defaults; **`KDFParameters.recommended(.fast / .balanced / .paranoid)`** for KDF profiles.
+- **`KDBXContent.makeEmpty(databaseName:kdf:)`** builds a fresh vault with modern defaults. The `kdf:` parameter takes a `KDFParameters` value and defaults to **`KDFParameters.argon2idDefault()`** (Argon2id, RFC 9106 §4 second option: t=3, m=64 MiB, p=4). The library deliberately ships **no** fast/balanced/paranoid tiering — cost-tier taxonomy and device-specific tuning are application policy (the app or the `kdbx` CLI owns its own tiers); pass a hand-built `KDFParameters` to tune.
 
 ### Lazy read / streaming write (binaries stay on disk)
 
@@ -115,11 +115,11 @@ KDBXKit reads KDBX 3.1 and migrates it to 4.1 on save. **The writer only ever em
 - **Read dispatch**: `KDBXReader.parse` peeks the format major version, routes 3.x to `parse3x` in `KDBXReader+Legacy3x.swift`. The 3.x pipeline is a separate file because the framing layer (UInt16 field lengths, `StreamStartBytes` integrity instead of HMAC, hashed block stream, inline XML binary pool) genuinely diverges from 4.x — interleaving them under version branches would force readers to load both specs to follow either path.
 - **Synthesis for uniformity**: `Header3xReader` synthesizes `KDFParameters.aes(...)` from the dedicated `TransformSeed` / `TransformRounds` fields, and `parse3x` synthesizes an `InnerHeader` (Salsa20 + `ProtectedStreamKey` + binary pool harvested from `<Meta><Binaries>`) — so downstream code (KDF derivation, keystream, entry-ref resolution) is version-agnostic.
 - **Migration signal**: `KDBXContent.legacyFormatNotice` is `.willMigrate(from: .v3_1)` for files opened from 3.x and `nil` otherwise. UI callers pattern-match the enum to present a banner before save; do not parse `parserWarnings` strings.
-- **KDF upgrade is opt-in**: `KDBXContent.upgradeToArgon2id(profile:)` (or the general `upgradeKDF(to:)`) swaps the source AES-KDF for Argon2id before save. The library preserves the source KDF by default — apps that want the upgrade (Passie does) call the helper explicitly. The same master password keeps working because the writer derives a new unlock key against the new KDF parameters at save time.
+- **KDF upgrade is opt-in**: `KDBXContent.upgradeToArgon2id(to:)` (defaults to `KDFParameters.argon2idDefault()`; or the general `upgradeKDF(to:)`) swaps the source AES-KDF for Argon2id before save. The library preserves the source KDF by default — apps that want the upgrade (Passie does) call the helper explicitly. The same master password keeps working because the writer derives a new unlock key against the new KDF parameters at save time.
 - **Writer clamp is mandatory**: `KDBXWriter.clampingFormatVersionToWritable` upgrades the in-memory `formatVersion` to `.v4_1` before any version-dependent serialization. There's no opt-out — writing 4.x framing under a 3.x version number would yield a file no compliant reader (including ours) could parse.
 - **Lazy path is 4.x-only**: `KDBXReader.openMetadataOnly` on a 3.x source throws `.unsupportedFormatVersion(3, _)`. KDBX 3.x stores binaries inline in the (decompressed) XML body, so lazy / re-stream semantics have no analog — callers fall back to eager `parse`, observe `legacyFormatNotice`, and the problem resolves itself on first save.
 - **XML dialect**: `XMLDocumentReader.DateFormat` (`.dotNetTicksBase64` default / `.iso8601` for 3.x) picks once at construction. Producers don't mix dialects within a file; no silent fallback between formats — a cross-dialect mismatch throws.
-- **CLI**: `kdbx db info` surfaces a legacy-format notice line. `kdbx db migrate <path>` is the explicit migration entry point (default: upgrades KDF to Argon2id `.balanced`; `--keep-kdf` preserves AES-KDF; no-op on 4.x files).
+- **CLI**: `kdbx db info` surfaces a legacy-format notice line. `kdbx db migrate <path>` is the explicit migration entry point (default: upgrades KDF to Argon2id at the CLI's `balanced` tier; `--keep-kdf` preserves AES-KDF; no-op on 4.x files). The fast/balanced/paranoid tiers are the CLI's own policy (`KDFProfile` in `KDBXCLICore`), not the library's.
 
 ### Format dialects we round-trip
 
@@ -193,7 +193,7 @@ Bare `Set.self` in a `subcommands:` array collides with `Swift.Set<...>.Type`. U
 This library is consumed by `Passie/` (the iOS/macOS apps) via `.package(path: "../../KDBXKit")` in `Passie/Modules/Package.swift`. There's no submodule wiring.
 
 - When a change spans both repos (e.g., new `SecureBytes` API consumed by `PassieData`), **land the KDBXKit side first**, then commit the Passie side referencing the new API.
-- When designing a new KDBXKit type that the Passie UI layer will surface, expect `PassieData` to add a wrapper (e.g. `VaultUnlock` wraps `UnlockData`, `VaultKDFProfile` wraps `KDFParameters.Profile`) so `PassieUI` doesn't have to `import KDBXKit`. Keep new public types Sendable-clean.
+- When designing a new KDBXKit type that the Passie UI layer will surface, expect `PassieData` to add a wrapper (e.g. `VaultUnlock` wraps `UnlockData`) so `PassieUI` doesn't have to `import KDBXKit`. Keep new public types Sendable-clean. Note KDF cost *policy* (the fast/balanced/paranoid tiers and their tuned numbers) lives entirely in the app — `PassieData.VaultCreationParams` owns Passie's tiers; KDBXKit exposes only the single portable `KDFParameters.argon2idDefault()`.
 
 ## Platform requirements
 
