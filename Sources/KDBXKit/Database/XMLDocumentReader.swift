@@ -97,6 +97,17 @@ struct XMLDocumentReader {
             .map(\.content)
     }
 
+    /// Maps each on-disk pool `ID` to its index in ``inlineBinaryPool``.
+    /// Entry `Ref` attributes carry the ID, which only equals the array
+    /// index when IDs run contiguously from zero.
+    private var inlineBinaryIDToIndex: [UInt32: Int] {
+        var map: [UInt32: Int] = [:]
+        for (index, entry) in inlineBinaries.entries.sorted(by: { $0.id < $1.id }).enumerated() {
+            map[entry.id] = index
+        }
+        return map
+    }
+
     /// Running offset into the inner-cipher keystream, boxed in a class
     /// so the recursive `parse*` walk can advance it without every
     /// function having to be `mutating`. Advances by `ciphertext.count`
@@ -253,17 +264,34 @@ struct XMLDocumentReader {
                 throw .corrupted(reason: "Invalid base64 in Binary ID=\(id) in \(child.fullyQualifiedName)")
             }
 
+            // Protected pool binaries are XOR'd with the shared inner
+            // keystream, consumed in document order — and since <Meta>
+            // precedes <Root>, these bytes are taken before any entry
+            // password. De-XOR first, then decompress (KeePass stores the
+            // compressed bytes protected). Advancing the cursor keeps
+            // every later protected value aligned.
+            let stored: Data
+            if protected {
+                stored = keystreamSource.decrypt(ciphertext: decoded, at: cursor.position).toData()
+                cursor.advance(by: decoded.count)
+            } else {
+                stored = decoded
+            }
+
             let payload: Data
-            if compressed, !decoded.isEmpty {
+            if compressed, !stored.isEmpty {
                 do {
-                    payload = try LegacyBinaryDecompressor.gunzip(decoded)
+                    payload = try LegacyBinaryDecompressor.gunzip(stored)
                 } catch {
                     throw .corrupted(reason: "Failed to gunzip Binary ID=\(id): \(error)")
                 }
             } else {
-                payload = decoded
+                payload = stored
             }
 
+            if inlineBinaries.entries.contains(where: { $0.id == id }) {
+                throw .corrupted(reason: "Duplicate Binary ID=\(id) in \(child.fullyQualifiedName)")
+            }
             inlineBinaries.append(
                 id: id,
                 content: .init(shouldBeProtected: protected, data: payload)
@@ -365,7 +393,43 @@ struct XMLDocumentReader {
         }
 
         let (meta, root) = try parseKeepassFile(rootElement)
-        return .init(meta: meta, root: root)
+        var database = KDBX(meta: meta, root: root)
+
+        // KDBX 3.1 only: entry Ref attributes carry the on-disk pool ID,
+        // but the synthesized pool (``inlineBinaryPool``) is positional.
+        // Rewrite every Ref through the ID→index map so downstream code —
+        // which treats refs as pool indices, like 4.x — resolves the right
+        // attachment even when the on-disk IDs have gaps. No-op for 4.x
+        // (the pool is empty there; refs already index the inner header).
+        if !inlineBinaries.entries.isEmpty {
+            let map = inlineBinaryIDToIndex
+            remapBinaryRefs(in: &database.root.group, using: map)
+        }
+        return database
+    }
+
+    private func remapBinaryRefs(in group: inout KDBX.Group, using map: [UInt32: Int]) {
+        for i in group.entries.indices {
+            remapBinaryRefs(in: &group.entries[i], using: map)
+            for h in group.entries[i].history.indices {
+                remapBinaryRefs(in: &group.entries[i].history[h], using: map)
+            }
+        }
+        for i in group.groups.indices {
+            remapBinaryRefs(in: &group.groups[i], using: map)
+        }
+    }
+
+    private func remapBinaryRefs(in entry: inout KDBX.Entry, using map: [UInt32: Int]) {
+        for i in entry.binaries.indices {
+            guard case let .ref(id) = entry.binaries[i].value else { continue }
+            // A ref whose ID isn't in the map was dangling on disk; leave
+            // it as-is so KDBXContent.validate() still flags it (the index
+            // will exceed the pool count).
+            if let index = map[id] {
+                entry.binaries[i] = .init(key: entry.binaries[i].key, value: .ref(UInt32(index)))
+            }
+        }
     }
 
     // MARK: Parse <XML Tag> helpers
