@@ -395,15 +395,26 @@ struct XMLDocumentReader {
         let (meta, root) = try parseKeepassFile(rootElement)
         var database = KDBX(meta: meta, root: root)
 
-        // KDBX 3.1 only: entry Ref attributes carry the on-disk pool ID,
-        // but the synthesized pool (``inlineBinaryPool``) is positional.
-        // Rewrite every Ref through the ID→index map so downstream code —
-        // which treats refs as pool indices, like 4.x — resolves the right
-        // attachment even when the on-disk IDs have gaps. No-op for 4.x
-        // (the pool is empty there; refs already index the inner header).
+        // The <Meta><Binaries> pool is a KDBX 3.1 construct. A 4.x file
+        // (dotNetTicksBase64 dates) storing binaries in the inner header
+        // should never carry one — if it does, it's nonstandard: the 4.x
+        // pipeline ignores the pool, so its attachments would be lost on
+        // the next save and any entry Ref into it would dangle. Surface
+        // that rather than silently remapping 4.x refs (which point at
+        // the inner-header pool, not this one).
         if !inlineBinaries.entries.isEmpty {
-            let map = inlineBinaryIDToIndex
-            remapBinaryRefs(in: &database.root.group, using: map)
+            switch dateFormat {
+            case .iso8601:
+                // KDBX 3.1: entry Ref attributes carry the on-disk pool
+                // ID, but the synthesized pool (``inlineBinaryPool``) is
+                // positional — rewrite every Ref through the ID→index map
+                // so downstream code (which treats refs as pool indices,
+                // like 4.x) resolves the right attachment even when the
+                // on-disk IDs have gaps.
+                remapBinaryRefs(in: &database.root.group, using: inlineBinaryIDToIndex)
+            case .dotNetTicksBase64:
+                record("Ignoring nonstandard <Meta><Binaries> pool (\(inlineBinaries.entries.count) entries) in a KDBX 4 file")
+            }
         }
         return database
     }
