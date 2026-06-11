@@ -239,4 +239,30 @@ struct MalformedInputTests {
             _ = try reader.parse()
         }
     }
+
+    /// `AESKDF.derive` preconditions on a 32-byte salt, and the unlock key
+    /// is computed *before* the header HMAC check — so a crafted header with
+    /// a wrong-size `S` field would abort the process pre-authentication
+    /// unless the salt is rejected at parse. (The 3.x route already
+    /// validates its `TransformSeed` to 32 bytes.)
+    @Test("AES-KDF parameters with a wrong-size salt are rejected at parse, not a precondition trap")
+    func aesKDFWrongSaltLengthRejected() {
+        let aesUUID = KDFParameters.KDF.AES.toUInt128().toDataLittleEndian()
+        for badLength in [0, 16, 31, 33, 64] {
+            let params: VariantDictionary = [
+                "$UUID": .bytes(aesUUID),
+                "S": .bytes(Data(repeating: 0xAB, count: badLength)),
+                "R": .uint64(1000),
+            ]
+            #expect(KDFParameters(from: params) == nil, "salt length \(badLength) must be rejected")
+        }
+
+        // The valid length stays accepted.
+        let valid: VariantDictionary = [
+            "$UUID": .bytes(aesUUID),
+            "S": .bytes(Data(repeating: 0xAB, count: 32)),
+            "R": .uint64(1000),
+        ]
+        #expect(KDFParameters(from: valid) != nil)
+    }
 }

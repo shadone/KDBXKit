@@ -196,6 +196,16 @@ extension KDFParameters {
                 return nil
             }
 
+            // The AES-KDF transform seed is exactly 32 bytes (the 3.x route
+            // validates its TransformSeed the same way). AESKDF.derive
+            // preconditions on this, and the unlock key is computed before
+            // the header HMAC check — rejecting here keeps a crafted header
+            // a typed parse error instead of a pre-auth process abort.
+            guard salt.count == 32 else {
+                KDBXLog.kdf.debug("KDF Parameters: Invalid AES-KDF salt length (expected 32, got \(salt.count))")
+                return nil
+            }
+
             var additionalParams = params
             additionalParams.removeValue(forKey: "$UUID")
             additionalParams.removeValue(forKey: "S")
