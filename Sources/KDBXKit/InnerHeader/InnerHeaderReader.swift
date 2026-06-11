@@ -28,52 +28,28 @@ struct InnerHeaderReader {
         case unexpectedEOF
     }
 
-    let data: Data
-    var pos: Data.Index
+    var cursor: ByteCursor
 
     init(data: Data) {
-        self.data = data
-        pos = data.startIndex
+        cursor = ByteCursor(data)
     }
 
     // MARK: Read <token> helpers
 
+    //
+    // Bounds-checking lives in `ByteCursor`; these adapters only re-wrap its
+    // `unexpectedEOF` into this reader's `Error`.
+
     private mutating func readUInt8() throws(Error) -> UInt8 {
-        // Compare against endIndex, not count: `pos` is an absolute
-        // Data.Index, so this stays correct even for a non-zero-based slice.
-        if pos.advanced(by: 1) > data.endIndex {
-            throw Error.unexpectedEOF
-        }
-
-        let b = data[pos]
-
-        pos = pos.advanced(by: 1)
-
-        return b
+        do { return try cursor.readUInt8() } catch { throw .unexpectedEOF }
     }
 
     private mutating func readInt32() throws(Error) -> Int32 {
-        try readData(length: 4).asInt32LE()! // safe to force unwrap as we guaranteed to read enough bytes
+        do { return try cursor.readInt32LE() } catch { throw .unexpectedEOF }
     }
 
     private mutating func readData(length: Int) throws(Error) -> Data {
-        // Reject a negative length (signed Int32 field with the high bit
-        // set) before it builds a reversed `start..<end` Range and traps.
-        if length < 0 {
-            throw Error.unexpectedEOF
-        }
-        let start = pos
-        let end = pos.advanced(by: length)
-
-        if end > data.endIndex {
-            throw Error.unexpectedEOF
-        }
-
-        let subdata = data.subdata(in: start..<end)
-
-        pos = end
-
-        return subdata
+        do { return try cursor.readData(length: length) } catch { throw .unexpectedEOF }
     }
 
     // MARK: Public API
@@ -150,7 +126,7 @@ struct InnerHeaderReader {
             binaryContent: binaryContent
         )
 
-        return (header: header, length: pos)
+        return (header: header, length: cursor.position)
     }
 
     /// Metadata-only variant of `parse()`. Walks the inner header the
@@ -180,7 +156,7 @@ struct InnerHeaderReader {
             // i.e. valueStart + 1 relative to the buffer.
             let type = try readUInt8()
             let valueLength = try readInt32()
-            let valueStart = pos // index into `data` where value bytes begin
+            let valueStart = cursor.position // index into the buffer where value bytes begin
             let valueData = try readData(length: Int(valueLength))
 
             guard let fieldType = InnerHeaderFieldType(rawValue: type) else {
@@ -213,14 +189,12 @@ struct InnerHeaderReader {
                 let isProtected = (flags & 0x01) != 0
                 let binaryBytesOffset = valueStart + 1 // skip flags byte
                 let binaryBytesLength = max(0, Int(valueLength) - 1)
-                let binaryBytes: Data
-                if binaryBytesLength > 0 {
-                    let s = data.startIndex + binaryBytesOffset
-                    let e = s + binaryBytesLength
-                    binaryBytes = data.subdata(in: s..<e)
-                } else {
-                    binaryBytes = Data()
-                }
+                // The payload is `valueData` minus its leading flags byte —
+                // slice it directly rather than re-indexing the backing
+                // buffer (which assumed a zero-based `data`).
+                let binaryBytes: Data = binaryBytesLength > 0
+                    ? valueData.subdata(in: valueData.startIndex + 1..<valueData.endIndex)
+                    : Data()
                 let hash = Data(SHA256.hash(data: binaryBytes))
                 binaries.append(.init(
                     sizeBytes: binaryBytesLength,
@@ -248,6 +222,6 @@ struct InnerHeaderReader {
             binaryContent: []
         )
 
-        return (header: header, binaries: binaries, length: pos)
+        return (header: header, binaries: binaries, length: cursor.position)
     }
 }
