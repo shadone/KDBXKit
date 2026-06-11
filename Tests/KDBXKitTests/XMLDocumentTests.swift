@@ -197,6 +197,27 @@ struct XMLDocumentTests {
         #expect(database.meta.maintenanceHistoryDays == 365)
     }
 
+    @Test("Nested Entry/History recursion is depth-capped like group nesting")
+    func entryHistoryNestingCapped() throws {
+        // parseGroup carries an explicit depth cap to bound stack usage on
+        // crafted input; the equally-recursive Entry → History → Entry path
+        // needs the same treatment — ~500 parseEntry frames can blow a
+        // 512 KiB secondary-thread stack, which is an uncatchable SIGSEGV.
+        // History is flat in any real vault, so a small cap is generous.
+        var inner = "<Entry><UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID></Entry>"
+        for _ in 0..<50 {
+            inner = "<Entry><UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID><History>\(inner)</History></Entry>"
+        }
+        let xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <KeePassFile><Meta/><Root><Group><UUID>AAAAAAAAAAAAAAAAAAAAAA==</UUID>\(inner)</Group></Root></KeePassFile>
+            """
+        let reader = try XMLDocumentReader(xmlDocument: xml, keystreamSource: Self.mockKeystream())
+        #expect(throws: XMLDocumentReader.Error.self) {
+            _ = try reader.parse()
+        }
+    }
+
     @Test("Malformed XML input throws a typed error, not a crash")
     func malformedXMLThrowsTypedError() {
         // Reaches the XML layer only when decryption succeeds but the

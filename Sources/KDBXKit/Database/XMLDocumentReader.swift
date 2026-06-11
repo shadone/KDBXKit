@@ -798,6 +798,15 @@ struct XMLDocumentReader {
     /// bound and well past anything a real vault produces.
     var maxGroupNestingDepth = 100
 
+    /// Same idea as ``maxGroupNestingDepth`` for the Entry → History →
+    /// Entry recursion. History is flat in any real vault (KeePass never
+    /// nests history inside history entries), so even single-digit depth
+    /// only occurs in corrupt or hostile input — but each `parseEntry`
+    /// frame is heavy, and ~500 of them can blow a 512 KiB secondary-
+    /// thread stack before the XML layer's own 1024-element depth cap
+    /// saves us.
+    var maxHistoryNestingDepth = 8
+
     func parseGroup(_ node: Node, depth: Int = 0) throws(Error) -> KDBX.Group {
         if depth >= maxGroupNestingDepth {
             throw .corrupted(reason: "Group nesting exceeds \(maxGroupNestingDepth) levels in \(node.fullyQualifiedName)")
@@ -959,7 +968,10 @@ struct XMLDocumentReader {
             .filter { !$0.isEmpty }
     }
 
-    func parseEntry(_ node: Node) throws(Error) -> KDBX.Entry {
+    func parseEntry(_ node: Node, historyDepth: Int = 0) throws(Error) -> KDBX.Entry {
+        if historyDepth > maxHistoryNestingDepth {
+            throw .corrupted(reason: "Entry history nesting exceeds \(maxHistoryNestingDepth) levels in \(node.fullyQualifiedName)")
+        }
         var entry = KDBX.Entry(uuid: UUID(), iconID: 0, tags: [], strings: [], binaries: [], customData: [], history: [])
 
         for child in node.children {
@@ -1023,7 +1035,7 @@ struct XMLDocumentReader {
                 entry.customData = try parseCustomDataItemList(child)
 
             case "History":
-                entry.history = try parseEntryList(child)
+                entry.history = try parseEntryList(child, historyDepth: historyDepth + 1)
 
             default:
                 record("Unexpected element \(child.fullyQualifiedName)")
@@ -1033,13 +1045,13 @@ struct XMLDocumentReader {
         return entry
     }
 
-    func parseEntryList(_ node: Node) throws(Error) -> [KDBX.Entry] {
+    func parseEntryList(_ node: Node, historyDepth: Int = 0) throws(Error) -> [KDBX.Entry] {
         var entries: [KDBX.Entry] = []
 
         for child in node.children {
             switch child.name {
             case "Entry":
-                let entry = try parseEntry(child)
+                let entry = try parseEntry(child, historyDepth: historyDepth)
                 entries.append(entry)
             default:
                 record("Unexpected element \(child.fullyQualifiedName)")
