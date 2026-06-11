@@ -19,7 +19,7 @@ import Foundation
 /// to recover is the only alternative. The backup is overwritten on each
 /// call, not accumulated, so it doesn't grow unbounded.
 public enum AtomicFileWriter {
-    public enum WriteError: Error, CustomStringConvertible {
+    public enum WriteError: Error, CustomStringConvertible, Sendable {
         case backupFailed(URL, underlying: Error)
         case writeFailed(URL, underlying: Error)
 

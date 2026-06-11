@@ -4,8 +4,8 @@
 // SPDX-License-Identifier: BSD-2-Clause
 //
 
-public struct ValidationFailure {
-    public enum Level: CustomStringConvertible {
+public struct ValidationFailure: Sendable, Equatable {
+    public enum Level: CustomStringConvertible, Sendable {
         case warning
         case error
 
