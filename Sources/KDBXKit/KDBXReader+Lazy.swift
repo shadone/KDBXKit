@@ -123,15 +123,21 @@ public extension KDBXReader {
     }
 
     /// Re-stream the bytes for one binary into `sink`. Reopens the
-    /// source, replays decrypt + decompress, locates the target
-    /// binary at its decompressed offset, and writes `length` bytes
-    /// to the sink. Peak memory during the call: ~file_size briefly;
-    /// after return: nothing retained.
+    /// source (memory-mapped), replays decrypt + inflate, and forwards
+    /// **only the target binary's** bytes to the sink — every other
+    /// byte (the rest of the pool, the XML) is discarded as it streams,
+    /// and the block loop stops the moment the target is complete.
     ///
-    /// - important: This decrypts + decompresses the WHOLE file on
-    ///   every call. To resolve more than one binary — e.g. when
+    /// Peak memory is the sink's choice (a ``SecureBytesSink`` page, a
+    /// ``URLSink`` file write) plus a small pipeline window — independent
+    /// of total vault / attachment size. After return: nothing retained.
+    /// The stored unlock key + header are reused, so there is no KDF
+    /// re-run on this path.
+    ///
+    /// - important: To resolve more than one binary — e.g. when
     ///   rebuilding the pool for a save — do NOT call this in a loop:
-    ///   that is O(binaries × file_size). Use
+    ///   each call replays the decrypt from the start, so resolving the
+    ///   whole pool that way is O(binaries × file_size). Use
     ///   ``withDecryptedBinaries(from:_:)`` instead, which pays the
     ///   decrypt cost once for any number of binaries.
     ///
@@ -141,24 +147,59 @@ public extension KDBXReader {
         at index: Int,
         into sink: inout some ByteSink
     ) throws {
-        let decrypted = try decryptWholePayload(of: lazy)
-        let slice = try binarySlice(at: index, in: decrypted.payload, binaries: lazy.binaries)
-
-        // Feed the sink in chunks. The Data subdata is a view onto the
-        // parent buffer; no extra copy. Chunk writes let the sink
-        // stream (URLSink to disk, SecureBytesSink page-by-page)
-        // instead of materializing the full bytes into the sink's
-        // storage at once for very large attachments.
-        let chunkSize = 64 * 1024
-        var cursor = slice.startIndex
-        while cursor < slice.endIndex {
-            let next = min(slice.index(cursor, offsetBy: chunkSize, limitedBy: slice.endIndex) ?? slice.endIndex, slice.endIndex)
-            try slice[cursor..<next].withUnsafeBytes { buf in
-                try sink.write(buf)
-            }
-            cursor = next
+        guard lazy.binaries.indices.contains(index) else {
+            throw KDBXReader.Error.corruptedInnerHeader(reason: "Binary index out of range: \(index)")
         }
-        try sink.finalize()
+
+        // Map the file (clean pages excluded from phys_footprint) and
+        // build the same decrypt → inflate chain the metadata open uses,
+        // terminating in an extractor that keeps only binary `index`.
+        let encrypted = try lazy.source.readAll(mappedIfSafe: true)
+        let payloadPos = try payloadStart(in: encrypted)
+        let mainContentKey = MainKey.make(masterSalt: lazy.header.masterSalt, unlockKey: lazy.unlockKey)
+
+        var localSink = sink
+        defer { sink = localSink }
+        let extractor = StreamingBinaryExtractor(targetIndex: index) { buf in
+            try localSink.write(buf)
+        }
+        let downstream: any StreamingByteConsumer
+        switch lazy.header.compressionAlgorithm {
+        case .none:
+            downstream = extractor
+        case .gzip:
+            downstream = try StreamingInflateReader(
+                downstream: extractor,
+                maxOutputBytes: lazy.maxDecompressedPayloadSize
+            )
+        }
+        let decryptor = try DecryptingStreamReader(
+            header: lazy.header,
+            mainKey: mainContentKey,
+            downstream: downstream
+        )
+
+        let stoppedEarly = try driveHMACBlocks(
+            encrypted,
+            from: payloadPos,
+            masterSalt: lazy.header.masterSalt,
+            unlockKey: lazy.unlockKey,
+            into: decryptor,
+            stopEarly: { extractor.done }
+        )
+        // Only when the stream ran to completion without an early stop
+        // (target not found — index beyond the on-disk pool) does the
+        // chain need finalizing; the found case always stops early.
+        if !stoppedEarly {
+            try decryptor.finalize()
+        }
+        try localSink.finalize()
+
+        guard extractor.found else {
+            // In range per captured metadata, yet absent from the stream:
+            // the on-disk pool diverged from what `openMetadata*` recorded.
+            throw KDBXReader.Error.corruptedInnerHeader(reason: "Binary \(index) not found in inner stream")
+        }
     }
 
     /// Decrypt + decompress the source ONCE, then hand `body` a
@@ -198,7 +239,13 @@ public extension KDBXReader {
     internal static func decryptWholePayload(
         of lazy: LazyKDBXContent
     ) throws -> DecryptedKDBXPayload {
-        let encrypted = try lazy.source.readAll()
+        // Map rather than copy: clean file-backed pages are excluded from
+        // phys_footprint, so the encrypted bytes don't scale the peak even
+        // though the decompressed payload below still materializes in full.
+        // (`streamBinary` uses the per-binary streaming extractor instead;
+        // this whole-payload path backs the multi-binary `withDecryptedBinaries`
+        // batch, where one decrypt amortizes across the whole pool.)
+        let encrypted = try lazy.source.readAll(mappedIfSafe: true)
         return try decryptAndDecompressUsing(
             encrypted,
             unlockKey: lazy.unlockKey,

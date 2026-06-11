@@ -30,17 +30,26 @@ public enum KDBXSource: Sendable {
     /// For `.file`, this is the only step that materializes the
     /// encrypted bytes in process memory — peak memory during decrypt
     /// is ~file_size; idle memory is metadata only.
-    public func readAll() throws -> Data {
+    ///
+    /// Pass `mappedIfSafe: true` to memory-map the file instead of copying
+    /// it into anonymous memory. Mapped, clean file pages are excluded from
+    /// the Darwin `phys_footprint` (the metric iOS jetsam enforces), so the
+    /// encrypted bytes stop counting against a memory-capped host's budget —
+    /// the streaming open relies on this for size-independence (peak stays
+    /// at the KDF + working set, not the file size). Default `false` keeps
+    /// the eager / re-stream paths copying as before.
+    public func readAll(mappedIfSafe: Bool = false) throws -> Data {
         switch self {
         case let .data(data):
             return data
         case let .file(url):
-            return try Self.readFile(at: url)
+            return try Self.readFile(at: url, mappedIfSafe: mappedIfSafe)
         }
     }
 
     #if canImport(Darwin)
-    private static func readFile(at url: URL) throws -> Data {
+    private static func readFile(at url: URL, mappedIfSafe: Bool) throws -> Data {
+        let options: Data.ReadingOptions = mappedIfSafe ? [.mappedIfSafe] : []
         var coordinatorError: NSError?
         var readResult: Result<Data, Swift.Error> = .failure(KDBXSourceError.readFailed)
         NSFileCoordinator().coordinate(
@@ -49,7 +58,7 @@ public enum KDBXSource: Sendable {
             error: &coordinatorError
         ) { coordinatedURL in
             do {
-                readResult = .success(try Data(contentsOf: coordinatedURL))
+                readResult = .success(try Data(contentsOf: coordinatedURL, options: options))
             } catch {
                 readResult = .failure(error)
             }
@@ -60,8 +69,8 @@ public enum KDBXSource: Sendable {
         return try readResult.get()
     }
     #else
-    private static func readFile(at url: URL) throws -> Data {
-        try Data(contentsOf: url)
+    private static func readFile(at url: URL, mappedIfSafe: Bool) throws -> Data {
+        try Data(contentsOf: url, options: mappedIfSafe ? [.mappedIfSafe] : [])
     }
     #endif
 }
