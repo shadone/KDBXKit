@@ -82,7 +82,7 @@ public struct Header: Sendable, Equatable {
         /// Single source of truth for "can we open this format?". The
         /// route-specific readers derive their accept lists from this
         /// (``HeaderReader`` takes the `major == 4` slice, `Header3xReader`
-        /// the `major == 3` slice), and ``KDBXReader/assertSupportedFormat(_:)``
+        /// the `major == 3` slice), and ``KDBXReader/validateSupportedFormat(_:)``
         /// checks membership for header-only callers (peek paths) that
         /// skip the KDF. When KDBX 5 lands — or a 4.x subvariant is
         /// dropped — this is the one place to edit.

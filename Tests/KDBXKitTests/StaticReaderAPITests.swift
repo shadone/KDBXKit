@@ -223,22 +223,22 @@ struct StaticReaderAPITests {
         #expect(!Header.FormatVersion(major: 5, minor: 0).isSupported)
     }
 
-    @Test("assertSupportedFormat accepts every header parseHeader can return — including 3.1")
-    func assertSupportedFormatAcceptsReadableHeaders() throws {
+    @Test("validateSupportedFormat accepts every header parseHeader can return — including 3.1")
+    func validateSupportedFormatAcceptsReadableHeaders() throws {
         // A parsed 4.x header passes.
         let v4Path = Bundle.module.path(forResource: "Resources/simple-argon2id-aes256", ofType: "kdbx")!
         let v4Header = try KDBXReader.parseHeader(try Data(contentsOf: URL(filePath: v4Path)))
         #expect(v4Header.formatVersion == .v4_0)
-        try KDBXReader.assertSupportedFormat(v4Header) // does not throw
+        try KDBXReader.validateSupportedFormat(v4Header) // does not throw
 
         // A parsed 3.1 header also passes. This is the regression guard:
         // `parseHeader` happily returns a 3.1 header (the read path opens
-        // 3.1), so a peek caller running assertSupportedFormat must NOT
+        // 3.1), so a peek caller running validateSupportedFormat must NOT
         // reject it — the old inline `major == 4` check did, blocking 3.1
         // vaults before the unlock screen.
         let v3Path = Bundle.module.path(forResource: "Resources/kpxc-kdbx31-default", ofType: "kdbx")!
         let v3Header = try KDBXReader.parseHeader(try Data(contentsOf: URL(filePath: v3Path)))
         #expect(v3Header.formatVersion == .v3_1)
-        try KDBXReader.assertSupportedFormat(v3Header) // does not throw
+        try KDBXReader.validateSupportedFormat(v3Header) // does not throw
     }
 }

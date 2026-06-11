@@ -213,7 +213,7 @@ public struct KDBXReader: Sendable {
     /// paying the KDF — peek paths. Using it (rather than an inline
     /// `major == 4` test) keeps the supported-format rule in one place,
     /// so peek can't drift from what `parse` actually accepts.
-    public static func assertSupportedFormat(_ header: Header) throws(Error) {
+    public static func validateSupportedFormat(_ header: Header) throws(Error) {
         guard header.formatVersion.isSupported else {
             throw .unsupportedFormatVersion(
                 major: header.formatVersion.major,
