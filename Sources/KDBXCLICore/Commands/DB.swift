@@ -21,6 +21,7 @@ struct DB: ParsableCommand {
             Create.self,
             EmptyRecycleBin.self,
             Migrate.self,
+            OpenBench.self,
         ]
         // No defaultSubcommand: with one set, ArgumentParser routes
         // `kdbx db --help` to the default's help and hides the
