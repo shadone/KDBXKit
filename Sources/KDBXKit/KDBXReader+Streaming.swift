@@ -65,14 +65,22 @@ public extension KDBXReader {
         )
 
         // Read + HMAC-verify each block, feed ciphertext into the chain.
-        _ = try driveHMACBlocks(
-            encrypted,
-            from: prep.payloadPos,
-            masterSalt: prep.header.masterSalt,
-            unlockKey: prep.unlockKey,
-            into: decryptor
-        )
-        try decryptor.finalize()
+        // ZlibError is internal — map decompression failures to the same
+        // public typed errors the eager path surfaces.
+        do {
+            _ = try driveHMACBlocks(
+                encrypted,
+                from: prep.payloadPos,
+                masterSalt: prep.header.masterSalt,
+                unlockKey: prep.unlockKey,
+                into: decryptor
+            )
+            try decryptor.finalize()
+        } catch ZlibError.outputTooLarge {
+            throw KDBXReader.Error.decompressedPayloadTooLarge(limit: maxDecompressedPayloadSize)
+        } catch let error as ZlibError {
+            throw KDBXReader.Error.corruptedXML(reason: "Failed to decompress: \(error)")
+        }
 
         // Build the inner header + parse the accumulated XML — the same
         // tail as `openMetadataOnly`, just over the streamed buffers.

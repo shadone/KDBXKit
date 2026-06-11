@@ -73,13 +73,25 @@ final class GzipStreamWriter: StreamingByteConsumer {
             stream.next_in = UnsafeMutablePointer<UInt8>(mutating: inputBase)
             stream.avail_in = UInt32(input.count)
 
+            var noProgress = false
             repeat {
                 let produced = try output.withUnsafeMutableBufferPointer { outBuf -> Int in
                     stream.next_out = outBuf.baseAddress
                     stream.avail_out = UInt32(outputBufferSize)
 
                     let status = deflate(&stream, flush)
-                    // Z_OK = 0, Z_STREAM_END = 1, both fine; negatives are errors.
+                    // Z_OK = 0, Z_STREAM_END = 1, both fine. Z_BUF_ERROR is
+                    // zlib's non-fatal "no progress possible" — it fires
+                    // when the previous iteration's output exactly filled
+                    // the buffer and all input is already consumed (the
+                    // re-entry call has avail_in == 0). The inflate wrappers
+                    // already treat it as a loop terminator; failing the
+                    // save on it would be a spurious, fixture-dependent
+                    // ~2^-16 deflate abort. Other negatives are errors.
+                    if status == Z_BUF_ERROR {
+                        noProgress = true
+                        return outputBufferSize - Int(stream.avail_out)
+                    }
                     if status < 0 {
                         throw ZlibError.deflate(status)
                     }
@@ -91,7 +103,7 @@ final class GzipStreamWriter: StreamingByteConsumer {
                 // Loop while zlib has more output to give us (output buffer
                 // was completely filled). For Z_FINISH, also loop while
                 // there's pending input to drain.
-            } while stream.avail_out == 0
+            } while stream.avail_out == 0 && !noProgress
         }
     }
 }

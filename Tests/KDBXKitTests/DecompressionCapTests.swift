@@ -57,6 +57,32 @@ struct DecompressionCapTests {
         }
     }
 
+    @Test("Streaming open with a 1-byte cap throws .decompressedPayloadTooLarge, not internal ZlibError")
+    func tinyCap_throwsTypedErrorStreaming() throws {
+        let kdbxPath = Bundle.module.path(forResource: "Resources/simple-aes256-aes256", ofType: "kdbx")!
+        let data = try Data(contentsOf: URL(filePath: kdbxPath))
+
+        // The streaming path must surface the same public typed error the
+        // eager path maps to — a consumer switching on KDBXReader.Error
+        // must not receive the internal ZlibError type.
+        do {
+            _ = try KDBXReader.openMetadataStreaming(
+                from: .data(data),
+                unlockData: .init(masterPassword: "123"),
+                maxDecompressedPayloadSize: 1
+            )
+            Issue.record("Expected .decompressedPayloadTooLarge")
+        } catch let error as KDBXReader.Error {
+            if case let .decompressedPayloadTooLarge(limit) = error {
+                #expect(limit == 1)
+            } else {
+                Issue.record("Wrong error case: \(error)")
+            }
+        } catch {
+            Issue.record("Internal error type escaped the public API: \(error)")
+        }
+    }
+
     @Test("Reading a real fixture with the default cap succeeds")
     func defaultCap_succeeds() throws {
         // Sanity guard: changing the default cap to something silly (e.g.

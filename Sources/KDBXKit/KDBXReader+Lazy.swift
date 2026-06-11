@@ -179,19 +179,27 @@ public extension KDBXReader {
             downstream: downstream
         )
 
-        let stoppedEarly = try driveHMACBlocks(
-            encrypted,
-            from: payloadPos,
-            masterSalt: lazy.header.masterSalt,
-            unlockKey: lazy.unlockKey,
-            into: decryptor,
-            stopEarly: { extractor.done }
-        )
-        // Only when the stream ran to completion without an early stop
-        // (target not found — index beyond the on-disk pool) does the
-        // chain need finalizing; the found case always stops early.
-        if !stoppedEarly {
-            try decryptor.finalize()
+        // ZlibError is internal — map decompression failures to the same
+        // public typed errors the eager path surfaces.
+        do {
+            let stoppedEarly = try driveHMACBlocks(
+                encrypted,
+                from: payloadPos,
+                masterSalt: lazy.header.masterSalt,
+                unlockKey: lazy.unlockKey,
+                into: decryptor,
+                stopEarly: { extractor.done }
+            )
+            // Only when the stream ran to completion without an early stop
+            // (target not found — index beyond the on-disk pool) does the
+            // chain need finalizing; the found case always stops early.
+            if !stoppedEarly {
+                try decryptor.finalize()
+            }
+        } catch ZlibError.outputTooLarge {
+            throw KDBXReader.Error.decompressedPayloadTooLarge(limit: lazy.maxDecompressedPayloadSize)
+        } catch let error as ZlibError {
+            throw KDBXReader.Error.corruptedXML(reason: "Failed to decompress: \(error)")
         }
         try localSink.finalize()
 
