@@ -56,7 +56,12 @@ struct VariantDictionaryWriter {
 
         try write(VariantDictionary.FormatVersion.v1_0.rawValue.toDataLittleEndian())
 
-        for (key, value) in vardict {
+        // Emit keys in a stable order. A plain [String: …] iterates in a
+        // hash-seed-dependent order that varies across processes, which
+        // would make the KDF-parameter / publicCustomData header bytes
+        // non-deterministic — the XML layer already sorts for the same
+        // reason.
+        for (key, value) in vardict.sorted(by: { $0.key < $1.key }) {
             let valueType: VariantDictionaryValueType
             let valueData: Data
 

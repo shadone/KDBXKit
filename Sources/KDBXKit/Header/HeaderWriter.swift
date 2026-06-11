@@ -97,7 +97,11 @@ struct HeaderWriter {
         try writeField(.masterSalt, value: header.masterSalt)
         try writeField(.encryptionNonce, value: header.encryptionNonce)
         try writeField(.kdfParameters, value: write(header.kdfParameters.toVariantDictionary()))
-        try writeField(.publicCustomData, value: write(header.publicCustomData))
+        // KeePass omits the PublicCustomData field entirely when empty;
+        // the reader defaults a missing field to [:], so this round-trips.
+        if !header.publicCustomData.isEmpty {
+            try writeField(.publicCustomData, value: write(header.publicCustomData))
+        }
         try writeField(.endOfHeader, value: HeaderFieldType.endOfHeaderValue)
     }
 }

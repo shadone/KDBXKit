@@ -74,4 +74,58 @@ struct HeaderTests {
         #expect(parsed == header)
         #expect(headerLength == data.count)
     }
+
+    @Test("Empty publicCustomData is omitted on write and round-trips to [:]")
+    func emptyPublicCustomDataOmitted() throws {
+        let header = Header(
+            formatVersion: .v4_1,
+            encryptionAlgorithm: .AES256CBC,
+            compressionAlgorithm: .gzip,
+            masterSalt: Data(repeating: 1, count: 32),
+            encryptionNonce: Data(repeating: 2, count: 16),
+            kdfParameters: .aes(.init(salt: Data(repeating: 3, count: 32), rounds: 1), additional: [:]),
+            publicCustomData: [:]
+        )
+        let outputStream = OutputStream(toMemory: ())
+        outputStream.open()
+        try HeaderWriter(to: outputStream).write(header)
+        let data = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
+
+        // The PublicCustomData field type byte (0x0C) must not appear as a
+        // header field — KeePass omits an empty one.
+        #expect(!data.contains(HeaderFieldType.publicCustomData.rawValue))
+
+        var reader = HeaderReader(data: data)
+        let (parsed, _) = try reader.parse()
+        #expect(parsed.publicCustomData.isEmpty)
+    }
+
+    @Test("KDF VariantDictionary serialization is deterministic regardless of key insertion order")
+    func variantDictionaryDeterministicOrder() throws {
+        func headerData(additionalOrder reversed: Bool) throws -> Data {
+            let pairs: [(String, VariantDictionaryValue)] = [
+                ("Alpha", .string("1")),
+                ("Bravo", .uint32(2)),
+                ("Charlie", .bytes(Data([3]))),
+            ]
+            var additional: VariantDictionary = [:]
+            for (k, v) in reversed ? pairs.reversed() : pairs {
+                additional[k] = v
+            }
+            let header = Header(
+                formatVersion: .v4_1,
+                encryptionAlgorithm: .AES256CBC,
+                compressionAlgorithm: .gzip,
+                masterSalt: Data(repeating: 1, count: 32),
+                encryptionNonce: Data(repeating: 2, count: 16),
+                kdfParameters: .aes(.init(salt: Data(repeating: 3, count: 32), rounds: 1), additional: additional),
+                publicCustomData: [:]
+            )
+            let outputStream = OutputStream(toMemory: ())
+            outputStream.open()
+            try HeaderWriter(to: outputStream).write(header)
+            return outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
+        }
+        #expect(try headerData(additionalOrder: false) == headerData(additionalOrder: true))
+    }
 }

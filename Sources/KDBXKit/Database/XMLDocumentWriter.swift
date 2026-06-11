@@ -112,9 +112,10 @@ struct XMLDocumentWriter {
         if let generator = meta.generator {
             node.addElement("Generator").addText(generator)
         }
-        if let headerHash = meta.headerHash {
-            node.addElement("HeaderHash").addText(headerHash)
-        }
+        // HeaderHash is a KDBX-3-only integrity field (hash of the outer
+        // header). This writer only ever emits KDBX 4 framing with fresh
+        // salts, so any inherited hash is stale — KeePass omits it in v4
+        // and we do too rather than assert incorrect data.
         if let settingsChanged = meta.settingsChanged {
             node.addElement("SettingsChanged").addText(encode(settingsChanged))
         }
