@@ -143,9 +143,9 @@ public struct UnlockData: Sendable {
     /// (no remote attacker can measure the wall-clock of an in-process
     /// compare), but using the wrong tool is still the wrong tool.
     public func matches(_ other: UnlockData) -> Bool {
-        let a = keyData.withUnsafeBytes { Data($0) }
-        let b = other.keyData.withUnsafeBytes { Data($0) }
-        return ConstantTime.equals(a, b)
+        // SecureBytes.== is already a constant-time compare over the
+        // in-place mlocked buffers — no copies into unzeroed Data.
+        keyData == other.keyData
     }
 
     /// Run the KDF identified by `kdfParameters` against this unlock's key

@@ -56,8 +56,12 @@ public struct DataSink: ByteSink {
     public mutating func finalize() throws { }
 }
 
-/// Sink for protected binaries — accumulates into `SecureBytes`
-/// (mlocked + zeroed on deinit). Callers should consume via a
+/// Sink for protected binaries. The bytes are mlocked + zero-on-deinit
+/// only once `takeSecureBytes()` wraps them; DURING accumulation they
+/// live in an ordinary heap buffer that is zeroed on take (and on
+/// explicit growth), but not if the sink is dropped mid-stream after a
+/// throw. Pass an exact `capacityHint` (``BinaryMetadata/sizeBytes``)
+/// so growth never reallocates. Callers should consume the result via a
 /// `withRevealedBytes` scope and let the value go out of scope ASAP.
 public struct SecureBytesSink: ByteSink {
     private var buffer: [UInt8]
@@ -72,6 +76,20 @@ public struct SecureBytesSink: ByteSink {
 
     public mutating func write(_ chunk: UnsafeRawBufferPointer) throws {
         guard let base = chunk.baseAddress, !chunk.isEmpty else { return }
+        // Growth is handled explicitly: Array's own reallocation frees
+        // the old storage without zeroing, leaving a ghost copy of the
+        // secret on the heap. Copy into the larger buffer first, then
+        // zero the outgrown one before releasing it.
+        if buffer.capacity < buffer.count + chunk.count {
+            var bigger: [UInt8] = []
+            bigger.reserveCapacity(max(buffer.capacity * 2, buffer.count + chunk.count))
+            bigger.append(contentsOf: buffer)
+            buffer.withUnsafeMutableBufferPointer { ptr in
+                guard let oldBase = ptr.baseAddress else { return }
+                oldBase.initialize(repeating: 0, count: ptr.count)
+            }
+            buffer = bigger
+        }
         let typed = UnsafeBufferPointer(
             start: base.assumingMemoryBound(to: UInt8.self),
             count: chunk.count
@@ -86,7 +104,7 @@ public struct SecureBytesSink: ByteSink {
     /// to the data — the caller is responsible for using it inside a
     /// scoped accessor and dropping it promptly.
     public mutating func takeSecureBytes() -> SecureBytes {
-        let bytes = SecureBytes(Data(buffer))
+        let bytes = SecureBytes(buffer)
         buffer.withUnsafeMutableBufferPointer { ptr in
             guard let base = ptr.baseAddress else { return }
             base.initialize(repeating: 0, count: ptr.count)
