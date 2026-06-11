@@ -82,10 +82,11 @@ struct HeaderReader: Sendable {
 
         let formatVersionValue = try readUInt32()
         let formatVersion = Header.FormatVersion(rawValue: formatVersionValue)
-        let supportedFormatVersions: [Header.FormatVersion] = [
-            .v4_0,
-            .v4_1,
-        ]
+        // The 4.x slice of the canonical supported set — this reader only
+        // handles major 4 (the 3.x framing has a separate reader). Derived
+        // rather than literal so the supported-format rule lives in exactly
+        // one place (`Header.FormatVersion.supported`).
+        let supportedFormatVersions = Header.FormatVersion.supported.filter { $0.major == 4 }
         if !supportedFormatVersions.contains(formatVersion) {
             throw Error.unsupportedFormatVersion(major: formatVersion.major, minor: formatVersion.minor)
         }

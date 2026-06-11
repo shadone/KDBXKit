@@ -138,7 +138,11 @@ struct Header3xReader: Sendable {
         // variant we'd otherwise reject downstream with a
         // .corrupted("Unsupported inner random stream ID") that's less
         // informative than an upfront version-level rejection.
-        let supportedFormatVersions: [Header.FormatVersion] = [.v3_1]
+        //
+        // The 3.x slice of the canonical supported set (currently just
+        // 3.1), derived rather than literal so the supported-format rule
+        // lives in exactly one place (`Header.FormatVersion.supported`).
+        let supportedFormatVersions = Header.FormatVersion.supported.filter { $0.major == 3 }
         if !supportedFormatVersions.contains(formatVersion) {
             throw .unsupportedFormatVersion(major: formatVersion.major, minor: formatVersion.minor)
         }

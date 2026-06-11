@@ -77,6 +77,23 @@ public struct Header: Sendable, Equatable {
         public static let v4_0: FormatVersion = .init(major: 4, minor: 0)
         public static let v4_1: FormatVersion = .init(major: 4, minor: 1)
 
+        /// The exact set of on-disk format versions KDBXKit can read.
+        ///
+        /// Single source of truth for "can we open this format?". The
+        /// route-specific readers derive their accept lists from this
+        /// (``HeaderReader`` takes the `major == 4` slice, `Header3xReader`
+        /// the `major == 3` slice), and ``KDBXReader/assertSupportedFormat(_:)``
+        /// checks membership for header-only callers (peek paths) that
+        /// skip the KDF. When KDBX 5 lands — or a 4.x subvariant is
+        /// dropped — this is the one place to edit.
+        public static let supported: [FormatVersion] = [.v3_1, .v4_0, .v4_1]
+
+        /// Whether KDBXKit can read this format. Equivalent to membership
+        /// in ``supported``.
+        public var isSupported: Bool {
+            Self.supported.contains(self)
+        }
+
         /// Whether the format predates KDBX 4 (i.e. uses the 3.x on-disk
         /// shape: `UInt16` header field lengths, `StreamStartBytes`,
         /// hashed block stream, inline XML binaries, ISO-8601 dates).

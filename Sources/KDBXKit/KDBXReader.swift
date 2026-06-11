@@ -202,6 +202,26 @@ public struct KDBXReader: Sendable {
         return header
     }
 
+    /// Reject a header whose format version KDBXKit cannot open.
+    ///
+    /// Single, header-only restatement of the version gate the read
+    /// pipeline already enforces inside the route-specific readers
+    /// (``Header/FormatVersion/supported``). `parse` / `parse3x` reject
+    /// unsupported versions during the header walk, so a full unlock
+    /// never needs this; it exists for callers that inspect a header via
+    /// ``parseHeader(_:)`` and then decide whether to proceed *without*
+    /// paying the KDF — peek paths. Using it (rather than an inline
+    /// `major == 4` test) keeps the supported-format rule in one place,
+    /// so peek can't drift from what `parse` actually accepts.
+    public static func assertSupportedFormat(_ header: Header) throws(Error) {
+        guard header.formatVersion.isSupported else {
+            throw .unsupportedFormatVersion(
+                major: header.formatVersion.major,
+                minor: header.formatVersion.minor
+            )
+        }
+    }
+
     // MARK: Read <token> helpers
 
     /// Read the format major version (without advancing `pos`). Returns
