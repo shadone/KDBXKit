@@ -57,7 +57,14 @@ final class StreamingBinaryExtractor: StreamingByteConsumer {
 
     func finalize() throws {
         // Nothing buffered to flush — the sink is finalized by the caller,
-        // which owns its lifetime.
+        // which owns its lifetime. But a stream that ends while the target
+        // is still draining must fail loudly: finalizing here would hand
+        // the caller a silently truncated attachment.
+        if capturing, binaryRemaining > 0 {
+            throw KDBXReader.Error.corruptedInnerHeader(
+                reason: "Stream ended mid-binary: \(binaryRemaining) bytes of binary \(targetIndex) missing"
+            )
+        }
     }
 
     private func parse() throws {
