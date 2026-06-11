@@ -310,12 +310,20 @@ struct XMLDocumentTests {
 
     @Test("Reader parses <Value Protected=\"True\">…</Value> on inline binary")
     func parser_inlineBinary_protectedTrue() throws {
-        let bin = try parseInlineBinaryXML(valueElement: #"<Value Protected="True">AQID</Value>"#)
+        // Protected="True" means the on-disk bytes are keystream
+        // ciphertext (same as protected strings) — build the fixture by
+        // XOR-encrypting the plaintext at offset 0 with the same mock
+        // keystream the parse helper hands the reader.
+        let plain = Data([1, 2, 3])
+        let cipher = Self.mockKeystream().decrypt(ciphertext: plain, at: 0).toData()
+        let bin = try parseInlineBinaryXML(
+            valueElement: #"<Value Protected="True">\#(cipher.base64EncodedString())</Value>"#
+        )
         guard case let .inline(data, protected) = bin.value else {
             Issue.record("Expected inline value, got \(bin.value)")
             return
         }
-        #expect(data == Data([1, 2, 3]))
+        #expect(data == plain)
         #expect(protected == true)
     }
 
@@ -378,27 +386,31 @@ struct XMLDocumentTests {
         let data = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
         let xml = String(validating: data, as: UTF8.self)!
 
-        // Literal-string check: protected attribute is on p.bin's Value,
-        // absent on u.bin's Value. Brittle but explicit — guards against
-        // the writer silently dropping the attribute.
-        #expect(xml.contains(#"<Value Protected="True">CQgH</Value>"#))
+        // The protected attribute is on p.bin's Value (whose content is
+        // now keystream ciphertext — NOT the raw CQgH bytes), and absent
+        // on u.bin's Value, which stays raw base64.
+        #expect(xml.contains(#"<Value Protected="True">"#))
+        #expect(!xml.contains(#"<Value Protected="True">CQgH</Value>"#))
         #expect(xml.contains("<Value>AQID</Value>"))
 
-        // Round-trip: re-read and confirm flags survived.
+        // Round-trip: re-read and confirm flags AND bytes survived (the
+        // reader keystream-decrypts the protected one).
         let reader = try XMLDocumentReader(
             xmlDocument: xml,
             keystreamSource: try innerHeader.makeKeystreamSource()
         )
         let parsed = try reader.parse()
         let bins = parsed.root.group.entries.first!.binaries
-        guard case let .inline(_, p1) = bins[0].value, p1 == true else {
+        guard case let .inline(d1, p1) = bins[0].value, p1 == true else {
             Issue.record("p.bin lost its protected flag")
             return
         }
-        guard case let .inline(_, p2) = bins[1].value, p2 == false else {
+        #expect(d1 == Data([9, 8, 7]))
+        guard case let .inline(d2, p2) = bins[1].value, p2 == false else {
             Issue.record("u.bin gained a protected flag")
             return
         }
+        #expect(d2 == Data([1, 2, 3]))
     }
 
     // MARK: Lenient parsing of negative integer fields

@@ -388,11 +388,20 @@ struct XMLDocumentWriter {
 
         case let .inline(data, protected):
             if protected {
+                // Same inner-stream treatment as protected strings:
+                // Protected="True" means the value is XOR'd with the
+                // shared keystream, consumed in document order — KeePass
+                // and KeePassXC XOR-decrypt this value on open, so
+                // emitting raw bytes here would hand them ciphertext AND
+                // shift every later protected value's offset.
+                let encrypted = Data(encryptor.encrypt(Array(data)))
+                valueNode.addText(encode(encrypted))
                 valueNode.attributes = [
                     (name: "Protected", value: "True"),
                 ]
+            } else {
+                valueNode.addText(encode(data))
             }
-            valueNode.addText(encode(data))
         }
     }
 

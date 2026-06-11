@@ -1206,9 +1206,24 @@ struct XMLDocumentReader {
             guard let data = Data(base64Encoded: rawValue) else {
                 throw .corrupted(reason: "Failed to parse base64 inline data in ProtectedBinary in \(node.fullyQualifiedName)")
             }
-            value = .inline(data, protected: protected)
+            if protected {
+                // Protected inline binaries are XOR'd with the shared
+                // inner keystream exactly like protected strings,
+                // consuming it in document order (KeePass and KeePassXC
+                // both do this). Decrypt eagerly — the model carries
+                // inline bytes as plain Data — and advance the shared
+                // cursor so every later protected value decrypts at the
+                // right offset.
+                let decrypted = keystreamSource.decrypt(ciphertext: data, at: cursor.position).toData()
+                cursor.advance(by: data.count)
+                value = .inline(decrypted, protected: true)
+            } else {
+                value = .inline(data, protected: false)
+            }
         } else {
-            preconditionFailure()
+            // Unreachable while the guard above holds, but a parse path
+            // never gets a trap primitive — corrupt input throws.
+            throw .corrupted(reason: "ProtectedBinary in \(node.fullyQualifiedName) had neither Ref nor Value")
         }
 
         return .init(key: key, value: value)
