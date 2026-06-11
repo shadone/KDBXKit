@@ -36,38 +36,44 @@ struct PasskeyCommandTests {
     /// and a stray `KDBX_PASSWORD` makes their reads fail. stdin and stdout are
     /// both redirected through pipes only for the duration of the run.
     private func runCapturingStdout(_ argv: [String]) throws -> String {
-        // Feed the password on stdin.
-        let inPipe = Pipe()
-        inPipe.fileHandleForWriting.write(Data("123".utf8))
-        try inPipe.fileHandleForWriting.close()
-        let savedStdin = dup(STDIN_FILENO)
-        dup2(inPipe.fileHandleForReading.fileDescriptor, STDIN_FILENO)
+        // Held under the process-global stdio lock: this swaps both
+        // STDIN_FILENO and STDOUT_FILENO, which would otherwise race the
+        // stdin swaps in other CLI suites running in parallel (see
+        // `CLITestSupport`).
+        try withExclusiveStdio {
+            // Feed the password on stdin.
+            let inPipe = Pipe()
+            inPipe.fileHandleForWriting.write(Data("123".utf8))
+            try inPipe.fileHandleForWriting.close()
+            let savedStdin = dup(STDIN_FILENO)
+            dup2(inPipe.fileHandleForReading.fileDescriptor, STDIN_FILENO)
 
-        // Capture stdout.
-        let outPipe = Pipe()
-        let savedStdout = dup(STDOUT_FILENO)
-        // fflush(nil) flushes every open output stream. We avoid naming
-        // `stdout` directly: on glibc it's a mutable global var that Swift 6
-        // strict concurrency rejects as non-Sendable (Darwin declares it as
-        // a function-like macro, so referencing it there compiles).
-        fflush(nil)
-        dup2(outPipe.fileHandleForWriting.fileDescriptor, STDOUT_FILENO)
+            // Capture stdout.
+            let outPipe = Pipe()
+            let savedStdout = dup(STDOUT_FILENO)
+            // fflush(nil) flushes every open output stream. We avoid naming
+            // `stdout` directly: on glibc it's a mutable global var that Swift 6
+            // strict concurrency rejects as non-Sendable (Darwin declares it as
+            // a function-like macro, so referencing it there compiles).
+            fflush(nil)
+            dup2(outPipe.fileHandleForWriting.fileDescriptor, STDOUT_FILENO)
 
-        var cmd = try App.parseAsRoot(argv + ["--password-stdin"])
-        try cmd.run()
+            var cmd = try App.parseAsRoot(argv + ["--password-stdin"])
+            try cmd.run()
 
-        // Restore the real stdin/stdout *before* reading the pipe. While fd 1
-        // is still duped onto the pipe's write end, the write end is "open" and
-        // readDataToEndOfFile() would block forever waiting for EOF.
-        fflush(nil)
-        dup2(savedStdout, STDOUT_FILENO)
-        close(savedStdout)
-        dup2(savedStdin, STDIN_FILENO)
-        close(savedStdin)
-        try outPipe.fileHandleForWriting.close()
+            // Restore the real stdin/stdout *before* reading the pipe. While fd 1
+            // is still duped onto the pipe's write end, the write end is "open" and
+            // readDataToEndOfFile() would block forever waiting for EOF.
+            fflush(nil)
+            dup2(savedStdout, STDOUT_FILENO)
+            close(savedStdout)
+            dup2(savedStdin, STDIN_FILENO)
+            close(savedStdin)
+            try outPipe.fileHandleForWriting.close()
 
-        let data = outPipe.fileHandleForReading.readDataToEndOfFile()
-        return String(data: data, encoding: .utf8) ?? ""
+            let data = outPipe.fileHandleForReading.readDataToEndOfFile()
+            return String(data: data, encoding: .utf8) ?? ""
+        }
     }
 
     @Test("passkey ls lists relying party and username")

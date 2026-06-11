@@ -45,19 +45,11 @@ struct ProtectedFieldChannelTests {
         return content
     }
 
-    /// Run argv with `value` fed on stdin (fd swap restored before return).
+    /// Run argv with `value` fed on stdin. Delegates to the shared,
+    /// process-globally-locked helper so it can't race another suite's
+    /// stdin swap (see `CLITestSupport`).
     private func runWithStdin(_ argv: [String], stdin value: String) throws {
-        let inPipe = Pipe()
-        inPipe.fileHandleForWriting.write(Data(value.utf8))
-        try inPipe.fileHandleForWriting.close()
-        let savedStdin = dup(STDIN_FILENO)
-        dup2(inPipe.fileHandleForReading.fileDescriptor, STDIN_FILENO)
-        defer {
-            dup2(savedStdin, STDIN_FILENO)
-            close(savedStdin)
-        }
-        var cmd = try App.parseAsRoot(argv)
-        try cmd.run()
+        try runAppWithStdin(argv, stdin: value)
     }
 
     @Test("entry add --protected-field-stdin reads the secret from stdin, not argv")
