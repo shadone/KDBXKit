@@ -15,57 +15,32 @@ class VariantDictionaryReader {
         case unexpectedEOF
     }
 
-    let data: Data
-    var pos: Data.Index
+    var cursor: ByteCursor
 
     init(data: Data) {
-        self.data = data
-        pos = data.startIndex
+        cursor = ByteCursor(data)
     }
 
     // MARK: Read <token> helpers
 
+    //
+    // Bounds-checking lives in `ByteCursor`; these adapters only re-wrap its
+    // `unexpectedEOF` into this reader's `Error`.
+
     private func readUInt8() throws(Error) -> UInt8 {
-        // `pos` is an absolute Data.Index (as `readData` below treats it).
-        // Compare against endIndex, not count, and index `data` directly so
-        // both helpers agree even for a non-zero-based slice.
-        if pos.advanced(by: 1) > data.endIndex {
-            throw Error.unexpectedEOF
-        }
-
-        let b = data[pos]
-
-        pos = pos.advanced(by: 1)
-
-        return b
+        do { return try cursor.readUInt8() } catch { throw .unexpectedEOF }
     }
 
     private func readUInt16() throws(Error) -> UInt16 {
-        try readData(length: 2).asUInt16LE()! // safe to force unwrap as we guaranteed to read enough bytes
+        do { return try cursor.readUInt16LE() } catch { throw .unexpectedEOF }
     }
 
     private func readInt32() throws(Error) -> Int32 {
-        try readData(length: 4).asInt32LE()! // safe to force unwrap as we guaranteed to read enough bytes
+        do { return try cursor.readInt32LE() } catch { throw .unexpectedEOF }
     }
 
     private func readData(length: Int) throws(Error) -> Data {
-        // Reject a negative length (signed wire field with the high bit set)
-        // before it builds a reversed `start..<end` Range and traps.
-        if length < 0 {
-            throw Error.unexpectedEOF
-        }
-        let start = pos
-        let end = start.advanced(by: length)
-
-        if end > data.endIndex {
-            throw Error.unexpectedEOF
-        }
-
-        let subdata = data[start..<end]
-
-        pos = end
-
-        return subdata
+        do { return try cursor.readData(length: length) } catch { throw .unexpectedEOF }
     }
 
     // MARK: Public API
