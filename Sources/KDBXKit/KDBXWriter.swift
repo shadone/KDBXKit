@@ -202,11 +202,12 @@ public struct KDBXWriter {
             throw .streamNotOpen
         }
 
-        // Per the KDBX spec: masterSalt, encryptionNonce, and Argon2 salt
-        // MUST be regenerated on every save. Reusing them with the same key
-        // gives an attacker access to the same ciphertext for the same
-        // plaintext, weakening confidentiality. Default-on; the round-trip
-        // tests can opt out for exact byte-equality.
+        // Per the KDBX spec: masterSalt, encryptionNonce, the KDF salt, and
+        // the inner random-stream key MUST be regenerated on every save.
+        // Reusing them with the same key gives an attacker access to the
+        // same ciphertext for the same plaintext, weakening confidentiality.
+        // Default-on; the round-trip tests can opt out for exact
+        // byte-equality.
         var preparedContent = regenerateSalts ? Self.regeneratingSalts(in: content) : content
 
         // ``KDBXWriter`` only emits the KDBX 4 on-disk shape — UInt32
@@ -366,9 +367,10 @@ public struct KDBXWriter {
     }
 
     /// Returns a copy of `content` with fresh CSPRNG bytes for the master
-    /// salt, encryption nonce, and KDF salt. Per KDBX spec these must be
-    /// regenerated on every save — leaving them stale across saves weakens
-    /// confidentiality (same key + same plaintext → same ciphertext).
+    /// salt, encryption nonce, KDF salt, and inner random-stream key. Per
+    /// KDBX spec these must be regenerated on every save — leaving them
+    /// stale across saves weakens confidentiality (same key + same
+    /// plaintext → same ciphertext).
     /// Upgrade `content.header.formatVersion` to the on-disk format the
     /// writer actually emits when the input is from a pre-4 format.
     ///
@@ -447,10 +449,23 @@ public struct KDBXWriter {
             publicCustomData: header.publicCustomData
         )
 
+        // The inner random-stream key is regenerated per save as well
+        // (KeePass and KeePassXC do the same). Safe for lazyInnerCipher
+        // values: they decrypt with the reader's retained keystream
+        // source and re-encrypt with the writer's fresh encryptor. The
+        // key length is fixed per algorithm.
+        var newInnerHeader = content.innerHeader
+        let innerKeyLength: Int
+        switch newInnerHeader.encryptionAlgorithm {
+        case .ChaCha20: innerKeyLength = 64
+        case .Salsa20: innerKeyLength = 32
+        }
+        newInnerHeader.encryptionKey = SecureBytes(SecureRandom.bytes(innerKeyLength))
+
         return KDBXContent(
             database: content.database,
             header: newHeader,
-            innerHeader: content.innerHeader
+            innerHeader: newInnerHeader
         )
     }
 }
