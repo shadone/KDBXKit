@@ -92,6 +92,31 @@ struct SnapshotEncoderTests {
         #expect(!json.contains(keyBytes.hexString))
     }
 
+    /// The library intentionally parses vaults with dangling binary refs
+    /// (a validation warning, not an error), so the read-only snapshot
+    /// types must report them — never trap on the out-of-range subscript.
+    @Test("BinarySnapshot reports a dangling ref instead of trapping")
+    func binarySnapshotDanglingRef() {
+        let ih = InnerHeader(encryptionAlgorithm: .ChaCha20, encryptionKey: SecureBytes(Data(count: 64)), binaryContent: [])
+        let snap = BinarySnapshot(
+            binary: .init(key: "gone.bin", value: .ref(5)),
+            innerHeader: ih
+        )
+        #expect(snap.dangling)
+        #expect(snap.ref == 5)
+        #expect(snap.size == 0)
+    }
+
+    @Test("AttachmentListSnapshot reports a dangling ref instead of trapping")
+    func attachmentListSnapshotDanglingRef() {
+        let ih = InnerHeader(encryptionAlgorithm: .ChaCha20, encryptionKey: SecureBytes(Data(count: 64)), binaryContent: [])
+        var entry = KDBX.Entry(uuid: UUID())
+        entry.binaries = [.init(key: "gone.bin", value: .ref(5))]
+        let snap = AttachmentListSnapshot(entry: entry, innerHeader: ih)
+        #expect(snap.attachments.first?.dangling == true)
+        #expect(snap.attachments.first?.size == 0)
+    }
+
     @Test("ValidationSnapshot.shouldFail honors --level threshold")
     func validationThreshold() {
         let warningsOnly = ValidationSnapshot(issues: [.warning("w")])

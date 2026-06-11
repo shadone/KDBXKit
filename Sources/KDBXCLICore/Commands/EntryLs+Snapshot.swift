@@ -147,6 +147,11 @@ struct BinarySnapshot: Encodable {
     let source: Source
     let size: Int
     let ref: UInt32?
+    /// True when `ref` points outside the binary pool. The library
+    /// intentionally parses such vaults (validation warning only), so
+    /// read-only commands must report the corruption, not trap on the
+    /// out-of-range subscript.
+    let dangling: Bool
 
     init(binary: KDBX.ProtectedBinary, innerHeader: InnerHeader) {
         key = binary.key
@@ -155,11 +160,17 @@ struct BinarySnapshot: Encodable {
             source = .inline
             size = data.count
             ref = nil
+            dangling = false
         case let .ref(idx):
             source = .ref
-            let data = innerHeader.binaryContent[Int(idx)].data
-            size = data.count
             ref = idx
+            if Int(idx) < innerHeader.binaryContent.count {
+                size = innerHeader.binaryContent[Int(idx)].data.count
+                dangling = false
+            } else {
+                size = 0
+                dangling = true
+            }
         }
     }
 }

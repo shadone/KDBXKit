@@ -61,6 +61,8 @@ struct EntryDetailSnapshot: Encodable {
                 switch binary.source {
                 case .inline:
                     print("\t\(binary.key): \(binary.size) bytes")
+                case .ref where binary.dangling:
+                    print("\t\(binary.key): ref=\(binary.ref ?? 0): DANGLING (no such pool entry)")
                 case .ref:
                     print("\t\(binary.key): ref=\(binary.ref ?? 0): \(binary.size) bytes")
                 }

@@ -60,6 +60,9 @@ struct AttachmentListSnapshot: Encodable {
         let size: Int
         let ref: UInt32?
         let protectedOnDisk: Bool
+        /// Mirrors ``BinarySnapshot/dangling`` — the ref points outside
+        /// the binary pool of a corrupt-but-parseable vault.
+        let dangling: Bool
     }
 
     init(entry: KDBX.Entry, innerHeader: InnerHeader) {
@@ -72,16 +75,28 @@ struct AttachmentListSnapshot: Encodable {
                     source: .inline,
                     size: data.count,
                     ref: nil,
-                    protectedOnDisk: protected
+                    protectedOnDisk: protected,
+                    dangling: false
                 )
             case let .ref(idx):
+                guard Int(idx) < innerHeader.binaryContent.count else {
+                    return Attachment(
+                        key: binary.key,
+                        source: .ref,
+                        size: 0,
+                        ref: idx,
+                        protectedOnDisk: false,
+                        dangling: true
+                    )
+                }
                 let element = innerHeader.binaryContent[Int(idx)]
                 return Attachment(
                     key: binary.key,
                     source: .ref,
                     size: element.data.count,
                     ref: idx,
-                    protectedOnDisk: element.shouldBeProtected
+                    protectedOnDisk: element.shouldBeProtected,
+                    dangling: false
                 )
             }
         }
@@ -97,6 +112,8 @@ struct AttachmentListSnapshot: Encodable {
             switch a.source {
             case .inline:
                 print("\(a.key): \(a.size) bytes (inline)\(prot)")
+            case .ref where a.dangling:
+                print("\(a.key): DANGLING (ref=\(a.ref ?? 0) has no pool entry)")
             case .ref:
                 print("\(a.key): \(a.size) bytes (ref=\(a.ref ?? 0))\(prot)")
             }
