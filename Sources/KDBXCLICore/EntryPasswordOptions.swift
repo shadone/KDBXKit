@@ -37,7 +37,7 @@ struct EntryPasswordOptions: ParsableArguments {
             if masterUsedStdin {
                 throw EntryPasswordError.bothStdin
             }
-            return try readStdinUntilEOF()
+            return readStdinUntilEOF()
         }
         if entryPasswordPrompt {
             guard isatty(STDIN_FILENO) != 0 else {
@@ -63,29 +63,5 @@ enum EntryPasswordError: Error, CustomStringConvertible {
     }
 }
 
-private func readStdinUntilEOF() throws -> String {
-    let data = FileHandle.standardInput.readDataToEndOfFile()
-    guard var s = String(data: data, encoding: .utf8) else { return "" }
-    if s.hasSuffix("\n") { s.removeLast() }
-    if s.hasSuffix("\r") { s.removeLast() }
-    return s
-}
-
-private func promptNoEcho(_ prompt: String) -> String {
-    FileHandle.standardError.write(Data(prompt.utf8))
-
-    var oldTerm = termios()
-    let haveTermios = tcgetattr(STDIN_FILENO, &oldTerm) == 0
-    if haveTermios {
-        var newTerm = oldTerm
-        newTerm.c_lflag &= ~tcflag_t(ECHO)
-        _ = tcsetattr(STDIN_FILENO, TCSAFLUSH, &newTerm)
-    }
-    defer {
-        if haveTermios {
-            _ = tcsetattr(STDIN_FILENO, TCSAFLUSH, &oldTerm)
-        }
-        FileHandle.standardError.write(Data("\n".utf8))
-    }
-    return readLine(strippingNewline: true) ?? ""
-}
+// readStdinUntilEOF / promptNoEcho live in SecretInput.swift, shared with
+// the other secret-input option groups.

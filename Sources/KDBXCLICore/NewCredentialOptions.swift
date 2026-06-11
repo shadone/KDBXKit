@@ -109,13 +109,8 @@ enum NewCredentialError: Error, CustomStringConvertible {
     }
 }
 
-private func readStdinUntilEOF() -> String {
-    let data = FileHandle.standardInput.readDataToEndOfFile()
-    guard var s = String(data: data, encoding: .utf8) else { return "" }
-    if s.hasSuffix("\n") { s.removeLast() }
-    if s.hasSuffix("\r") { s.removeLast() }
-    return s
-}
+// readStdinUntilEOF / promptNoEcho live in SecretInput.swift, shared with
+// the other secret-input option groups.
 
 private func promptForNewPassword() -> String {
     let first = promptNoEcho("New master password: ")
@@ -128,24 +123,4 @@ private func promptForNewPassword() -> String {
         exit(1)
     }
     return first
-}
-
-private func promptNoEcho(_ prompt: String) -> String {
-    FileHandle.standardError.write(Data(prompt.utf8))
-
-    var oldTerm = termios()
-    let haveTermios = tcgetattr(STDIN_FILENO, &oldTerm) == 0
-    if haveTermios {
-        var newTerm = oldTerm
-        newTerm.c_lflag &= ~tcflag_t(ECHO)
-        _ = tcsetattr(STDIN_FILENO, TCSAFLUSH, &newTerm)
-    }
-    defer {
-        if haveTermios {
-            _ = tcsetattr(STDIN_FILENO, TCSAFLUSH, &oldTerm)
-        }
-        FileHandle.standardError.write(Data("\n".utf8))
-    }
-
-    return readLine(strippingNewline: true) ?? ""
 }

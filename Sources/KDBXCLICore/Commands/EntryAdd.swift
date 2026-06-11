@@ -66,11 +66,16 @@ extension Entry {
             name: .customLong("protected-field"),
             parsing: .singleValue,
             help: ArgumentHelp(
-                "Add a custom field stored inner-cipher-encrypted on save. Repeatable.",
+                "Add a custom field stored inner-cipher-encrypted on save. Repeatable. "
+                    + "NOTE: the value is visible in `ps` and shell history; prefer "
+                    + "--protected-field-stdin / --protected-field-prompt for real secrets.",
                 valueName: "key=value"
             )
         )
         var protectedFields: [String] = []
+
+        @OptionGroup
+        var protectedFieldOptions: ProtectedFieldOptions
 
         @Option(
             name: .customLong("icon"),
@@ -92,7 +97,11 @@ extension Entry {
             // Parse field assignments. Reject standard-field names so users
             // don't end up with a duplicate Title that round-trips weirdly.
             let regularCustom = try customFields.map(EntryFieldAssignment.parse)
-            let protectedCustom = try protectedFields.map(EntryFieldAssignment.parse)
+            var protectedCustom = try protectedFields.map(EntryFieldAssignment.parse)
+            protectedCustom += try protectedFieldOptions.resolve(
+                masterUsedStdin: commonOptions.credentials.passwordFromStdin,
+                entryPasswordUsedStdin: entryPasswordOptions.entryPasswordFromStdin
+            )
             for f in regularCustom + protectedCustom where EntryField.standardKeys.contains(f.key) {
                 throw EntryFieldAssignmentError.standardFieldNotAllowed(f.key)
             }

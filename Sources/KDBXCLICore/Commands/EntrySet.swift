@@ -53,11 +53,16 @@ extension Entry {
             name: .customLong("protected-field"),
             parsing: .singleValue,
             help: ArgumentHelp(
-                "Set or replace a custom field stored inner-cipher-encrypted on save. Repeatable.",
+                "Set or replace a custom field stored inner-cipher-encrypted on save. Repeatable. "
+                    + "NOTE: the value is visible in `ps` and shell history; prefer "
+                    + "--protected-field-stdin / --protected-field-prompt for real secrets.",
                 valueName: "key=value"
             )
         )
         var protectedFields: [String] = []
+
+        @OptionGroup
+        var protectedFieldOptions: ProtectedFieldOptions
 
         @Option(
             name: .customLong("remove-field"),
@@ -108,7 +113,11 @@ extension Entry {
             }
 
             let regularCustom = try customFields.map(EntryFieldAssignment.parse)
-            let protectedCustom = try protectedFields.map(EntryFieldAssignment.parse)
+            var protectedCustom = try protectedFields.map(EntryFieldAssignment.parse)
+            protectedCustom += try protectedFieldOptions.resolve(
+                masterUsedStdin: commonOptions.credentials.passwordFromStdin,
+                entryPasswordUsedStdin: entryPasswordOptions.entryPasswordFromStdin
+            )
             for f in regularCustom + protectedCustom where EntryField.standardKeys.contains(f.key) {
                 throw EntryFieldAssignmentError.standardFieldNotAllowed(f.key)
             }
