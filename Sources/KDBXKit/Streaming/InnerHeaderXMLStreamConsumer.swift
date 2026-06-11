@@ -24,6 +24,13 @@ final class InnerHeaderXMLStreamConsumer: StreamingByteConsumer {
     private static let encryptionKey: UInt8 = 2
     private static let binaryContent: UInt8 = 3
 
+    /// Non-binary fields buffer whole before parsing, so their declared
+    /// length needs a ceiling: legitimate fields are tiny (a 4-byte
+    /// algorithm ID, a 64-byte key), and without a cap a crafted length
+    /// grows `pending` unboundedly — defeating the memory bound this
+    /// streaming path exists to provide.
+    static let maxSmallFieldLength = 1 << 20
+
     private enum Phase { case header, xml }
     private var phase: Phase = .header
 
@@ -105,12 +112,19 @@ final class InnerHeaderXMLStreamConsumer: StreamingByteConsumer {
             )
 
             if type == Self.binaryContent {
+                // The value is flags(1) ‖ payload — a zero-length value has
+                // no flags byte. The eager reader throws here too; consuming
+                // anyway would eat one byte of the NEXT record as the flags
+                // byte and desync all later parsing.
+                guard length >= 1 else {
+                    throw KDBXReader.Error.corruptedInnerHeader(reason: "Empty inner-header binaryContent field")
+                }
                 guard pending.count >= 6 else { return } // need the flags byte too
                 let flags = pending[5]
                 pending.removeFirst(6) // type + length + flags
                 absPos += 6
-                binaryProtected = (flags == 0x01)
-                binaryLength = max(0, length - 1) // value = flags(1) + payload
+                binaryProtected = (flags & 0x01) != 0
+                binaryLength = length - 1 // value = flags(1) + payload
                 binaryRemaining = binaryLength
                 binaryOffset = absPos
                 binaryHasher = SHA256()
@@ -119,6 +133,11 @@ final class InnerHeaderXMLStreamConsumer: StreamingByteConsumer {
             }
 
             // Small field: need the whole value buffered.
+            guard length <= Self.maxSmallFieldLength else {
+                throw KDBXReader.Error.corruptedInnerHeader(
+                    reason: "Inner-header field of type \(type) declares an implausible length \(length)"
+                )
+            }
             let total = 5 + length
             guard pending.count >= total else { return }
             let value = Array(pending[5..<total])

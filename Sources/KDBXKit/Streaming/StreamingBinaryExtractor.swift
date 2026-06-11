@@ -99,10 +99,16 @@ final class StreamingBinaryExtractor: StreamingByteConsumer {
             )
 
             if type == Self.binaryContent {
+                // value = flags(1) ‖ payload; a zero-length value has no
+                // flags byte, and consuming one anyway would desync every
+                // later record by a byte (mirrors InnerHeaderXMLStreamConsumer).
+                guard length >= 1 else {
+                    throw KDBXReader.Error.corruptedInnerHeader(reason: "Empty inner-header binaryContent field")
+                }
                 guard pending.count >= 6 else { return } // need the flags byte too
                 pending.removeFirst(6) // type + length + flags
                 currentBinaryIndex += 1
-                binaryRemaining = max(0, length - 1) // value = flags(1) + payload
+                binaryRemaining = length - 1 // value = flags(1) + payload
                 capturing = currentBinaryIndex == targetIndex
                 if capturing { found = true }
                 if binaryRemaining == 0, capturing {
@@ -122,6 +128,11 @@ final class StreamingBinaryExtractor: StreamingByteConsumer {
             }
 
             // Other small field (cipher algorithm / key) — skip its value.
+            guard length <= InnerHeaderXMLStreamConsumer.maxSmallFieldLength else {
+                throw KDBXReader.Error.corruptedInnerHeader(
+                    reason: "Inner-header field of type \(type) declares an implausible length \(length)"
+                )
+            }
             let total = 5 + length
             guard pending.count >= total else { return }
             pending.removeFirst(total)

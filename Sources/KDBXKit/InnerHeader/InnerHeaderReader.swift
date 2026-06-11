@@ -129,7 +129,7 @@ struct InnerHeaderReader {
                 } else {
                     binaryData = Data()
                 }
-                binaryContent.append(.init(shouldBeProtected: flags == 0x01, data: binaryData))
+                binaryContent.append(.init(shouldBeProtected: (flags & 0x01) != 0, data: binaryData))
             }
         }
 
@@ -210,7 +210,7 @@ struct InnerHeaderReader {
                 guard let flags = valueData.first else {
                     throw Error.corrupted(reason: "Empty inner-header binaryContent field")
                 }
-                let isProtected = (flags == 0x01)
+                let isProtected = (flags & 0x01) != 0
                 let binaryBytesOffset = valueStart + 1 // skip flags byte
                 let binaryBytesLength = max(0, Int(valueLength) - 1)
                 let binaryBytes: Data
