@@ -69,4 +69,95 @@ struct SecureBytesTests {
         b.hash(into: &hB)
         #expect(hA.finalize() == hB.finalize())
     }
+
+    @Test("A secret larger than the arena threshold round-trips")
+    func dedicatedLargeSecret() {
+        // 200 KiB exceeds the arena's large-secret threshold, so it lands in
+        // its own dedicated mlock'd region rather than the shared arena.
+        let bytes = (0..<(200 * 1024)).map { UInt8($0 & 0xFF) }
+        let s = SecureBytes(bytes)
+        #expect(s.count == bytes.count)
+        #expect(s.toData() == Data(bytes))
+    }
+
+    @Test("Mixed-size secrets coexisting in arenas all round-trip")
+    func mixedSizesRoundTrip() {
+        var held: [(SecureBytes, [UInt8])] = []
+        for i in 0..<500 {
+            let len = (i * 7) % 300 // 0..299, mix of empty and small
+            let bytes = (0..<len).map { UInt8(($0 &+ i) & 0xFF) }
+            held.append((SecureBytes(bytes), bytes))
+        }
+        for (secure, expected) in held {
+            #expect(secure.count == expected.count)
+            #expect(Array(secure.toData()) == expected)
+        }
+    }
+}
+
+// These tests use a private `SecureBytesArenaAllocator` instance rather than
+// the process-global one, so concurrently-running suites (which allocate
+// SecureBytes constantly) can't perturb the measurements.
+@Suite("SecureBytes — arena allocator")
+struct SecureBytesArenaTests {
+    @Test("Small secrets pack into shared arenas, not one per secret")
+    func packsManySecretsPerArena() {
+        let allocator = SecureBytesArenaAllocator()
+        var arenaIDs = Set<ObjectIdentifier>()
+        let n = 4000
+        for _ in 0..<n {
+            let (arena, _) = allocator.allocate(24)
+            arenaIDs.insert(ObjectIdentifier(arena))
+        }
+        // 24 B rounds to a 32 B slot; n * 32 B = 128 KiB across 64 KiB
+        // arenas is a literal handful — nowhere near `n`. Pre-arena this
+        // wired effectively one page per secret, which is the bug.
+        #expect(arenaIDs.count < n / 100)
+    }
+
+    @Test("Wired arena memory stays proportional to the data, not the count")
+    func wiredMemoryProportionalToData() {
+        let allocator = SecureBytesArenaAllocator()
+        var arenas: [SecureArena] = []
+        var seen = Set<ObjectIdentifier>()
+        let n = 4000
+        for _ in 0..<n {
+            let (arena, _) = allocator.allocate(24)
+            if seen.insert(ObjectIdentifier(arena)).inserted {
+                arenas.append(arena) // hold so we can sum sizes
+            }
+        }
+        let wired = arenas.reduce(0) { $0 + $1.size }
+        // ~96 KiB of payload; wired is a small multiple of that, NOT
+        // n * pageSize (which would be tens of MB).
+        #expect(wired < 1024 * 1024)
+    }
+
+    @Test("Large secrets get their own dedicated arena")
+    func largeSecretsAreDedicated() {
+        let allocator = SecureBytesArenaAllocator()
+        let big = allocator.largeThreshold + 1
+        let (a1, _) = allocator.allocate(big)
+        let (a2, _) = allocator.allocate(big)
+        #expect(ObjectIdentifier(a1) != ObjectIdentifier(a2))
+        #expect(a1.size >= big)
+    }
+
+    @Test("Concurrent construction from many tasks is safe")
+    func concurrentConstruction() async {
+        // Exercises the global allocator's lock under contention plus the
+        // lock-free read path. Asserts correctness, not memory.
+        await withTaskGroup(of: Bool.self) { group in
+            for i in 0..<2000 {
+                group.addTask {
+                    let payload = "secret-\(i)-value"
+                    let s = SecureBytes(utf8: payload)
+                    return s.revealedString == payload && s.count == payload.utf8.count
+                }
+            }
+            for await ok in group {
+                #expect(ok)
+            }
+        }
+    }
 }

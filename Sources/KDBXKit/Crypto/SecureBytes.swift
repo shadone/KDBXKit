@@ -23,16 +23,19 @@ import Foundation
 ///
 /// ## Mechanics
 ///
-/// 1. Allocates a **page-aligned** heap region (`posix_memalign`) so
-///    the entire region can be `mlock`'d.
-/// 2. Asks the kernel to `mlock` the page so it can't be paged out to
+/// 1. Sub-allocates its bytes from a shared, page-locked ``SecureArena``
+///    (large secrets get a dedicated arena). Many secrets share one
+///    `mlock`'d region, so a 12-byte password no longer wires a whole
+///    16 KiB page — see ``SecureArena`` for why that amplification
+///    matters on memory-capped hosts like the iOS AutoFill extension.
+/// 2. The arena's pages are `mlock`'d so secrets can't be paged out to
 ///    disk (best-effort — `RLIMIT_MEMLOCK` can refuse and we proceed
 ///    anyway; a non-pinned page still holds the bytes, it just isn't
 ///    protected against swap).
-/// 3. **Zeroes the bytes** when the last reference releases — via
-///    `memset_s` on Apple/BSD or `explicit_bzero` on Linux. Both are
-///    functions the compiler is forbidden from optimizing away. Then
-///    `munlock`s and `free`s.
+/// 3. **Zeroes its slice** when the last reference releases — via
+///    `memset_s` on Apple/BSD or `explicit_bzero` on Linux, functions
+///    the compiler is forbidden from optimizing away. The arena itself
+///    is `munlock`'d and freed (by ARC) once its last secret is gone.
 ///
 /// ## Access
 ///
@@ -48,51 +51,40 @@ import Foundation
 /// reallocate or copy under the hood, defeating the zero-on-deinit
 /// guarantee.
 public final class SecureBytes: @unchecked Sendable, Equatable, CustomStringConvertible, Hashable {
-    /// Page-aligned heap pointer we own.
-    private let buffer: UnsafeMutableRawPointer
-    /// Allocated size, rounded up to the page. Always ≥ count.
-    private let allocated: Int
+    /// The `mlock`'d arena our bytes live in (`nil` for an empty buffer).
+    /// Held strong so the arena's wired pages outlive this slice — ARC
+    /// `munlock`s and frees the arena when its last secret is released.
+    private let arena: SecureArena?
+    /// Pointer to our slice within ``arena`` (`nil` for an empty buffer).
+    private let dataPtr: UnsafeMutableRawPointer?
     /// Logical byte count exposed to callers.
     public let count: Int
 
     // MARK: - Initialisers
 
     /// Build a SecureBytes from any byte sequence. The source is copied into
-    /// the page-locked buffer; the source's own backing memory is untouched
-    /// (the caller is responsible for handling that source — if it was a
-    /// `Data`/`[UInt8]`, the original bytes are still reachable through that
-    /// reference until ARC collects them).
+    /// the page-locked arena slice; the source's own backing memory is
+    /// untouched (the caller is responsible for handling that source — if it
+    /// was a `Data`/`[UInt8]`, the original bytes are still reachable through
+    /// that reference until ARC collects them).
     public init(_ bytes: some Sequence<UInt8>) {
         let array = Array(bytes)
         let count = array.count
         self.count = count
 
-        let pageSize = Int(getpagesize())
-        // Always allocate at least one page so we have something to `mlock`.
-        let logical = Swift.max(count, 1)
-        let allocated = ((logical + pageSize - 1) / pageSize) * pageSize
-        self.allocated = allocated
-
-        var ptr: UnsafeMutableRawPointer?
-        let rc = posix_memalign(&ptr, pageSize, allocated)
-        guard rc == 0, let buffer = ptr else {
-            // System-level OOM. Not reachable from adversarial input —
-            // `posix_memalign` failure means the kernel refused a small
-            // page-aligned allocation, which a host process can't recover
-            // from in any useful way. Crashing here is the honest answer.
-            fatalError("SecureBytes: posix_memalign failed (\(rc), requested \(allocated) bytes)")
+        // An empty secret owns no arena slice — nothing to `mlock`, nothing
+        // to zero. `withUnsafeBytes` hands back a zero-length buffer.
+        if count == 0 {
+            self.arena = nil
+            dataPtr = nil
+            return
         }
-        self.buffer = buffer
 
-        // Best-effort mlock — silently ignore failures (e.g. when the
-        // RLIMIT_MEMLOCK rlimit prevents pinning; the page can still hold
-        // the bytes, it just isn't pinned against swap).
-        _ = mlock(buffer, allocated)
-
-        if count > 0 {
-            array.withUnsafeBufferPointer { source in
-                buffer.copyMemory(from: source.baseAddress!, byteCount: count)
-            }
+        let (arena, pointer) = secureBytesArenaAllocator.allocate(count)
+        self.arena = arena
+        dataPtr = pointer
+        array.withUnsafeBufferPointer { source in
+            pointer.copyMemory(from: source.baseAddress!, byteCount: count)
         }
     }
 
@@ -120,17 +112,14 @@ public final class SecureBytes: @unchecked Sendable, Equatable, CustomStringConv
     public var isEmpty: Bool { count == 0 }
 
     deinit {
-        // Zero the buffer with a function the compiler can't optimize
-        // away. On Apple/BSD we use `memset_s` (C11 Annex K); on Linux
-        // we use `explicit_bzero` (glibc ≥ 2.25, musl ≥ 1.1.20). Then
-        // unlock the page and return it to the heap.
-        #if canImport(Darwin)
-        memset_s(buffer, allocated, 0, allocated)
-        #else
-        explicit_bzero(buffer, allocated)
-        #endif
-        _ = munlock(buffer, allocated)
-        free(buffer)
+        // Zero our slice promptly, with a function the compiler can't
+        // optimize away (`secureZero` → `memset_s` / `explicit_bzero`).
+        // The `arena` reference is released only after this returns, so
+        // its pages stay valid (and wired) across the zero; the arena is
+        // `munlock`'d and freed by ARC once its last secret is gone.
+        if let dataPtr {
+            secureZero(dataPtr, count)
+        }
     }
 
     // MARK: - Read access
@@ -139,7 +128,9 @@ public final class SecureBytes: @unchecked Sendable, Equatable, CustomStringConv
     /// invalidated when `body` returns — do not let it escape.
     @discardableResult
     public func withUnsafeBytes<R>(_ body: (UnsafeRawBufferPointer) throws -> R) rethrows -> R {
-        try body(UnsafeRawBufferPointer(start: buffer, count: count))
+        // `dataPtr` is nil only when count == 0, where a nil-start /
+        // zero-count buffer is well-formed and never dereferenced.
+        try body(UnsafeRawBufferPointer(start: dataPtr, count: count))
     }
 
     /// UTF-8 decode the bytes into a `String` for the lifetime of `body`,
