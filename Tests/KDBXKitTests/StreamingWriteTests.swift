@@ -223,6 +223,79 @@ struct StreamingWriteTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: dir.path) == ["vault.kdbx"])
     }
 
+    @Test("Eager and streaming writers produce equivalent vaults for the same content")
+    func eagerAndStreamingAreEquivalent() throws {
+        // Build a content with attachments (protected and not), protected
+        // strings, history, and custom data — the surface where a
+        // serialization-level invariant could diverge between the two
+        // writers. This is the regression net for the stale-lazyContent
+        // class of bug, which a single writer's round-trip can't catch.
+        var content = try KDBXReader.parse(
+            try Data(contentsOf: fixtureURL("simple-argon2id-aes256")),
+            unlockData: .init(masterPassword: "123")
+        )
+        let payloads: [Data] = [
+            Data((0..<2048).map { UInt8($0 & 0xFF) }),
+            Data("a short secret attachment".utf8),
+            Data(),
+        ]
+        content.innerHeader.binaryContent = payloads.enumerated().map { i, p in
+            .init(shouldBeProtected: i.isMultiple(of: 2), data: p)
+        }
+        var entry = KDBX.Entry(uuid: UUID())
+        entry.strings = [
+            .init(key: "Title", value: .regular("Equiv")),
+            .init(key: "Password", value: .unprotected("p@ss-word")),
+            .init(key: "TOTP", value: .unprotected("otpauth://x")),
+        ]
+        entry.binaries = [
+            .init(key: "blob.bin", value: .ref(0)),
+            .init(key: "note.txt", value: .ref(1)),
+        ]
+        entry.customData = [.init(key: "k", value: "v")]
+        content.database.root.group.entries.append(entry)
+
+        let unlock = UnlockData(masterPassword: "123")
+
+        // Eager write.
+        let eagerStream = OutputStream(toMemory: ())
+        eagerStream.open()
+        try KDBXWriter(to: eagerStream).write(content, unlockData: unlock, regenerateSalts: false)
+        let eagerBytes = eagerStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
+        eagerStream.close()
+
+        // Streaming write of the SAME content + binaries.
+        let outURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString).kdbx")
+        defer { try? FileManager.default.removeItem(at: outURL) }
+        try KDBXWriter.streamingWrite(
+            to: outURL,
+            content: content,
+            binaries: payloads.enumerated().map { i, p in
+                DataBinarySource(p, shouldBeProtected: i.isMultiple(of: 2))
+            },
+            unlockData: unlock,
+            regenerateSalts: false
+        )
+        let streamingBytes = try Data(contentsOf: outURL)
+
+        // Parse both and assert the full database + inner-header pool match.
+        let fromEager = try KDBXReader.parse(eagerBytes, unlockData: unlock)
+        let fromStreaming = try KDBXReader.parse(streamingBytes, unlockData: unlock)
+
+        #expect(fromEager.database == fromStreaming.database)
+        #expect(fromEager.innerHeader.binaryContent == fromStreaming.innerHeader.binaryContent)
+        #expect(fromEager.header.encryptionAlgorithm == fromStreaming.header.encryptionAlgorithm)
+        #expect(fromEager.header.compressionAlgorithm == fromStreaming.header.compressionAlgorithm)
+
+        // The decrypted attachments and protected strings must match too.
+        for i in payloads.indices {
+            #expect(fromEager.innerHeader.binaryContent[i].data == fromStreaming.innerHeader.binaryContent[i].data)
+            #expect(fromEager.innerHeader.binaryContent[i].shouldBeProtected
+                == fromStreaming.innerHeader.binaryContent[i].shouldBeProtected)
+        }
+    }
+
     private struct ThrowingBinarySource: BinarySource {
         struct Boom: Error { }
         var sizeBytes: Int { 8 }
