@@ -243,6 +243,12 @@ public struct KDBXReader: Sendable {
     }
 
     private mutating func readData(length: Int) throws(Error) -> Data {
+        // Reject a negative length (a signed wire field — e.g. the Int32
+        // block size — with its high bit set) before it builds a reversed
+        // `start..<end` Range and traps the process.
+        if length < 0 {
+            throw Error.unexpectedEOF
+        }
         let start = pos
         let end = pos.advanced(by: length)
 

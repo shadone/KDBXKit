@@ -46,6 +46,11 @@ class VariantDictionaryReader {
     }
 
     private func readData(length: Int) throws(Error) -> Data {
+        // Reject a negative length (signed wire field with the high bit set)
+        // before it builds a reversed `start..<end` Range and traps.
+        if length < 0 {
+            throw Error.unexpectedEOF
+        }
         let start = pos
         let end = start.advanced(by: length)
 

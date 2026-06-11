@@ -501,6 +501,12 @@ extension KDBXReader {
     /// public-ish so the helper functions above can call it without
     /// exposing parser internals.
     mutating func readDataPublic(length: Int) throws(KDBXReader.Error) -> Data {
+        // Reject a negative length (a signed wire field — e.g. the Int32
+        // block size on the lazy/streaming path — with its high bit set)
+        // before it builds a reversed `start..<end` Range and traps.
+        if length < 0 {
+            throw .unexpectedEOF
+        }
         let start = pos
         let end = pos.advanced(by: length)
         if end > data.endIndex {

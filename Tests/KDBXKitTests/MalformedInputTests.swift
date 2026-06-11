@@ -154,4 +154,89 @@ struct MalformedInputTests {
             )
         }
     }
+
+    // MARK: - Negative / empty length fields (no reversed-range traps)
+
+    /// Locate the first HMAC block's `size` field in a known-good 4.x file.
+    /// Layout after the outer header: header SHA-256 (32) ‖ header HMAC (32)
+    /// ‖ [ block HMAC (32) ‖ size (Int32 LE) ‖ block ]. The block size is a
+    /// *signed* Int32 on the wire; a high-bit value reads back negative.
+    private func firstBlockSizeFieldOffset(in data: Data) throws -> Int {
+        var reader = HeaderReader(data: data)
+        let (_, headerLength) = try reader.parse()
+        return headerLength + 32 + 32 + 32
+    }
+
+    /// A 4.x block whose `size` field has the high bit set decodes to a
+    /// negative `Int32`. `readData(length: Int(size))` then built a reversed
+    /// `start..<end` Range and trapped the process — and crucially this read
+    /// happens *before* the per-block HMAC check, so a corrupted (or
+    /// hostile) vault opened with the correct password aborted instead of
+    /// returning a typed error. Must be a clean throw on the eager path.
+    @Test("Negative 4.x block-stream size is rejected, not a reversed-range trap (eager)")
+    func negativeBlockSizeThrowsEager() throws {
+        let path = Bundle.module.path(forResource: "Resources/simple-aes256-aes256", ofType: "kdbx")!
+        var data = try Data(contentsOf: URL(filePath: path))
+
+        let off = try firstBlockSizeFieldOffset(in: data)
+        data[off] = 0xFF
+        data[off + 1] = 0xFF
+        data[off + 2] = 0xFF
+        data[off + 3] = 0xFF
+
+        #expect(throws: KDBXReader.Error.self) {
+            _ = try KDBXReader.parse(data, unlockData: .init(masterPassword: "123"))
+        }
+    }
+
+    /// Companion: the lazy / streaming block loop shares the same signed
+    /// `size` read (`readDataPublic`), so it must reject the same input
+    /// rather than trap.
+    @Test("Negative 4.x block-stream size is rejected, not a reversed-range trap (streaming)")
+    func negativeBlockSizeThrowsStreaming() throws {
+        let path = Bundle.module.path(forResource: "Resources/simple-aes256-aes256", ofType: "kdbx")!
+        var data = try Data(contentsOf: URL(filePath: path))
+
+        let off = try firstBlockSizeFieldOffset(in: data)
+        data[off] = 0xFF
+        data[off + 1] = 0xFF
+        data[off + 2] = 0xFF
+        data[off + 3] = 0xFF
+
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("kdbxkit-negblock-\(UUID().uuidString).kdbx")
+        try data.write(to: tmp)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        #expect(throws: KDBXReader.Error.self) {
+            _ = try KDBXReader.openMetadataStreaming(
+                from: .file(tmp),
+                unlockData: .init(masterPassword: "123")
+            )
+        }
+    }
+
+    /// An inner-header `binaryContent` (type 3) field with length 0 carries
+    /// no flags byte. The parser indexed `valueData[valueData.startIndex]`
+    /// unconditionally and trapped on the empty value. Must throw instead.
+    @Test("Empty inner-header binaryContent field is rejected, not an empty-subscript trap")
+    func emptyInnerBinaryContentThrows() {
+        // TLV: type=3 (binaryContent) ‖ Int32 length=0 ‖ (no value).
+        var reader = InnerHeaderReader(data: Data([3, 0, 0, 0, 0]))
+        #expect(throws: InnerHeaderReader.Error.self) {
+            _ = try reader.parse()
+        }
+    }
+
+    /// An inner-header field length is a signed `Int32` on the wire; a
+    /// high-bit value reads back negative and hit the same reversed-range
+    /// trap as the outer block size. Must throw.
+    @Test("Negative inner-header field length is rejected, not a reversed-range trap")
+    func negativeInnerFieldLengthThrows() {
+        // TLV: type=3 ‖ Int32 length=0xFFFFFFFF (-1) ‖ (no value).
+        var reader = InnerHeaderReader(data: Data([3, 0xFF, 0xFF, 0xFF, 0xFF]))
+        #expect(throws: InnerHeaderReader.Error.self) {
+            _ = try reader.parse()
+        }
+    }
 }

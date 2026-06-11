@@ -55,6 +55,11 @@ struct InnerHeaderReader {
     }
 
     private mutating func readData(length: Int) throws(Error) -> Data {
+        // Reject a negative length (signed Int32 field with the high bit
+        // set) before it builds a reversed `start..<end` Range and traps.
+        if length < 0 {
+            throw Error.unexpectedEOF
+        }
         let start = pos
         let end = pos.advanced(by: length)
 
@@ -108,7 +113,12 @@ struct InnerHeaderReader {
                 encryptionKey = valueData
 
             case .binaryContent:
-                let flags = valueData[valueData.startIndex]
+                // A binaryContent value is f ‖ C — at minimum the 1-byte
+                // flags. A zero-length value has no flags byte; reject it
+                // instead of trapping on the empty subscript.
+                guard let flags = valueData.first else {
+                    throw Error.corrupted(reason: "Empty inner-header binaryContent field")
+                }
                 let binaryData: Data
                 if valueData.count > 1 {
                     let start = valueData.startIndex + 1
@@ -193,7 +203,11 @@ struct InnerHeaderReader {
                 encryptionKey = valueData
 
             case .binaryContent:
-                let flags = valueData[valueData.startIndex]
+                // See `parse()`: a zero-length binaryContent has no flags
+                // byte; reject rather than trap on the empty subscript.
+                guard let flags = valueData.first else {
+                    throw Error.corrupted(reason: "Empty inner-header binaryContent field")
+                }
                 let isProtected = (flags == 0x01)
                 let binaryBytesOffset = valueStart + 1 // skip flags byte
                 let binaryBytesLength = max(0, Int(valueLength) - 1)
