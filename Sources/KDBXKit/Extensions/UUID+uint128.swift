@@ -23,8 +23,9 @@ extension UUID {
     /// Returns the UUID as a `UInt128`, interpreting the raw bytes in **big-endian** order,
     /// consistent with RFC 4122 and Swift’s `UUID` string representation.
     func toUInt128() -> UInt128 {
-        let bytes = withUnsafeBytes(of: uuid) { $0 }
-
-        return UInt128(bigEndian: bytes.load(as: UInt128.self))
+        // The load must happen inside the closure (the pointer is only
+        // valid there), and the uuid tuple carries no 16-byte alignment
+        // guarantee — load(as:) would be UB on both counts.
+        withUnsafeBytes(of: uuid) { UInt128(bigEndian: $0.loadUnaligned(as: UInt128.self)) }
     }
 }

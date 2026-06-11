@@ -17,8 +17,10 @@ extension FixedWidthInteger {
             return nil
         }
 
+        // loadUnaligned: a Data slice gives no alignment guarantee for its
+        // base address, and load(as:) traps on a misaligned pointer.
         self = data.withUnsafeBytes { ptr in
-            ptr.load(as: Self.self)
+            ptr.loadUnaligned(as: Self.self)
         }.littleEndian
     }
 }
