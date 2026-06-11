@@ -127,6 +127,12 @@ struct XMLSerializer {
     /// normalization would otherwise rewrite a raw CR to LF on parse,
     /// silently corrupting any KDBX field that legitimately contains a
     /// carriage return.
+    ///
+    /// Scalars outside the XML 1.0 §2.2 `Char` production (e.g. `0x01`,
+    /// `0x0B`) are replaced with U+FFFD — they're illegal in a document
+    /// even as character references, so emitting them raw would produce
+    /// a vault no client (including this library) can reopen. KeePass
+    /// sanitizes on write for the same reason (`StrUtil.SafeXmlString`).
     private func escapeText(_ s: String) -> String {
         var result = ""
         result.reserveCapacity(s.utf8.count)
@@ -136,7 +142,8 @@ struct XMLSerializer {
             case "<": result.append("&lt;")
             case ">": result.append("&gt;")
             case "\r": result.append("&#13;")
-            default: result.unicodeScalars.append(scalar)
+            default:
+                result.unicodeScalars.append(Self.isXMLChar(scalar) ? scalar : "\u{FFFD}")
             }
         }
         return result
@@ -154,9 +161,22 @@ struct XMLSerializer {
             case "\n": result.append("&#10;")
             case "\r": result.append("&#13;")
             case "\t": result.append("&#9;")
-            default: result.unicodeScalars.append(scalar)
+            default:
+                result.unicodeScalars.append(Self.isXMLChar(scalar) ? scalar : "\u{FFFD}")
             }
         }
         return result
+    }
+
+    /// XML 1.0 §2.2 `Char` production. Surrogates can't occur in a
+    /// `Unicode.Scalar`, so the only reachable exclusions are the C0
+    /// controls (minus tab/LF/CR) and U+FFFE/U+FFFF.
+    private static func isXMLChar(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x9, 0xA, 0xD, 0x20...0xD7FF, 0xE000...0xFFFD, 0x10000...0x10FFFF:
+            return true
+        default:
+            return false
+        }
     }
 }
