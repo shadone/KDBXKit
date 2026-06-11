@@ -237,6 +237,13 @@ public struct KDBXWriter {
 
         // MARK: 0. Save-time integrity
 
+        // Must precede header serialization: toVariantDictionary() has a
+        // fatalError for .unknown, and parseHeader (credential-free) hands
+        // callers headers carrying unknown KDF UUIDs.
+        if case let .unknown(uuid) = preparedContent.header.kdfParameters {
+            throw .unsupportedKDF(uuid)
+        }
+
         let poolCount = preparedContent.innerHeader.binaryContent.count
         if let dangling = preparedContent.database.firstDanglingBinaryRef(poolCount: poolCount) {
             throw .danglingBinaryRef(entryUUID: dangling.entryUUID, ref: dangling.ref, poolCount: poolCount)

@@ -93,6 +93,51 @@ struct WriteTimeIntegrityTests {
         #expect(!FileManager.default.fileExists(atPath: outURL.path))
     }
 
+    /// An `.unknown` KDF must surface as the typed `unsupportedKDF` error
+    /// before any serialization — `toVariantDictionary()` has a
+    /// `fatalError` for it, and `parseHeader` (credential-free) happily
+    /// hands callers headers carrying unknown KDF UUIDs.
+    private func withUnknownKDF(_ content: KDBXContent) -> KDBXContent {
+        let header = content.header
+        return KDBXContent(
+            database: content.database,
+            header: Header(
+                formatVersion: header.formatVersion,
+                encryptionAlgorithm: header.encryptionAlgorithm,
+                compressionAlgorithm: header.compressionAlgorithm,
+                masterSalt: header.masterSalt,
+                encryptionNonce: header.encryptionNonce,
+                kdfParameters: .unknown(uuid: UUID()),
+                publicCustomData: header.publicCustomData
+            ),
+            innerHeader: content.innerHeader
+        )
+    }
+
+    @Test("Unknown KDF throws unsupportedKDF from the eager writer, not a process abort")
+    func unknownKDFThrowsEager() throws {
+        let content = withUnknownKDF(KDBXContent.makeEmpty(databaseName: "K", kdf: Self.cheapKDF))
+        #expect(throws: KDBXWriter.Error.self) {
+            try writeToMemory(content)
+        }
+    }
+
+    @Test("Unknown KDF throws unsupportedKDF from the streaming writer, not a process abort")
+    func unknownKDFThrowsStreaming() throws {
+        let content = withUnknownKDF(KDBXContent.makeEmpty(databaseName: "K", kdf: Self.cheapKDF))
+        let outURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("\(UUID().uuidString).kdbx")
+        defer { try? FileManager.default.removeItem(at: outURL) }
+        #expect(throws: KDBXWriter.Error.self) {
+            try KDBXWriter.streamingWrite(
+                to: outURL,
+                content: content,
+                binaries: [],
+                unlockData: UnlockData(masterPassword: "pw")
+            )
+        }
+    }
+
     @Test("A resolvable ref with a matching source still writes")
     func validRefStillWrites() throws {
         var content = makeContent(binaries: [.init(key: "a.bin", value: .ref(0))])

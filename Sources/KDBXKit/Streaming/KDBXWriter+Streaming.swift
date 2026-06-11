@@ -51,7 +51,13 @@ public extension KDBXWriter {
         // because the reader is parsing UInt16-length fields.
         prepared = KDBXWriter.clampingFormatVersionToWritable(prepared)
 
-        // Save-time integrity: the emitted pool is exactly `binaries`, so
+        // Save-time integrity. The unknown-KDF check must precede header
+        // serialization — toVariantDictionary() has a fatalError for it.
+        if case let .unknown(uuid) = prepared.header.kdfParameters {
+            throw Error.unsupportedKDF(uuid)
+        }
+
+        // The emitted pool is exactly `binaries`, so
         // its count must match the inner-header shape, and every Ref in
         // the XML must resolve into it. A mismatch would serialize a
         // structurally valid vault with silently missing or mis-bound
