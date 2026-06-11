@@ -50,6 +50,22 @@ public extension KDBXWriter {
         // post-write verification reporting a malformed cipher UUID
         // because the reader is parsing UInt16-length fields.
         prepared = KDBXWriter.clampingFormatVersionToWritable(prepared)
+
+        // Save-time integrity: the emitted pool is exactly `binaries`, so
+        // its count must match the inner-header shape, and every Ref in
+        // the XML must resolve into it. A mismatch would serialize a
+        // structurally valid vault with silently missing or mis-bound
+        // attachments — the incident class that already shipped once.
+        guard binaries.count == prepared.innerHeader.binaryContent.count else {
+            throw Error.binarySourceCountMismatch(
+                sources: binaries.count,
+                poolEntries: prepared.innerHeader.binaryContent.count
+            )
+        }
+        if let dangling = prepared.database.firstDanglingBinaryRef(poolCount: binaries.count) {
+            throw Error.danglingBinaryRef(entryUUID: dangling.entryUUID, ref: dangling.ref, poolCount: binaries.count)
+        }
+
         let headerData = try serializeHeaderBlock(prepared.header)
         let unlockKey = try deriveUnlockKey(prepared: prepared, unlockData: unlockData)
         let mainContentKey: SecureBytes = MainKey.make(

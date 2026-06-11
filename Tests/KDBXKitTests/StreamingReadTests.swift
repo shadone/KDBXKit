@@ -28,13 +28,16 @@ struct StreamingReadTests {
     /// Write `binaries` as the inner-header pool over `baseName`'s content
     /// (inheriting its cipher + KDF + compression), returning the file bytes.
     private func writeVault(baseName: String, password: String, binaries: [Data]) throws -> Data {
-        let base = try KDBXReader.parse(
+        var base = try KDBXReader.parse(
             try Data(contentsOf: fixtureURL(baseName)),
             unlockData: .init(masterPassword: password)
         )
         let out = FileManager.default.temporaryDirectory
             .appendingPathComponent("\(UUID().uuidString).kdbx")
         defer { try? FileManager.default.removeItem(at: out) }
+        // The inner header must carry the pool shape the sources fill —
+        // the writer refuses a sources/pool count mismatch.
+        base.innerHeader.binaryContent = binaries.map { .init(shouldBeProtected: false, data: $0) }
         let sources: [any BinarySource] = binaries.map { DataBinarySource($0, shouldBeProtected: false) }
         try KDBXWriter.streamingWrite(
             to: out,

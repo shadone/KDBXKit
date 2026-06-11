@@ -37,3 +37,25 @@ public extension KDBXContent {
         return results
     }
 }
+
+extension KDBX {
+    /// First binary reference (live entries and their history) pointing
+    /// outside a pool of `poolCount` entries, or nil when every ref
+    /// resolves. The writers use this as a save-time gate; `validate()`
+    /// reports the same condition as a warning for read-side callers.
+    func firstDanglingBinaryRef(poolCount: Int) -> (entryUUID: UUID, ref: UInt32)? {
+        var found: (entryUUID: UUID, ref: UInt32)?
+        visitEntries(in: root.group) { entry in
+            guard found == nil else { return }
+            for candidate in [entry] + entry.history {
+                for binary in candidate.binaries {
+                    if case let .ref(ref) = binary.value, ref >= UInt32(poolCount) {
+                        found = (entryUUID: entry.uuid, ref: ref)
+                        return
+                    }
+                }
+            }
+        }
+        return found
+    }
+}

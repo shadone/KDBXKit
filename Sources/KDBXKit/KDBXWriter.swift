@@ -63,6 +63,19 @@ public struct KDBXWriter {
 
         /// Compression of the main payload failed.
         case compressionFailed(reason: String)
+
+        // MARK: - Save-time integrity
+
+        /// An entry (live or history) references a binary-pool index
+        /// that doesn't exist in the pool being written. Serializing it
+        /// would produce a structurally valid vault whose attachment is
+        /// silently gone — the save is refused instead.
+        case danglingBinaryRef(entryUUID: UUID, ref: UInt32, poolCount: Int)
+
+        /// `streamingWrite` was handed a `binaries` array whose count
+        /// doesn't match `innerHeader.binaryContent` — the emitted pool
+        /// would not line up with the refs serialized into the XML.
+        case binarySourceCountMismatch(sources: Int, poolEntries: Int)
     }
 
     let outputStream: OutputStream
@@ -221,6 +234,13 @@ public struct KDBXWriter {
         // anything else would write the new 4.x framing under a 3.x
         // version number and silently corrupt the file.
         preparedContent = Self.clampingFormatVersionToWritable(preparedContent)
+
+        // MARK: 0. Save-time integrity
+
+        let poolCount = preparedContent.innerHeader.binaryContent.count
+        if let dangling = preparedContent.database.firstDanglingBinaryRef(poolCount: poolCount) {
+            throw .danglingBinaryRef(entryUUID: dangling.entryUUID, ref: dangling.ref, poolCount: poolCount)
+        }
 
         // MARK: 1. Header
 
