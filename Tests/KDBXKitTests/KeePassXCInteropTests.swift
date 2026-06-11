@@ -21,6 +21,21 @@ struct KeePassXCInteropTests {
     static let cliPath = "/Applications/KeePassXC.app/Contents/MacOS/keepassxc-cli"
     static var cliAvailable: Bool { FileManager.default.isExecutableFile(atPath: cliPath) }
 
+    /// Enforcement hook for "the interop net actually ran". Every other test
+    /// is gated on `cliAvailable`, so on a runner without KeePassXC the whole
+    /// suite skips and a green run hides zero real interop coverage. A CI lane
+    /// that is supposed to have KeePassXC sets `KDBXKIT_REQUIRE_INTEROP=1`;
+    /// this test then fails loudly if the CLI is missing instead of skipping.
+    /// Locally (variable unset) it is a no-op, so dev runs aren't blocked.
+    @Test("Interop net is present when required (KDBXKIT_REQUIRE_INTEROP)")
+    func interopNetRequiredWhenAsked() {
+        guard ProcessInfo.processInfo.environment["KDBXKIT_REQUIRE_INTEROP"] == "1" else { return }
+        #expect(
+            Self.cliAvailable,
+            "KDBXKIT_REQUIRE_INTEROP=1 but keepassxc-cli is missing at \(Self.cliPath) — the interop suite would silently no-op. Install KeePassXC or unset the variable."
+        )
+    }
+
     @Test(
         "Our writer's output is readable by keepassxc-cli ls",
         .enabled(if: KeePassXCInteropTests.cliAvailable, "KeePassXC CLI not installed")
