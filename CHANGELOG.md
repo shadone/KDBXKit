@@ -7,6 +7,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-06-11
+
+### Added
+
+- **`KDBXReader.openMetadataStreaming(from:unlockData:...)` — a fully streaming
+  metadata-only open.** Unlike `openMetadataOnly`, which decrypts and
+  decompresses the whole payload into one buffer before parsing (peak ≈ the
+  full decompressed size, attachments included), this reads the HMAC block
+  stream one block at a time, decrypts and inflates incrementally (≤64 KiB
+  output window), and hashes + discards each binary-pool payload as it streams
+  — keeping only the XML. The source is memory-mapped (`mappedIfSafe`), so the
+  encrypted bytes are excluded from the Darwin `phys_footprint`. Peak memory is
+  then the KDF + XML working set, independent of attachment size. This is the
+  path memory-capped hosts (the iOS AutoFill credential-provider extension,
+  jetsam-limited to ~220 MB) must use: the eager and `openMetadataOnly` paths
+  both materialize the full binary pool and get killed mid-parse on vaults with
+  large attachments. 4.x only; 3.x sources throw `unsupportedFormatVersion`.
+- **`SecureBytes` now sub-allocates from shared, page-aligned, mlock'd 64 KiB
+  arenas** (`SecureBytesArena`) instead of rounding every allocation up to a
+  full page and mlock'ing it. A 12-byte secret previously wired a whole 16 KiB
+  page; a vault's protected strings could wire hundreds of MB of
+  non-reclaimable pages. Secrets still zero on deinit and stay wired, but N
+  small secrets now share a handful of pages. Allocations over half an arena
+  get their own dedicated region.
+- **`kdbx db open-bench [--lazy|--streaming]`** — opens a vault under the chosen
+  path for footprint measurement via `/usr/bin/time -l`; plus
+  `scripts/measure-parse.sh` for the eager path. A device-free repro harness
+  for the AutoFill memory profile.
+
+### Changed
+
+- **`KDBXReader.streamBinary(from:at:into:)` is now size-independent.** It
+  previously decrypted + decompressed the whole payload to slice out one
+  binary; it now replays the decrypt + inflate chain capturing only the target
+  attachment into the sink, discarding every other byte and stopping the block
+  loop as soon as the target completes. It reuses the stored unlock key +
+  header, so there is no KDF re-run. Byte-identical to the prior behaviour
+  across both ciphers and binary sizes spanning the inflate-chunk and HMAC-block
+  boundaries.
+
 ## [1.2.2] - 2026-05-30
 
 ### Changed

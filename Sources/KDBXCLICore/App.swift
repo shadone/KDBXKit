@@ -14,7 +14,7 @@ public struct App: ParsableCommand {
     public static let configuration = CommandConfiguration(
         commandName: "kdbx",
         abstract: "A command-line tool to work with KeePass databases.",
-        version: "1.2.2",
+        version: "1.3.0",
         subcommands: [
             DB.self,
             Entry.self,
