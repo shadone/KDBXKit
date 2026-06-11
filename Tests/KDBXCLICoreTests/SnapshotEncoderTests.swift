@@ -61,6 +61,37 @@ struct SnapshotEncoderTests {
         #expect(titles == Set(["Chase", "Citi"]))
     }
 
+    @Test("db info output never contains the inner-stream encryption key")
+    func dbInfoOmitsInnerStreamKey() throws {
+        // The inner random-stream key decrypts every Protected="True"
+        // field; combined with `db xml` output, a scrollback capture of
+        // `db info` would allow offline decryption of all protected
+        // values. No inspection use case needs the raw key.
+        let keyBytes = Data(repeating: 0xA7, count: 64)
+        let header = Header(
+            formatVersion: .v4_1,
+            encryptionAlgorithm: .AES256CBC,
+            compressionAlgorithm: .gzip,
+            masterSalt: Data(count: 32),
+            encryptionNonce: Data(count: 16),
+            kdfParameters: .aes(.init(salt: Data(count: 32), rounds: 1), additional: [:]),
+            publicCustomData: [:]
+        )
+        let snapshot = DBInfoSnapshot(
+            header: header,
+            unlockState: .unlocked,
+            blockSizes: [],
+            innerHeader: InnerHeader(
+                encryptionAlgorithm: .ChaCha20,
+                encryptionKey: SecureBytes(keyBytes),
+                binaryContent: []
+            ),
+            validationIssues: []
+        )
+        let json = String(data: try JSONEncoder().encode(snapshot), encoding: .utf8)!
+        #expect(!json.contains(keyBytes.hexString))
+    }
+
     @Test("ValidationSnapshot.shouldFail honors --level threshold")
     func validationThreshold() {
         let warningsOnly = ValidationSnapshot(issues: [.warning("w")])

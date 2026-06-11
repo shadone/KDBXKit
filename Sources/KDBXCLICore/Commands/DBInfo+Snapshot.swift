@@ -108,7 +108,10 @@ struct DBInfoSnapshot: Encodable {
             print("")
             print("Inner Header:")
             print("\tEncryption Algorithm: \(innerHeader.encryptionAlgorithm)")
-            print("\tEncryption key: \(innerHeader.encryptionKey.toData().hexString)")
+            // The inner-stream key is never printed: it decrypts every
+            // Protected="True" field, and `db xml` output leaves those
+            // values inner-cipher-encrypted — together a scrollback
+            // capture would allow offline decryption of all of them.
             print("\tBinary Content: \(innerHeader.binaryContent.count) elements")
             for (index, element) in innerHeader.binaryContent.enumerated() {
                 print("\t\t\(index): \(element.data.count) bytes" + (element.shouldBeProtected ? " [protected]" : ""))
@@ -223,12 +226,10 @@ private struct InnerHeaderDTO: Encodable {
     }
 
     let encryptionAlgorithm: String
-    let encryptionKey: String
     let binaries: [BinaryDTO]
 
     init(_ ih: InnerHeader) {
         encryptionAlgorithm = "\(ih.encryptionAlgorithm)"
-        encryptionKey = ih.encryptionKey.toData().hexString
         binaries = ih.binaryContent.enumerated().map { idx, b in
             BinaryDTO(index: idx, size: b.data.count, protected: b.shouldBeProtected)
         }
