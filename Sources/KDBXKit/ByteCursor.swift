@@ -40,6 +40,24 @@ struct ByteCursor: Sendable {
     /// Whether the cursor has consumed every byte.
     var isAtEnd: Bool { position >= data.endIndex }
 
+    /// Skip `n` bytes without reading them. Used to step over a sub-region
+    /// already consumed by a nested reader (e.g. past a parsed header). `n`
+    /// must be non-negative; advancing beyond the end is allowed and simply
+    /// leaves later reads to throw `unexpectedEOF`.
+    mutating func advance(by n: Int) {
+        precondition(n >= 0, "ByteCursor.advance(by:) requires a non-negative count")
+        position = position.advanced(by: n)
+    }
+
+    /// Move to a previously captured absolute position in the same buffer.
+    /// Used by the lazy re-stream path, which records the index where the
+    /// block stream begins and resumes a fresh cursor there to avoid
+    /// re-deriving it. Not bounds-checked — a later read past the end still
+    /// throws `unexpectedEOF`.
+    mutating func seek(to index: Data.Index) {
+        position = index
+    }
+
     mutating func readUInt8() throws(Error) -> UInt8 {
         if position.advanced(by: 1) > data.endIndex {
             throw .unexpectedEOF

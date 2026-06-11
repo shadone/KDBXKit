@@ -157,7 +157,7 @@ public extension KDBXReader {
                 throw KDBXReader.Error.unexpectedEOF
             }
         }
-        reader.pos = reader.pos.advanced(by: headerLength)
+        reader.cursor.advance(by: headerLength)
 
         let headerData = Data(data[..<headerLength])
         let headerSHA256 = headerData.sha256()
@@ -188,7 +188,7 @@ public extension KDBXReader {
             throw KDBXReader.Error.wrongCredentials
         }
 
-        return (header: header, unlockKey: unlockKey, payloadPos: reader.pos)
+        return (header: header, unlockKey: unlockKey, payloadPos: reader.cursor.position)
     }
 
     /// Drive the KDBX 4 HMAC-protected outer block stream: read each block,
@@ -211,7 +211,7 @@ public extension KDBXReader {
         stopEarly: () -> Bool = { false }
     ) throws -> Bool {
         var reader = KDBXReader(encrypted)
-        reader.pos = payloadPos
+        reader.cursor.seek(to: payloadPos)
         var blockIndex: UInt64 = 0
         while true {
             let hmacFromFile = try reader.readDataPublic(length: 32)
@@ -252,9 +252,9 @@ public extension KDBXReader {
         } catch {
             throw KDBXReader.Error.corruptedHeader(reason: "Header re-parse failed during re-stream")
         }
-        reader.pos = reader.pos.advanced(by: headerLength)
+        reader.cursor.advance(by: headerLength)
         _ = try reader.readDataPublic(length: 32) // header SHA-256
         _ = try reader.readDataPublic(length: 32) // header HMAC
-        return reader.pos
+        return reader.cursor.position
     }
 }

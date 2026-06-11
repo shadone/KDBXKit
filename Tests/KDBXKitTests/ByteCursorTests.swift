@@ -99,4 +99,39 @@ struct ByteCursorTests {
         #expect(cursor.position == afterFour)
         #expect(try cursor.readUInt8() == 5)
     }
+
+    @Test("advance(by:) skips bytes so the next read resumes past them")
+    func advanceSkips() throws {
+        var cursor = ByteCursor(Data([1, 2, 3, 4, 5]))
+        cursor.advance(by: 3)
+        #expect(cursor.position == cursor.position) // sanity: no trap
+        #expect(try cursor.readUInt8() == 4)
+        #expect(try cursor.readUInt8() == 5)
+    }
+
+    @Test("advance(by:) past the end leaves subsequent reads throwing, not trapping")
+    func advancePastEnd() {
+        var cursor = ByteCursor(Data([1, 2]))
+        cursor.advance(by: 10)
+        #expect(cursor.isAtEnd)
+        #expect(throws: ByteCursor.Error.unexpectedEOF) {
+            _ = try cursor.readUInt8()
+        }
+    }
+
+    @Test("seek(to:) resumes reading at a previously captured absolute position")
+    func seekResumes() throws {
+        let bytes = Data([10, 20, 30, 40, 50])
+        var cursor = ByteCursor(bytes)
+        _ = try cursor.readData(length: 2)
+        let mark = cursor.position // points at 30
+
+        // A fresh cursor over the same buffer can be moved to the mark and
+        // continue as if it had read the same prefix — the pattern the lazy
+        // re-stream path uses to resume at the start of the block stream.
+        var resumed = ByteCursor(bytes)
+        resumed.seek(to: mark)
+        #expect(resumed.position == mark)
+        #expect(try resumed.readUInt8() == 30)
+    }
 }

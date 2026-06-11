@@ -114,7 +114,11 @@ public struct KDBXReader: Sendable {
     public static let maxDecompressedPayloadSize = 256 * 1024 * 1024
 
     let data: Data
-    var pos: Data.Index
+    /// Cursor over `data` driving the sequential token reads (header digest,
+    /// HMAC, block stream). `data` itself is still held for the whole-buffer
+    /// operations that aren't position-relative — the header-bytes digest and
+    /// the version peek.
+    var cursor: ByteCursor
 
     /// The header of the `.kdbx` file.
     ///
@@ -152,7 +156,7 @@ public struct KDBXReader: Sendable {
 
     public init(_ data: Data) {
         self.data = data
-        pos = data.startIndex
+        cursor = ByteCursor(data)
     }
 
     // MARK: - One-shot static API
@@ -240,28 +244,11 @@ public struct KDBXReader: Sendable {
     }
 
     private mutating func readInt32() throws(Error) -> Int32 {
-        try readData(length: 4).asInt32LE()! // safe to force unwrap as we guaranteed to read enough bytes
+        do { return try cursor.readInt32LE() } catch { throw .unexpectedEOF }
     }
 
     private mutating func readData(length: Int) throws(Error) -> Data {
-        // Reject a negative length (a signed wire field — e.g. the Int32
-        // block size — with its high bit set) before it builds a reversed
-        // `start..<end` Range and traps the process.
-        if length < 0 {
-            throw Error.unexpectedEOF
-        }
-        let start = pos
-        let end = pos.advanced(by: length)
-
-        if end > data.endIndex {
-            throw Error.unexpectedEOF
-        }
-
-        let subdata = data.subdata(in: start..<end)
-
-        pos = end
-
-        return subdata
+        do { return try cursor.readData(length: length) } catch { throw .unexpectedEOF }
     }
 
     // MARK: Public API
@@ -317,7 +304,7 @@ public struct KDBXReader: Sendable {
         }
 
         // Move past the header to the next token
-        pos = pos.advanced(by: headerLength)
+        cursor.advance(by: headerLength)
 
         // MARK: 2. SHA-256 of the header
 

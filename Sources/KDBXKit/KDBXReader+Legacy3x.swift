@@ -69,7 +69,7 @@ extension KDBXReader {
                 throw .unexpectedEOF
             }
         }
-        pos = pos.advanced(by: headerLength)
+        cursor.advance(by: headerLength)
 
         guard let unlockData else {
             // Match the 4.x contract: `parseHeader(_:)` drives the parser
@@ -103,7 +103,7 @@ extension KDBXReader {
         // The encrypted body is everything after the header. Unlike 4.x,
         // there's no SHA / HMAC trailer to skip — the body starts
         // immediately.
-        let ciphertext = data.subdata(in: pos..<data.endIndex)
+        let ciphertext = data.subdata(in: cursor.position..<data.endIndex)
 
         let mainContentKey: SecureBytes = MainKey.make(masterSalt: header.masterSalt, unlockKey: unlockKey)
         // KDBX 3.x has no HMAC — wrong credentials produce garbage that

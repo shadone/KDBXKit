@@ -328,7 +328,7 @@ extension KDBXReader {
                 throw KDBXReader.Error.unexpectedEOF
             }
         }
-        reader.pos = reader.pos.advanced(by: headerLength)
+        reader.cursor.advance(by: headerLength)
 
         // 2. SHA-256 of header
         let headerData = Data(data[..<headerLength])
@@ -370,7 +370,7 @@ extension KDBXReader {
 
         let payload = try decryptBlockStreamAndDecompress(
             data: data,
-            pos: reader.pos,
+            pos: reader.cursor.position,
             header: header,
             unlockKey: unlockKey,
             maxDecompressedPayloadSize: maxDecompressedPayloadSize
@@ -401,7 +401,7 @@ extension KDBXReader {
         } catch {
             throw KDBXReader.Error.corruptedHeader(reason: "Header re-parse failed during re-stream")
         }
-        reader.pos = reader.pos.advanced(by: headerLength)
+        reader.cursor.advance(by: headerLength)
         // Skip SHA + HMAC of header (32 + 32 bytes) — already validated
         // at open time. We don't need to re-validate on re-stream;
         // the encrypted block stream HMAC validates each block we
@@ -411,7 +411,7 @@ extension KDBXReader {
 
         let payload = try decryptBlockStreamAndDecompress(
             data: data,
-            pos: reader.pos,
+            pos: reader.cursor.position,
             header: header,
             unlockKey: unlockKey,
             maxDecompressedPayloadSize: maxDecompressedPayloadSize
@@ -427,7 +427,7 @@ extension KDBXReader {
         maxDecompressedPayloadSize: Int
     ) throws -> Data {
         var reader = KDBXReader(data)
-        reader.pos = pos
+        reader.cursor.seek(to: pos)
 
         var blockIndex: UInt64 = 0
         var payload = Data(capacity: data.count)
@@ -504,28 +504,15 @@ extension KDBXReader {
 // MARK: - Internal read helpers exposed for lazy path
 
 extension KDBXReader {
-    /// `readData(length:)` is private to the eager parse; the lazy
-    /// pipeline needs the same bytes-from-stream behavior. Renamed
-    /// public-ish so the helper functions above can call it without
-    /// exposing parser internals.
+    /// `readData(length:)` is private to the eager parse; the lazy and
+    /// streaming pipelines need the same bytes-from-stream behavior. These
+    /// thin wrappers forward to the shared `cursor` so all paths share one
+    /// bounds-checked implementation.
     mutating func readDataPublic(length: Int) throws(KDBXReader.Error) -> Data {
-        // Reject a negative length (a signed wire field — e.g. the Int32
-        // block size on the lazy/streaming path — with its high bit set)
-        // before it builds a reversed `start..<end` Range and traps.
-        if length < 0 {
-            throw .unexpectedEOF
-        }
-        let start = pos
-        let end = pos.advanced(by: length)
-        if end > data.endIndex {
-            throw .unexpectedEOF
-        }
-        let subdata = data.subdata(in: start..<end)
-        pos = end
-        return subdata
+        do { return try cursor.readData(length: length) } catch { throw .unexpectedEOF }
     }
 
     mutating func readInt32Public() throws(KDBXReader.Error) -> Int32 {
-        try readDataPublic(length: 4).asInt32LE()!
+        do { return try cursor.readInt32LE() } catch { throw .unexpectedEOF }
     }
 }
