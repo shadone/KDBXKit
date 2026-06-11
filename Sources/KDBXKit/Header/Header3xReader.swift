@@ -83,49 +83,32 @@ struct Header3xReader: Sendable {
         case chaCha20 = 3
     }
 
-    let data: Data
-    var pos: Data.Index
+    var cursor: ByteCursor
 
     init(data: Data) {
-        self.data = data
-        pos = data.startIndex
+        cursor = ByteCursor(data)
     }
 
     // MARK: Read <token> helpers
 
+    //
+    // Bounds-checking lives in `ByteCursor`; these adapters only re-wrap its
+    // `unexpectedEOF` into this reader's `Error`.
+
     private mutating func readUInt8() throws(Error) -> UInt8 {
-        // Compare against endIndex, not count: `pos` is an absolute
-        // Data.Index, so this stays correct even for a non-zero-based slice.
-        if pos.advanced(by: 1) > data.endIndex {
-            throw .unexpectedEOF
-        }
-        let b = data[pos]
-        pos = pos.advanced(by: 1)
-        return b
+        do { return try cursor.readUInt8() } catch { throw .unexpectedEOF }
     }
 
     private mutating func readUInt16LE() throws(Error) -> UInt16 {
-        try readData(length: 2).asUInt16LE()!
+        do { return try cursor.readUInt16LE() } catch { throw .unexpectedEOF }
     }
 
     private mutating func readUInt32LE() throws(Error) -> UInt32 {
-        try readData(length: 4).asUInt32LE()!
+        do { return try cursor.readUInt32LE() } catch { throw .unexpectedEOF }
     }
 
     private mutating func readData(length: Int) throws(Error) -> Data {
-        // Reject a negative length (signed wire field with the high bit set)
-        // before it builds a reversed `start..<end` Range and traps.
-        if length < 0 {
-            throw .unexpectedEOF
-        }
-        let start = pos
-        let end = pos.advanced(by: length)
-        if end > data.endIndex {
-            throw .unexpectedEOF
-        }
-        let subdata = data.subdata(in: start..<end)
-        pos = end
-        return subdata
+        do { return try cursor.readData(length: length) } catch { throw .unexpectedEOF }
     }
 
     // MARK: Public API
@@ -310,6 +293,6 @@ struct Header3xReader: Sendable {
             innerRandomStreamID: innerRandomStreamID
         )
 
-        return (header: header, payload: payload, length: pos)
+        return (header: header, payload: payload, length: cursor.position)
     }
 }
