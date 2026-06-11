@@ -39,7 +39,9 @@ struct InnerHeaderReader {
     // MARK: Read <token> helpers
 
     private mutating func readUInt8() throws(Error) -> UInt8 {
-        if pos + 1 > data.count {
+        // Compare against endIndex, not count: `pos` is an absolute
+        // Data.Index, so this stays correct even for a non-zero-based slice.
+        if pos.advanced(by: 1) > data.endIndex {
             throw Error.unexpectedEOF
         }
 

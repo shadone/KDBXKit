@@ -26,11 +26,14 @@ class VariantDictionaryReader {
     // MARK: Read <token> helpers
 
     private func readUInt8() throws(Error) -> UInt8 {
-        if pos + 1 > data.count {
+        // `pos` is an absolute Data.Index (as `readData` below treats it).
+        // Compare against endIndex, not count, and index `data` directly so
+        // both helpers agree even for a non-zero-based slice.
+        if pos.advanced(by: 1) > data.endIndex {
             throw Error.unexpectedEOF
         }
 
-        let b = data[data.index(data.startIndex, offsetBy: pos)]
+        let b = data[pos]
 
         pos = pos.advanced(by: 1)
 
