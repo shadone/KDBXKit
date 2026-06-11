@@ -48,6 +48,36 @@ struct SecureBytesTests {
         #expect(desc.contains("count="))
     }
 
+    @Test("Memory is zeroed when a SecureBytes is released")
+    func zeroesOnDeinit() {
+        // The core promise of the type. Testable because a shared arena
+        // keeps its pages mapped after one slot is freed: hold a sibling
+        // secret so the arena (and the released slot's page) stays alive,
+        // capture the slot's address while the secret is live, drop it,
+        // then re-read the same region and assert it's all zero.
+        let sibling = SecureBytes(Data(repeating: 0xAA, count: 16))
+
+        let marker = [UInt8](repeating: 0x5A, count: 48)
+        var captured: UnsafeRawPointer?
+        var length = 0
+        do {
+            let secret = SecureBytes(marker)
+            secret.withUnsafeBytes { buf in
+                captured = buf.baseAddress
+                length = buf.count
+                #expect(buf.contains(0x5A)) // content is present while live
+            }
+        } // `secret` deinits here — its slot must be zeroed
+
+        let base = try! #require(captured).assumingMemoryBound(to: UInt8.self)
+        let after = UnsafeBufferPointer(start: base, count: length)
+        #expect(after.allSatisfy { $0 == 0 }, "released SecureBytes slot was not zeroed")
+
+        // Keep the arena (and thus the page we just read) alive across the
+        // read above.
+        withExtendedLifetime(sibling) { }
+    }
+
     @Test("Round-trip 1 KB of random bytes")
     func largeBuffer() {
         let bytes = (0..<1024).map { _ in UInt8.random(in: 0...255) }
