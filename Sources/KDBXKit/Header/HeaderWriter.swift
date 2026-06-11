@@ -62,18 +62,10 @@ struct HeaderWriter {
     }
 
     private func write(_ vardict: VariantDictionary) throws(Error) -> Data {
+        let varDictOutputStream = OutputStream(toMemory: ())
+        varDictOutputStream.open()
         do {
-            let varDictOutputStream = OutputStream(toMemory: ())
-            varDictOutputStream.open()
             try VariantDictionaryWriter(to: varDictOutputStream).write(vardict)
-            guard let data = varDictOutputStream.property(forKey: .dataWrittenToMemoryStreamKey) as? Data else {
-                // Foundation invariant: an OutputStream(toMemory:) always
-                // exposes its written bytes via this property. Not from
-                // adversarial input — would indicate a Foundation
-                // behavior change.
-                fatalError("Failed to get output stream data for writing Variant Dictionary")
-            }
-            return data
         } catch {
             switch error {
             case .unexpectedEOF:
@@ -82,6 +74,14 @@ struct HeaderWriter {
                 throw .unknown(reason: "Failed to write Variant Dictionary: \(reason)")
             }
         }
+        guard let data = varDictOutputStream.property(forKey: .dataWrittenToMemoryStreamKey) as? Data else {
+            // Foundation invariant: an OutputStream(toMemory:) always exposes
+            // its written bytes via this property. Throw rather than trap — a
+            // Foundation behavior change shouldn't take the whole process down
+            // mid-save.
+            throw .unknown(reason: "OutputStream(toMemory:) exposed no data for Variant Dictionary")
+        }
+        return data
     }
 
     func write(_ header: Header) throws(Error) {
