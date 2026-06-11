@@ -46,7 +46,8 @@ public struct KDBXReader: Sendable {
         // MARK: - Format/feature support
 
         /// KDBX file format major.minor version isn't supported by KDBXKit.
-        /// KDBXKit currently supports 4.0 and 4.1.
+        /// KDBXKit reads 3.1, 4.0, and 4.1 (see ``Header/FormatVersion/supported``);
+        /// 3.0 and unknown versions throw this error.
         case unsupportedFormatVersion(major: UInt16, minor: UInt16)
 
         /// The file's encryption algorithm UUID isn't supported. Currently
