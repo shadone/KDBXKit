@@ -15,6 +15,12 @@ public extension KDBXWriter {
     /// buffers (~64 KB gzip + ~16 B AES + ~1 MB HMAC block) —
     /// independent of total attachment bytes.
     ///
+    /// The write is atomic with respect to `outputURL`: bytes are staged
+    /// into a sibling temp file and swapped into place only after the
+    /// whole pipeline finalizes, so a mid-save failure (disk-full, a
+    /// throwing `BinarySource`, process kill) leaves any existing file
+    /// at `outputURL` untouched.
+    ///
     /// - Parameters:
     ///   - outputURL: where to write the .kdbx file.
     ///   - content: the vault structure. Its `innerHeader.binaryContent`
@@ -51,8 +57,24 @@ public extension KDBXWriter {
             unlockKey: unlockKey
         )
 
-        FileManager.default.createFile(atPath: outputURL.path, contents: nil)
-        let fileHandle = try FileHandle(forWritingTo: outputURL)
+        // Stage into a sibling temp file (same directory, so the final
+        // swap never crosses a volume) and replace the destination only
+        // after the pipeline finalizes. Truncating outputURL directly
+        // would turn any mid-save failure into loss of the existing vault.
+        let tempURL = outputURL.deletingLastPathComponent()
+            .appendingPathComponent(".\(outputURL.lastPathComponent).tmp-\(UUID().uuidString)")
+        guard FileManager.default.createFile(atPath: tempURL.path, contents: nil) else {
+            throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: tempURL.path])
+        }
+        var swappedIntoPlace = false
+        defer {
+            if !swappedIntoPlace {
+                try? FileManager.default.removeItem(at: tempURL)
+            }
+        }
+
+        let fileHandle = try FileHandle(forWritingTo: tempURL)
+        defer { try? fileHandle.close() }
         try writeHeaderPrologue(fileHandle: fileHandle, headerData: headerData, unlockKey: unlockKey, header: prepared.header)
 
         let pipeline = try buildPipeline(
@@ -66,6 +88,13 @@ public extension KDBXWriter {
         try emitXML(into: pipeline, database: prepared.database, innerHeader: prepared.innerHeader)
         try pipeline.finalize()
         try fileHandle.close()
+
+        if FileManager.default.fileExists(atPath: outputURL.path) {
+            _ = try FileManager.default.replaceItemAt(outputURL, withItemAt: tempURL)
+        } else {
+            try FileManager.default.moveItem(at: tempURL, to: outputURL)
+        }
+        swappedIntoPlace = true
     }
 
     private static func serializeHeaderBlock(_ header: Header) throws -> Data {

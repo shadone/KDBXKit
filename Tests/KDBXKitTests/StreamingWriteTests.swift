@@ -184,6 +184,52 @@ struct StreamingWriteTests {
         }
     }
 
+    @Test("A failed streaming write leaves an existing destination intact")
+    func failedWritePreservesDestination() throws {
+        let url = fixtureURL("simple-argon2id-aes256")
+        let data = try Data(contentsOf: url)
+        let content = try KDBXReader.parse(data, unlockData: .init(masterPassword: "123"))
+
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let outURL = dir.appendingPathComponent("vault.kdbx")
+
+        // A good save first — this is the vault a failed save must not destroy.
+        try KDBXWriter.streamingWrite(
+            to: outURL,
+            content: content,
+            binaries: [],
+            unlockData: .init(masterPassword: "123")
+        )
+        let goodBytes = try Data(contentsOf: outURL)
+
+        // Now a save that fails mid-stream while pulling a binary.
+        var failing = content
+        failing.innerHeader.binaryContent = [.init(shouldBeProtected: false, data: Data(count: 8))]
+        #expect(throws: (any Error).self) {
+            try KDBXWriter.streamingWrite(
+                to: outURL,
+                content: failing,
+                binaries: [ThrowingBinarySource()],
+                unlockData: .init(masterPassword: "123")
+            )
+        }
+
+        // The destination still holds the previous vault, byte-for-byte,
+        // and no partial temp file is left behind.
+        #expect(try Data(contentsOf: outURL) == goodBytes)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: dir.path) == ["vault.kdbx"])
+    }
+
+    private struct ThrowingBinarySource: BinarySource {
+        struct Boom: Error { }
+        var sizeBytes: Int { 8 }
+        var shouldBeProtected: Bool { false }
+        func stream(into sink: inout some ByteSink) throws { throw Boom() }
+    }
+
     private func entriesIn(_ database: KDBX) -> Int {
         var count = 0
         database.visitEntries(in: database.root.group) { _ in count += 1 }
