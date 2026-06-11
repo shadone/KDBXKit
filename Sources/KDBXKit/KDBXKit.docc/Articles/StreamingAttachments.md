@@ -18,7 +18,7 @@ If your vault is a few hundred KB total, the eager path is fine — streaming ad
 
 ## Reading lazily
 
-``KDBXReader/openMetadataOnly(from:unlockData:maxDecompressedPayloadSize:)`` runs the full decrypt + decompress + inner-header parse + XML parse, then drops the binary bytes. The returned ``LazyKDBXContent`` carries everything needed to re-stream individual binaries on demand.
+``KDBXReader/openMetadataOnly(from:unlockData:maxDecompressedPayloadSize:kdfLimits:)`` runs the full decrypt + decompress + inner-header parse + XML parse, then drops the binary bytes. The returned ``LazyKDBXContent`` carries everything needed to re-stream individual binaries on demand. Note its **peak** is still ≈ the full decompressed payload — the whole binary pool is materialized before the bytes are dropped — so it lowers *idle* memory, not the open-time spike.
 
 ```swift
 let lazy = try KDBXReader.openMetadataOnly(from: .file(url), unlockData: unlock)
@@ -28,11 +28,17 @@ let lazy = try KDBXReader.openMetadataOnly(from: .file(url), unlockData: unlock)
 //                  for each attachment in the pool. Bytes are not loaded.
 ```
 
+When the open-time spike itself must stay bounded (a memory-capped host — e.g. the iOS AutoFill extension under its jetsam limit), use ``KDBXReader/openMetadataStreaming(from:unlockData:maxDecompressedPayloadSize:kdfLimits:)`` instead. It memory-maps the source, decrypts + inflates the block stream incrementally, and hashes + discards each binary payload as it streams — peak ≈ the KDF + XML working set, independent of attachment size. It returns an identical ``LazyKDBXContent`` (4.x only; 3.x throws `unsupportedFormatVersion`).
+
+```swift
+let lazy = try KDBXReader.openMetadataStreaming(from: .file(url), unlockData: unlock)
+```
+
 ``KDBXSource`` is the input abstraction. Use `.file(URL)` for production (the source URL is held for re-streaming); `.data(Data)` is for tests / in-memory.
 
 ## Streaming a binary to a destination
 
-``KDBXReader/streamBinary(from:at:into:)`` re-opens the source, replays the decrypt + decompress, and writes the target binary's bytes into the supplied ``ByteSink``.
+``KDBXReader/streamBinary(from:at:into:)`` re-opens the source (memory-mapped) and replays the decrypt + inflate chain, forwarding **only the target binary's** bytes into the supplied ``ByteSink`` and discarding everything else — it stops as soon as the target is complete and reuses the stored unlock key (no KDF re-run), so peak stays at one attachment regardless of vault size.
 
 ```swift
 var sink = try URLSink(writingTo: destinationURL)

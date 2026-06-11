@@ -92,7 +92,7 @@ final class SecureArena: @unchecked Sendable {
 }
 
 /// Process-global sub-allocator that hands out slices of `mlock`'d
-/// ``SecureArena``s. Thread-safe via a single `Mutex` taken only on the
+/// `SecureArena`s. Thread-safe via a single `Mutex` taken only on the
 /// allocation path; reads and per-secret zeroing are lock-free.
 final class SecureBytesArenaAllocator: Sendable {
     /// Shared bump arena, replaced when it fills. Holding it strong keeps

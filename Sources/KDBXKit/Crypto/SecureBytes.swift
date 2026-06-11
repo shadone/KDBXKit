@@ -23,10 +23,10 @@ import Foundation
 ///
 /// ## Mechanics
 ///
-/// 1. Sub-allocates its bytes from a shared, page-locked ``SecureArena``
+/// 1. Sub-allocates its bytes from a shared, page-locked `SecureArena`
 ///    (large secrets get a dedicated arena). Many secrets share one
 ///    `mlock`'d region, so a 12-byte password no longer wires a whole
-///    16 KiB page — see ``SecureArena`` for why that amplification
+///    16 KiB page — see `SecureArena` for why that amplification
 ///    matters on memory-capped hosts like the iOS AutoFill extension.
 /// 2. The arena's pages are `mlock`'d so secrets can't be paged out to
 ///    disk (best-effort — `RLIMIT_MEMLOCK` can refuse and we proceed
