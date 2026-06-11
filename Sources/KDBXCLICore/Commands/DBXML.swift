@@ -30,7 +30,7 @@ extension DB {
 
             case let .success(_, kdbx):
                 guard let xmlDocument = kdbx.xmlDocument else {
-                    fatalError("Internal error: XML document missing after parse with retainsXMLForDiagnostics: true")
+                    throw AppError.internalError("XML document missing after parse with retainsXMLForDiagnostics: true")
                 }
                 print(xmlDocument)
             }

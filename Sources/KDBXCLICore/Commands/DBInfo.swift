@@ -53,7 +53,7 @@ extension DB {
             }
 
             guard let header = kdbx.header else {
-                fatalError("Internal error: should have the header after parsing")
+                throw AppError.internalError("missing header after parse")
             }
 
             let snapshot = DBInfoSnapshot(

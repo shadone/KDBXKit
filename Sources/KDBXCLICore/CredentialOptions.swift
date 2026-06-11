@@ -49,7 +49,12 @@ struct CredentialOptions: ParsableArguments {
 
     @Flag(
         name: .customLong("no-env"),
-        help: "Ignore the KDBX_PASSWORD environment variable."
+        help: ArgumentHelp(
+            "Ignore the KDBX_PASSWORD environment variable.",
+            discussion: "Environment variables are visible to same-user processes "
+                + "(ps -E, /proc/<pid>/environ) and often end up in CI logs — prefer "
+                + "--password-stdin or --key-file where that matters."
+        )
     )
     var noEnv: Bool = false
 

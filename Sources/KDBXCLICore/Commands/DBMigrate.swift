@@ -70,8 +70,9 @@ extension DB {
                 backup: backupOptions.backup
             )
 
-            // Re-read so the "migrated to" line reflects what's
-            // actually on disk, not what we hoped to write.
+            // The summary is formatted from the in-memory content the
+            // writer just serialized; writeAtomically has either fully
+            // replaced the file with those bytes or thrown.
             let summary: String
             if keepKDF {
                 summary = "migrated KDBX \(content.header.formatVersion) → 4.1 (KDF unchanged)"
