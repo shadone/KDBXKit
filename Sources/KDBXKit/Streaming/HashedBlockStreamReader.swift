@@ -47,29 +47,21 @@ enum HashedBlockStreamReader {
     /// `StreamStartBytes` already stripped by the caller) is exactly the
     /// hashed stream.
     static func decode(_ data: Data) throws(Error) -> Data {
-        var pos = data.startIndex
+        var cursor = ByteCursor(data)
         var payload = Data(capacity: data.count)
 
         while true {
-            guard pos.advanced(by: 4 + 32 + 4) <= data.endIndex else {
-                throw .unexpectedEOF
-            }
-
             // blockId — present for ordering but not used by the reader.
             // KeePass writes a monotonically increasing index; some
             // ill-behaved producers don't, so we just consume it.
-            let blockIdData = data.subdata(in: pos..<pos.advanced(by: 4))
-            pos = pos.advanced(by: 4)
-            guard let blockId = blockIdData.asUInt32LE() else {
-                throw .unexpectedEOF
-            }
-
-            let storedHash = data.subdata(in: pos..<pos.advanced(by: 32))
-            pos = pos.advanced(by: 32)
-
-            let sizeData = data.subdata(in: pos..<pos.advanced(by: 4))
-            pos = pos.advanced(by: 4)
-            guard let size = sizeData.asUInt32LE() else {
+            let blockId: UInt32
+            let storedHash: Data
+            let size: UInt32
+            do {
+                blockId = try cursor.readUInt32LE()
+                storedHash = try cursor.readData(length: 32)
+                size = try cursor.readUInt32LE()
+            } catch {
                 throw .unexpectedEOF
             }
 
@@ -82,12 +74,12 @@ enum HashedBlockStreamReader {
                 return payload
             }
 
-            let blockEnd = pos.advanced(by: Int(size))
-            guard blockEnd <= data.endIndex else {
+            let block: Data
+            do {
+                block = try cursor.readData(length: Int(size))
+            } catch {
                 throw .unexpectedEOF
             }
-            let block = data.subdata(in: pos..<blockEnd)
-            pos = blockEnd
 
             let computedHash = block.sha256()
             if !ConstantTime.equals(computedHash, storedHash) {
