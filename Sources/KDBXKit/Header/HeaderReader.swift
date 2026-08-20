@@ -95,8 +95,20 @@ struct HeaderReader: Sendable {
 
             switch fieldType {
             case .endOfHeader:
+                // The end-of-header value is a legacy sanity marker, not
+                // integrity data. KeePass 2.x, KeePassXC and KeePassium write
+                // "\r\n\r\n"; other implementations emit an empty value.
+                // Both occur in real KDBX 4 files.
+                //
+                // Rejecting anything but "\r\n\r\n" buys no security: the
+                // header bytes are already covered by the header SHA-256 digest
+                // and by the HMAC, so tampering is caught regardless of what
+                // this marker contains. Enforcing it only locks out vaults
+                // written by conforming implementations.
                 if valueData != HeaderFieldType.endOfHeaderValue {
-                    throw Error.corrupted(reason: "Invalid end-of-header value. Length: \(valueData.count); bytes: \(valueData.hexString)")
+                    KDBXLog.header.debug(
+                        "Non-standard end-of-header value (\(valueData.count) bytes); accepting"
+                    )
                 }
                 done = true
 
