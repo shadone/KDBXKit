@@ -154,4 +154,30 @@ struct MalformedInputTests {
             )
         }
     }
+
+    /// Regression for a crash found via randomized-mutation fuzzing (not the bundled
+    /// libFuzzer harness): a single byte whose flip sets the sign bit of a HMAC
+    /// block-stream size field (`readInt32()` -> `readData(length:)`,
+    /// `KDBXReader.swift` around line 350) produced a negative `length`.
+    /// `readData(length:)`'s bounds check only guarded `end > data.endIndex`, never
+    /// `end < start`, so `Data.subdata(in:)` trapped with "Range requires lowerBound
+    /// <= upperBound" instead of throwing. A dense byte-flip sweep across a whole real
+    /// fixture is a broader, less fixture-fragile regression than pinning one exact
+    /// offset — this is the sweep that would have caught it.
+    @Test("Dense byte-flip sweep across a real fixture never crashes, only throws typed errors")
+    func systematicBitFlipSweepNeverCrashes() throws {
+        let path = Bundle.module.path(forResource: "Resources/simple-argon2id-aes256", ofType: "kdbx")!
+        let original = try Data(contentsOf: URL(filePath: path))
+        let unlock = UnlockData(masterPassword: "123")
+
+        for offset in stride(from: 0, to: original.count, by: 7) {
+            var mutated = original
+            mutated[offset] ^= 0xFF
+            do {
+                _ = try KDBXReader.parse(mutated, unlockData: unlock)
+            } catch is KDBXReader.Error {
+                // Expected — any typed error is fine, as long as it doesn't crash.
+            }
+        }
+    }
 }

@@ -223,6 +223,17 @@ public struct KDBXReader: Sendable {
     }
 
     private mutating func readData(length: Int) throws(Error) -> Data {
+        // `length` is frequently derived from an attacker-controlled size field read
+        // directly off disk (e.g. the HMAC block-stream's per-block size). A negative
+        // value makes `end` land before `start` while still satisfying the
+        // `end > data.endIndex` check below, which only ever guarded the *upper* bound
+        // -- `Data.subdata(in:)` then traps ("Range requires lowerBound <= upperBound")
+        // instead of throwing a catchable error. Reject it explicitly, before doing any
+        // arithmetic that assumes a well-formed range.
+        guard length >= 0 else {
+            throw Error.corruptedHMAC(reason: "negative block length \(length)")
+        }
+
         let start = pos
         let end = pos.advanced(by: length)
 
