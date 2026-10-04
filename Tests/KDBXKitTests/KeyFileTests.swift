@@ -77,14 +77,19 @@ struct KeyFileTests {
         #expect(normalized == Data(SHA256.hash(data: blob)))
     }
 
-    @Test("Keyfile normalization: v1 XML keyfile (hex inside <Data>) parses to 32 bytes")
-    func normalize_xmlV1Hex() throws {
+    // Formats from https://keepass.info/help/base/keys.html#keyfiles:
+    // version 1.0 stores base64 in <Data>, version 2.0 (KeePass 2.47+ and
+    // KeePassXC's .keyx) stores hex in space-separated groups plus a Hash
+    // attribute (first 4 bytes of SHA-256 of the key, hex).
+
+    @Test("Keyfile normalization: v1.0 XML keyfile (base64 inside <Data>) parses to 32 bytes")
+    func normalize_xmlV1Base64() throws {
         let xml = """
             <?xml version="1.0" encoding="utf-8"?>
             <KeyFile>
-                <Meta><Version>1.0</Version></Meta>
+                <Meta><Version>1.00</Version></Meta>
                 <Key>
-                    <Data>000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F</Data>
+                    <Data>AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=</Data>
                 </Key>
             </KeyFile>
             """
@@ -92,15 +97,32 @@ struct KeyFileTests {
         #expect(normalized == Data((0..<32).map { UInt8($0) }))
     }
 
-    @Test("Keyfile normalization: v2 XML keyfile (base64 + Hash attribute) parses to 32 bytes")
-    func normalize_xmlV2Base64() throws {
-        // base64 of bytes 0x00..0x1F:
+    @Test("Keyfile normalization: v2.0 XML keyfile (grouped hex + Hash, as KeePassXC writes .keyx) parses to 32 bytes")
+    func normalize_xmlV2Hex() throws {
         let xml = """
-            <?xml version="1.0" encoding="utf-8"?>
+            <?xml version="1.0" encoding="UTF-8"?>
             <KeyFile>
-                <Meta><Version>2.0</Version></Meta>
+                <Meta>
+                    <Version>2.0</Version>
+                </Meta>
                 <Key>
-                    <Data Hash="630DCD29">AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=</Data>
+                    <Data Hash="630DCD29">
+                        00010203 04050607 08090A0B 0C0D0E0F
+                        10111213 14151617 18191A1B 1C1D1E1F
+                    </Data>
+                </Key>
+            </KeyFile>
+            """
+        let normalized = try UnlockData.normalizeKeyFile(Data(xml.utf8))
+        #expect(normalized == Data((0..<32).map { UInt8($0) }))
+    }
+
+    @Test("Keyfile normalization: XML keyfile without a version accepts 64 hex digits")
+    func normalize_xmlNoVersionHex() throws {
+        let xml = """
+            <KeyFile>
+                <Key>
+                    <Data>000102030405060708090A0B0C0D0E0F101112131415161718191A1B1C1D1E1F</Data>
                 </Key>
             </KeyFile>
             """
@@ -117,14 +139,16 @@ struct KeyFileTests {
     @Test("Keyfile normalization: v2 XML keyfile with mismatched Hash is rejected")
     func normalize_xmlV2BadHashIsRejected() {
         // Decoded bytes are 0x00..0x1F, whose SHA-256[0..4] is
-        // 630DCD29 (see normalize_xmlV2Base64 above). The Hash here
-        // is wrong.
+        // 630DCD29 (see normalize_xmlV2Hex above). The Hash here is wrong.
         let xml = """
             <?xml version="1.0" encoding="utf-8"?>
             <KeyFile>
                 <Meta><Version>2.0</Version></Meta>
                 <Key>
-                    <Data Hash="DEADBEEF">AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=</Data>
+                    <Data Hash="DEADBEEF">
+                        00010203 04050607 08090A0B 0C0D0E0F
+                        10111213 14151617 18191A1B 1C1D1E1F
+                    </Data>
                 </Key>
             </KeyFile>
             """

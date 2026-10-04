@@ -231,11 +231,13 @@ public struct UnlockData: Sendable {
     ///
     /// Per the KDBX spec (https://keepass.info/help/kb/keyfile.html):
     ///
-    /// - XML keyfile v1 (`<KeyFile><Key><Data>HEX</Data></Key></KeyFile>`):
-    ///   decode the inner hex to 32 bytes.
-    /// - XML keyfile v2 (`<KeyFile><Key><Data Hash="XXXXXXXX">BASE64</Data></Key></KeyFile>`):
-    ///   decode the base64 to 32 bytes; verify the optional `Hash` attribute
-    ///   against the first 4 bytes of SHA-256 of the decoded bytes.
+    /// - XML keyfile version 1.0 (`<Meta><Version>1.0</Version></Meta>`,
+    ///   `<Key><Data>BASE64</Data></Key>`): decode the base64 to 32 bytes.
+    /// - XML keyfile version 2.0 (`<Meta><Version>2.0</Version></Meta>`,
+    ///   `<Key><Data Hash="XXXXXXXX">HEX</Data></Key>`, what KeePass 2.47+
+    ///   and KeePassXC write as `.keyx`): decode the hex (written in
+    ///   space-separated groups over several lines) to 32 bytes and verify
+    ///   the `Hash` attribute against the first 4 bytes of SHA-256 of them.
     /// - Exactly 32 bytes: use those raw bytes (v1 binary keyfile).
     /// - Exactly 64 ASCII hex characters: decode the hex to 32 bytes
     ///   (legacy hex keyfile).
@@ -299,24 +301,29 @@ public struct UnlockData: Sendable {
         guard !text.isEmpty else { return nil }
 
         let hashAttribute = dataNode.attributes.first { name, _ in name == "Hash" }?.1
-        let isV2 = hashAttribute != nil
+
+        // The format version decides the encoding of <Data>: base64 in
+        // 1.0, hex in 2.0. Files without a version are decoded as 64 hex
+        // digits if they are exactly that, otherwise as base64.
+        var version = ""
+        if let meta = root.children.first(where: { $0.name == "Meta" }),
+           let versionNode = meta.children.first(where: { $0.name == "Version" })
+        {
+            for child in versionNode.children where child.kind == .text {
+                version += child.value
+            }
+            version = version.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let stripped = text.filter { !$0.isWhitespace }
+        let hexDecoded = stripped.count == 64 ? decodeHexKeyFile(Data(stripped.utf8)) : nil
 
         let decoded: Data?
-        if isV2 {
-            // v2: base64-encoded 32 bytes.
-            decoded = Data(base64Encoded: text, options: .ignoreUnknownCharacters)
+        if version.hasPrefix("2.") {
+            decoded = hexDecoded
+        } else if version.hasPrefix("1.") {
+            decoded = Data(base64Encoded: stripped)
         } else {
-            // v1: hex-encoded 32 bytes (KeePass historical format). Some
-            // producers also write base64 — try hex first, then base64
-            // as a fallback.
-            let stripped = text.filter { !$0.isWhitespace }
-            if stripped.count == 64,
-               let hex = decodeHexKeyFile(Data(stripped.utf8))
-            {
-                decoded = hex
-            } else {
-                decoded = Data(base64Encoded: stripped, options: .ignoreUnknownCharacters)
-            }
+            decoded = hexDecoded ?? Data(base64Encoded: stripped)
         }
 
         guard let bytes = decoded, bytes.count == 32 else { return nil }
