@@ -101,7 +101,10 @@ struct StaticReaderAPITests {
         do {
             _ = try KDBXReader.parse(data, unlockData: .init(masterPassword: "test"))
             Issue.record("Expected .unsupportedFormatVersion")
-        } catch let error as KDBXReader.Error {
+        } catch {
+            // `KDBXReader.parse` uses typed throws, so `error` is already a
+            // `KDBXReader.Error`. A `catch let error as KDBXReader.Error`
+            // pattern here crashes the Swift 6.3 SIL ownership verifier.
             if case let .unsupportedFormatVersion(major, minor) = error {
                 #expect(major == 3)
                 #expect(minor == 0)
