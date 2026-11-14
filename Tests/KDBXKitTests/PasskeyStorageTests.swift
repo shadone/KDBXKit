@@ -8,7 +8,6 @@ import Foundation
 import Testing
 @testable import KDBXKit
 
-@Suite
 struct PasskeyStorageTests {
     private func loadFixture() throws -> KDBXContent {
         let path = Bundle.module.path(forResource: "Resources/kpxc-passkey", ofType: "kdbx")!
@@ -21,7 +20,9 @@ struct PasskeyStorageTests {
         let content = try loadFixture()
         var found: [KDBX.Entry] = []
         content.database.visitEntries(in: content.database.root.group) { entry in
-            if entry.isPasskey { found.append(entry) }
+            if entry.isPasskey {
+                found.append(entry)
+            }
         }
         return found
     }
@@ -88,7 +89,7 @@ struct PasskeyStorageTests {
     // MARK: - Setter tests
 
     @Test
-    func writesAndReadsBackPasskeyFields() throws {
+    func writesAndReadsBackPasskeyFields() {
         var entry = KDBX.Entry(uuid: UUID())
         entry.setPasskeyRelyingParty("example.com")
         entry.setPasskeyUsername("alice")
@@ -112,19 +113,19 @@ struct PasskeyStorageTests {
         if case .regular = proto(KDBX.Entry.PasskeyField.username) {} else {
             Issue.record("username must be .regular")
         }
-        if case .unprotected = proto(KDBX.Entry.PasskeyField.credentialID) {} else {
-            Issue.record("credID must be .unprotected")
+        if case .innerProtected = proto(KDBX.Entry.PasskeyField.credentialID) {} else {
+            Issue.record("credID must be .innerProtected")
         }
-        if case .unprotected = proto(KDBX.Entry.PasskeyField.userHandle) {} else {
-            Issue.record("userHandle must be .unprotected")
+        if case .innerProtected = proto(KDBX.Entry.PasskeyField.userHandle) {} else {
+            Issue.record("userHandle must be .innerProtected")
         }
-        if case .unprotected = proto(KDBX.Entry.PasskeyField.privateKeyPEM) {} else {
-            Issue.record("PEM must be .unprotected")
+        if case .innerProtected = proto(KDBX.Entry.PasskeyField.privateKeyPEM) {} else {
+            Issue.record("PEM must be .innerProtected")
         }
     }
 
     @Test
-    func setterOverwritesExistingField() throws {
+    func setterOverwritesExistingField() {
         var entry = KDBX.Entry(uuid: UUID())
         entry.setPasskeyRelyingParty("first.example")
         entry.setPasskeyRelyingParty("second.example")
@@ -134,7 +135,7 @@ struct PasskeyStorageTests {
 
     @Test
     func passkeySurvivesWriteAndReopen() throws {
-        let path = Bundle.module.path(forResource: "Resources/kpxc-passkey", ofType: "kdbx")!
+        let path = try #require(Bundle.module.path(forResource: "Resources/kpxc-passkey", ofType: "kdbx"))
         let data = try Data(contentsOf: URL(filePath: path))
         let unlock = UnlockData(masterPassword: "123")
         var reader = KDBXReader(data)
@@ -151,7 +152,7 @@ struct PasskeyStorageTests {
         let outPath = FileManager.default.temporaryDirectory
             .appendingPathComponent("passkey-rt-\(UUID().uuidString).kdbx").path
         defer { try? FileManager.default.removeItem(atPath: outPath) }
-        let os = OutputStream(toFileAtPath: outPath, append: false)!
+        let os = try #require(OutputStream(toFileAtPath: outPath, append: false))
         os.open()
         try KDBXWriter(to: os).write(content, unlockData: unlock)
         os.close()
@@ -160,7 +161,9 @@ struct PasskeyStorageTests {
         let reopened = try reopenReader.parse(unlockData: unlock)
         var found: KDBX.Entry?
         reopened.database.visitEntries(in: reopened.database.root.group) {
-            if $0.passkeyRelyingParty == "added.example" { found = $0 }
+            if $0.passkeyRelyingParty == "added.example" {
+                found = $0
+            }
         }
         #expect(reopened.parserWarnings.isEmpty)
 

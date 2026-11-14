@@ -33,7 +33,7 @@ enum EntryField {
     /// save. (`.unprotected` is the case the writer treats as
     /// `Protected="True"` — see ProtectedString.Value docs.)
     static func setProtected(_ key: String, _ value: String, on entry: inout KDBX.Entry) {
-        upsert(key: key, value: .unprotected(value), on: &entry)
+        upsert(key: key, value: .innerProtected(value), on: &entry)
     }
 
     /// Remove a field by key. Returns true if a field was removed.

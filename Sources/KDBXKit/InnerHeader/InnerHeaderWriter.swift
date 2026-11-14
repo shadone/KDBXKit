@@ -76,7 +76,7 @@ struct InnerHeaderWriter {
 
         for binaryContent in innerHeader.binaryContent {
             try write(InnerHeaderFieldType.binaryContent.rawValue)
-            try write(Int32(binaryContent.data.count + 1))
+            try write(Int32(binaryContent.count + 1))
             try write(UInt8(binaryContent.shouldBeProtected ? 0x01 : 0x00))
             try write(binaryContent.data)
         }

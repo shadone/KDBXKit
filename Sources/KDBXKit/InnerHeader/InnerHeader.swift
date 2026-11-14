@@ -77,20 +77,72 @@ public struct InnerHeader: Sendable, Equatable {
     /// byte-identical attachments on different entries share one
     /// `BinaryContent`.
     public struct BinaryContent: Sendable, Equatable {
-        /// Whether the payload should be held in protected memory
-        /// while resident — i.e. encrypted under the inner-stream
-        /// cipher and decrypted only on demand. Mirrors the
-        /// `protected` flag a referencing
-        /// ``KDBX/ProtectedBinary/Value/inline(_:protected:)`` would
-        /// have carried.
-        public var shouldBeProtected: Bool
+        /// Whether the resident payload is encrypted with an independent
+        /// per-value key. This flag does not add inner-stream encryption to
+        /// pool bytes on disk; Protected on an inline XML value does that.
+        public var shouldBeProtected: Bool {
+            get { protectedPayload != nil }
+            set {
+                guard newValue != shouldBeProtected else { return }
+                if newValue {
+                    protectedPayload = ProtectedBytes(plainPayload ?? Data())
+                    plainPayload = nil
+                } else {
+                    plainPayload = protectedPayload?.withRevealedBytes { Data($0) } ?? Data()
+                    protectedPayload = nil
+                }
+            }
+        }
 
-        /// Raw bytes of the attachment.
-        public var data: Data
+        private var plainPayload: Data?
+        private var protectedPayload: ProtectedBytes?
+        /// Whether this instance retains only encrypted payload storage.
+        var isStoredEncrypted: Bool {
+            protectedPayload != nil && plainPayload == nil
+        }
+
+        /// Explicit compatibility copy. Prefer scoped access to protected data.
+        public var data: Data {
+            get { withRevealedBytes { Data($0) } }
+            set {
+                if shouldBeProtected {
+                    protectedPayload = ProtectedBytes(newValue)
+                } else {
+                    plainPayload = newValue
+                }
+            }
+        }
+
+        /// An inline attachment sharing the protected resident storage, without
+        /// decrypting or making a plaintext copy during eager vault loading.
+        public var inlineValue: KDBX.ProtectedBinary.Value {
+            if let protectedPayload {
+                return .protectedInline(protectedPayload)
+            }
+            return .plainInline(plainPayload ?? Data())
+        }
+
+        /// Byte count without decrypting the payload.
+        public var count: Int {
+            protectedPayload?.count ?? plainPayload?.count ?? 0
+        }
+
+        /// Borrow bytes for serialization or another explicit use.
+        public func withRevealedBytes<R>(_ body: (UnsafeRawBufferPointer) throws -> R) rethrows -> R {
+            if let protectedPayload {
+                return try protectedPayload.withRevealedBytes(body)
+            }
+            return try (plainPayload ?? Data()).withUnsafeBytes(body)
+        }
 
         public init(shouldBeProtected: Bool, data: Data) {
-            self.shouldBeProtected = shouldBeProtected
-            self.data = data
+            if shouldBeProtected {
+                protectedPayload = ProtectedBytes(data)
+                plainPayload = nil
+            } else {
+                plainPayload = data
+                protectedPayload = nil
+            }
         }
     }
 

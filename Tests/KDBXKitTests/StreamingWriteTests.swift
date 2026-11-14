@@ -245,8 +245,8 @@ struct StreamingWriteTests {
         var entry = KDBX.Entry(uuid: UUID())
         entry.strings = [
             .init(key: "Title", value: .regular("Equiv")),
-            .init(key: "Password", value: .unprotected("p@ss-word")),
-            .init(key: "TOTP", value: .unprotected("otpauth://x")),
+            .init(key: "Password", value: .innerProtected("p@ss-word")),
+            .init(key: "TOTP", value: .innerProtected("otpauth://x")),
         ]
         entry.binaries = [
             .init(key: "blob.bin", value: .ref(0)),
@@ -261,7 +261,7 @@ struct StreamingWriteTests {
         let eagerStream = OutputStream(toMemory: ())
         eagerStream.open()
         try KDBXWriter(to: eagerStream).write(content, unlockData: unlock, regenerateSalts: false)
-        let eagerBytes = eagerStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
+        let eagerBytes = try #require(eagerStream.property(forKey: .dataWrittenToMemoryStreamKey) as? Data)
         eagerStream.close()
 
         // Streaming write of the SAME content + binaries.
@@ -298,9 +298,17 @@ struct StreamingWriteTests {
 
     private struct ThrowingBinarySource: BinarySource {
         struct Boom: Error { }
-        var sizeBytes: Int { 8 }
-        var shouldBeProtected: Bool { false }
-        func stream(into sink: inout some ByteSink) throws { throw Boom() }
+        var sizeBytes: Int {
+            8
+        }
+
+        var shouldBeProtected: Bool {
+            false
+        }
+
+        func stream(into sink: inout some ByteSink) throws {
+            throw Boom()
+        }
     }
 
     private func entriesIn(_ database: KDBX) -> Int {

@@ -67,49 +67,68 @@ public final class SecureBytes: @unchecked Sendable, Equatable, CustomStringConv
     /// untouched (the caller is responsible for handling that source — if it
     /// was a `Data`/`[UInt8]`, the original bytes are still reachable through
     /// that reference until ARC collects them).
-    public init(_ bytes: some Sequence<UInt8>) {
-        let array = Array(bytes)
-        let count = array.count
-        self.count = count
+    public convenience init(_ bytes: some Sequence<UInt8>) {
+        var array = Array(bytes)
+        defer {
+            array.withUnsafeMutableBytes { buffer in
+                if let base = buffer.baseAddress {
+                    secureZero(base, buffer.count)
+                }
+            }
+        }
+        self.init(count: array.count) { destination in
+            array.withUnsafeBytes { destination.copyMemory(from: $0) }
+        }
+    }
 
-        // An empty secret owns no arena slice — nothing to `mlock`, nothing
-        // to zero. `withUnsafeBytes` hands back a zero-length buffer.
-        if count == 0 {
-            self.arena = nil
+    private init(count: Int, fill: (UnsafeMutableRawBufferPointer) -> Void) {
+        self.count = count
+        guard count > 0 else {
+            arena = nil
             dataPtr = nil
             return
         }
-
         let (arena, pointer) = secureBytesArenaAllocator.allocate(count)
         self.arena = arena
         dataPtr = pointer
-        array.withUnsafeBufferPointer { source in
-            pointer.copyMemory(from: source.baseAddress!, byteCount: count)
+        fill(UnsafeMutableRawBufferPointer(start: pointer, count: count))
+    }
+
+    /// Copy borrowed bytes directly into the zero-on-release arena.
+    public convenience init(copying bytes: UnsafeRawBufferPointer) {
+        self.init(count: bytes.count) { $0.copyMemory(from: bytes) }
+    }
+
+    /// Copy Data directly, without an intermediate plaintext Array.
+    /// The source Data remains the caller's responsibility.
+    public convenience init(_ data: Data) {
+        self.init(count: data.count) { destination in
+            data.withUnsafeBytes { destination.copyMemory(from: $0) }
         }
     }
 
-    /// Convenience init from `Data`. Same caveat as the sequence init: the
-    /// source `Data`'s backing bytes are not zeroed by us.
-    public convenience init(_ data: Data) {
-        self.init(Array(data))
-    }
-
-    /// Convenience init from a UTF-8 string. The source `String` is **still
-    /// in the caller's memory** — Swift String can't be securely zeroed.
-    /// Use this only at the boundary where plaintext arrives (typed
-    /// passwords, JSON decoders, etc.); thereafter pass `SecureBytes` around.
+    /// Copy UTF-8 into protected memory without an intermediate Array.
+    /// The source String cannot be erased and remains the caller's responsibility.
     public convenience init(utf8 string: String) {
-        self.init(Array(string.utf8))
+        self.init(count: string.utf8.count) { destination in
+            for (index, byte) in string.utf8.enumerated() {
+                destination[index] = byte
+            }
+        }
     }
 
     /// Build an empty SecureBytes.
-    public static var empty: SecureBytes { SecureBytes([] as [UInt8]) }
+    public static var empty: SecureBytes {
+        SecureBytes([] as [UInt8])
+    }
 
     /// Whether the buffer carries any bytes. Cheap convenience over
     /// `count == 0`; mirrors the standard-library shape of
     /// `Collection.isEmpty` so callers (and SwiftFormat's `isEmpty`
     /// rule) can reach for the natural form.
-    public var isEmpty: Bool { count == 0 }
+    public var isEmpty: Bool {
+        count == 0
+    }
 
     deinit {
         // Zero our slice promptly, with a function the compiler can't

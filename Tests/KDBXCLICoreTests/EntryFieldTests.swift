@@ -19,7 +19,9 @@ struct EntryFieldTests {
         let kv = entry.strings[0]
         #expect(kv.key == "Title")
         #expect(kv.value.revealedString == "hello")
-        if case .regular = kv.value { } else { Issue.record("expected .regular protection") }
+        if case .regular = kv.value { } else {
+            Issue.record("expected .regular protection")
+        }
     }
 
     @Test("setRegular replaces an existing field rather than appending")
@@ -31,13 +33,13 @@ struct EntryFieldTests {
         #expect(entry.strings[0].value.revealedString == "v2")
     }
 
-    @Test("setProtected marks the field as .unprotected so the writer encrypts it")
+    @Test("setProtected marks the field as .innerProtected so the writer encrypts it")
     func setProtectedEncryption() {
         var entry = KDBX.Entry(uuid: UUID())
         EntryField.setProtected("Password", "secret", on: &entry)
         let kv = entry.strings[0]
-        if case .unprotected = kv.value { } else {
-            Issue.record("Password should be stored as .unprotected so the writer flags Protected=True")
+        if case .innerProtected = kv.value { } else {
+            Issue.record("Password should be stored as .innerProtected so the writer flags Protected=True")
         }
         #expect(kv.value.revealedString == "secret")
     }
@@ -48,8 +50,8 @@ struct EntryFieldTests {
         EntryField.setRegular("Token", "old", on: &entry)
         EntryField.setProtected("Token", "new", on: &entry)
         #expect(entry.strings.count == 1)
-        if case .unprotected = entry.strings[0].value { } else {
-            Issue.record("setProtected should swap the value to .unprotected")
+        if case .innerProtected = entry.strings[0].value { } else {
+            Issue.record("setProtected should swap the value to .innerProtected")
         }
     }
 
@@ -75,7 +77,7 @@ struct EntryFieldTests {
 
     @Test("standardKeys exposes the five KDBX standard fields")
     func standardKeysComplete() {
-        let expected: Set<String> = ["Title", "UserName", "URL", "Notes", "Password"]
+        let expected: Set = ["Title", "UserName", "URL", "Notes", "Password"]
         #expect(EntryField.standardKeys == expected)
     }
 }

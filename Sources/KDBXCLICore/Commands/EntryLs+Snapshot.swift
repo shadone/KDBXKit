@@ -101,26 +101,17 @@ struct FieldSnapshot: Encodable {
 
     init(_ kv: KDBX.ProtectedString, showSecrets: Bool) {
         key = kv.key
-        let rawValue: String
         switch kv.value {
-        case let .regular(b):
-            rawValue = b.revealedString
-            protection = .regular
-        case let .unprotected(b):
-            rawValue = b.revealedString
-            protection = .unprotected
-        case let .protectedInMemory(b):
-            rawValue = b.revealedString
-            protection = .protectedInMemory
-        case .lazyInnerCipher:
-            rawValue = kv.value.revealedString
-            protection = .lazyInnerCipher
+        case .regular: protection = .regular
+        case .innerProtected: protection = .unprotected // Stable JSON label.
+        case .memoryProtected: protection = .protectedInMemory
+        case .lazyInnerCipher: protection = .lazyInnerCipher
         }
         if protection.isOnDiskProtected, !showSecrets {
             value = maskedFieldPlaceholder
             masked = true
         } else {
-            value = rawValue
+            value = kv.value.revealedString
             masked = false
         }
     }
@@ -156,9 +147,9 @@ struct BinarySnapshot: Encodable {
     init(binary: KDBX.ProtectedBinary, innerHeader: InnerHeader) {
         key = binary.key
         switch binary.value {
-        case let .inline(data, _):
+        case .plainInline, .protectedInline:
             source = .inline
-            size = data.count
+            size = binary.value.inlineByteCount!
             ref = nil
             dangling = false
         case let .ref(idx):

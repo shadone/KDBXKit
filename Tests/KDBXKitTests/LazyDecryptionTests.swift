@@ -28,7 +28,7 @@ struct LazyDecryptionTests {
             for protectedString in entry.strings {
                 if case .lazyInnerCipher = protectedString.value {
                     seenProtected += 1
-                } else if case .unprotected = protectedString.value {
+                } else if case .innerProtected = protectedString.value {
                     seenEager += 1
                 }
             }
@@ -41,7 +41,7 @@ struct LazyDecryptionTests {
     @Test("Lazy ciphertext bytes do NOT contain the plaintext canary")
     func ciphertextDoesNotLeakPlaintext() throws {
         let canary = "MEMORY-DWELL-CANARY-32-BYTES-XYZQ"
-        let canaryUtf8 = canary.data(using: .utf8)!
+        let canaryUtf8 = try #require(canary.data(using: .utf8))
         let bytes = try makeVaultWithPassword(canary)
         let content = try KDBXReader.parse(bytes, unlockData: UnlockData(masterPassword: "matrix-test-pw"))
 
@@ -89,7 +89,7 @@ struct LazyDecryptionTests {
             strings: [
                 KDBX.ProtectedString(key: "Title", value: .regular("Canary Entry")),
                 KDBX.ProtectedString(key: "UserName", value: .regular("user@example.com")),
-                KDBX.ProtectedString(key: "Password", value: .unprotected(canary)),
+                KDBX.ProtectedString(key: "Password", value: .innerProtected(canary)),
                 KDBX.ProtectedString(key: "URL", value: .regular("")),
                 KDBX.ProtectedString(key: "Notes", value: .regular("")),
             ]

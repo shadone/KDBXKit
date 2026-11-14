@@ -21,10 +21,10 @@ extension Attach {
             abstract: "Extract one attachment from an entry. Writes to stdout by default; refuses to write binary to a TTY."
         )
 
-        @OptionGroup()
+        @OptionGroup
         var commonOptions: CommonOptions
 
-        @OptionGroup()
+        @OptionGroup
         var addressOptions: AddressOptions
 
         @Argument(help: ArgumentHelp("Attachment key (filename inside the entry).", valueName: "name"))
@@ -53,8 +53,8 @@ extension Attach {
 
             let bytes: Data
             switch binary.value {
-            case let .inline(data, _):
-                bytes = data
+            case .plainInline, .protectedInline:
+                bytes = binary.value.inlineData!
             case let .ref(idx):
                 guard Int(idx) < content.innerHeader.binaryContent.count else {
                     throw AttachError.corruptRef(attachmentName, idx)

@@ -15,13 +15,13 @@ extension Attach {
             abstract: "List attachments on a single entry."
         )
 
-        @OptionGroup()
+        @OptionGroup
         var commonOptions: CommonOptions
 
-        @OptionGroup()
+        @OptionGroup
         var outputOptions: OutputOptions
 
-        @OptionGroup()
+        @OptionGroup
         var addressOptions: AddressOptions
 
         mutating func run() throws {
@@ -69,11 +69,13 @@ struct AttachmentListSnapshot: Encodable {
         entryUUID = entry.uuid.uuidString
         attachments = entry.binaries.map { binary in
             switch binary.value {
-            case let .inline(data, protected):
+            case .plainInline, .protectedInline:
+                let size = binary.value.inlineByteCount!
+                let protected = binary.value.isProtected
                 return Attachment(
                     key: binary.key,
                     source: .inline,
-                    size: data.count,
+                    size: size,
                     ref: nil,
                     protectedOnDisk: protected,
                     dangling: false

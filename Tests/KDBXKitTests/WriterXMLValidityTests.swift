@@ -6,10 +6,10 @@
 
 import Foundation
 import Testing
+@testable import KDBXKit
 #if canImport(FoundationXML)
 import FoundationXML
 #endif
-@testable import KDBXKit
 
 /// Always-on proxy for the KeePassXC interop net.
 ///
@@ -95,7 +95,7 @@ struct WriterXMLValidityTests {
             .init(key: "UserName", value: .regular("alice")),
             // A protected field exercises the inner-stream cipher + the
             // Protected="True" attribute path in the serializer.
-            .init(key: "Password", value: .unprotected(SecureBytes(utf8: "s3cret <&> \"quote\""))),
+            .init(key: "Password", value: .innerProtected(SecureBytes(utf8: "s3cret <&> \"quote\""))),
             // Reserved XML characters in a plaintext field force the escaper.
             .init(key: "Notes", value: .regular("a < b & c > d \"e\" 'f'")),
         ]
@@ -134,7 +134,7 @@ struct WriterXMLValidityTests {
         // The 3.x read path uses the ISO-8601 XML dialect; on save we clamp to
         // 4.x and re-serialize. Validate that re-serialized output, since it
         // crosses the dialect boundary the interop suite normally guards.
-        let path = Bundle.module.path(forResource: "Resources/kpxc-kdbx31-default", ofType: "kdbx")!
+        let path = try #require(Bundle.module.path(forResource: "Resources/kpxc-kdbx31-default", ofType: "kdbx"))
         let data = try Data(contentsOf: URL(filePath: path))
         let unlock = UnlockData(masterPassword: "test")
         var reader = KDBXReader(data)

@@ -21,33 +21,26 @@ public extension KDBX {
     /// // Find the entry's Password field.
     /// let pw = entry.strings.first(where: { $0.key == "Password" })?.value
     /// pw?.withRevealedString { plaintext in
-    ///     // plaintext lives only for this closure.
+    ///     // Use plaintext here; do not retain it.
     /// }
     /// ```
     struct ProtectedString: Sendable, Equatable {
         /// The value of a `<Value>` element inside an entry's `<String>`
-        /// node. Three on-disk forms exist in the KDBX spec; from our
-        /// perspective each one carries secret-shaped bytes (passwords,
-        /// TOTP seeds, notes), so the payload is always either
-        /// `SecureBytes` — a page-locked, zero-on-deinit wrapper — or a
-        /// lazy reference to inner-cipher-encrypted bytes that gets
-        /// decrypted on demand. Either way, no `Swift.String` (which
-        /// can't be securely zeroed) carries the secret.
+        /// node. On-disk protection and resident storage are separate:
+        /// regular XML values use zero-on-release SecureBytes; protected values
+        /// retain ciphertext, either from the inner stream or ProtectedBytes.
+        /// Explicit reveal APIs can produce plaintext copies that callers must
+        /// avoid retaining beyond their intended use.
         public enum Value: Sendable {
             /// Plaintext in the XML document.
             case regular(SecureBytes)
 
-            /// Was stored encrypted with the inner stream cipher in the
-            /// XML document. The associated bytes are the **decrypted**
-            /// plaintext, materialized eagerly. (Compare `.lazyInnerCipher`,
-            /// which holds the ciphertext + offset and decrypts on demand
-            /// — that's the form `XMLDocumentReader` emits today; this
-            /// one exists so callers can build values from cleartext
-            /// after editing.)
-            case unprotected(SecureBytes)
+            /// Secret encrypted while resident and by the inner stream on save.
+            case innerProtected(ProtectedBytes)
 
-            /// Used only in unencrypted XML files (very rare in practice).
-            case protectedInMemory(SecureBytes)
+            /// Encrypted resident storage for the XML ProtectInMemory hint.
+            /// The XML itself remains plaintext, inside the outer vault cipher.
+            case memoryProtected(ProtectedBytes)
 
             /// Inner-cipher ciphertext + the byte offset within the
             /// inner-stream keystream at which the writer wrote it.
@@ -75,8 +68,10 @@ public extension KDBX {
             /// the result.
             public var bytes: SecureBytes {
                 switch self {
-                case let .regular(b), let .unprotected(b), let .protectedInMemory(b):
+                case let .regular(b):
                     return b
+                case let .innerProtected(b), let .memoryProtected(b):
+                    return b.revealedBytes()
                 case let .lazyInnerCipher(ciphertext, offset, source):
                     return source.decrypt(ciphertext: ciphertext, at: offset)
                 }
@@ -117,12 +112,44 @@ public extension KDBX {
                 .regular(SecureBytes(utf8: string))
             }
 
-            public static func unprotected(_ string: String) -> Value {
-                .unprotected(SecureBytes(utf8: string))
+            @available(*, deprecated, renamed: "innerProtected(_:)")
+            public static func unprotected(_ bytes: SecureBytes) -> Value {
+                .innerProtected(bytes)
             }
 
+            @available(*, deprecated, renamed: "innerProtected(_:)")
+            public static func unprotected(_ string: String) -> Value {
+                .innerProtected(string)
+            }
+
+            /// Protect a newly entered secret in memory and on XML serialization.
+            public static func innerProtected(_ string: String) -> Value {
+                .innerProtected(ProtectedBytes(SecureBytes(utf8: string)))
+            }
+
+            /// Protect bytes without retaining the caller's plaintext buffer.
+            public static func innerProtected(_ bytes: SecureBytes) -> Value {
+                .innerProtected(ProtectedBytes(bytes))
+            }
+
+            /// Honor the XML-only ProtectInMemory hint with encrypted storage.
+            public static func memoryProtected(_ bytes: SecureBytes) -> Value {
+                .memoryProtected(ProtectedBytes(bytes))
+            }
+
+            /// Protect UTF-8 bytes while preserving the XML-only memory hint.
+            public static func memoryProtected(_ string: String) -> Value {
+                .memoryProtected(ProtectedBytes(SecureBytes(utf8: string)))
+            }
+
+            @available(*, deprecated, renamed: "memoryProtected(_:)")
+            public static func protectedInMemory(_ bytes: SecureBytes) -> Value {
+                .memoryProtected(bytes)
+            }
+
+            @available(*, deprecated, renamed: "memoryProtected(_:)")
             public static func protectedInMemory(_ string: String) -> Value {
-                .protectedInMemory(SecureBytes(utf8: string))
+                .memoryProtected(string)
             }
         }
 
@@ -133,7 +160,7 @@ public extension KDBX {
         public var key: String
 
         /// The field value. May be a regular protected string, an
-        /// unprotected one, or a deferred lazy-cipher reference;
+        /// memory-only protected one, or a deferred inner-cipher reference;
         /// reveal via ``Value/withRevealedString(_:)``.
         public var value: Value
 

@@ -48,12 +48,11 @@ struct ProtectedInlineBinaryTests {
         let database = try reader.parse()
         let entry = try #require(database.root.group.entries.first)
 
-        guard case let .inline(data, protected) = try #require(entry.binaries.first).value else {
+        guard case let .protectedInline(bytes) = try #require(entry.binaries.first).value else {
             Issue.record("Expected an inline binary")
             return
         }
-        #expect(data == binaryPlain, "inline protected binary must be keystream-decrypted")
-        #expect(protected)
+        #expect(bytes.withRevealedBytes { Data($0) } == binaryPlain, "inline protected binary must be keystream-decrypted")
 
         // The password AFTER the binary in document order only decrypts
         // correctly if the binary consumed its keystream bytes.
@@ -72,7 +71,7 @@ struct ProtectedInlineBinaryTests {
         entry.binaries = [.init(key: "blob.bin", value: .inline(blob, protected: true))]
         entry.strings = [
             .init(key: "Title", value: .regular("T")),
-            .init(key: "Password", value: .unprotected("after-the-binary")),
+            .init(key: "Password", value: .innerProtected("after-the-binary")),
         ]
         content.database.root.group.entries.append(entry)
 
@@ -81,16 +80,15 @@ struct ProtectedInlineBinaryTests {
         stream.open()
         defer { stream.close() }
         try KDBXWriter(to: stream).write(content, unlockData: unlock)
-        let written = stream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
+        let written = try #require(stream.property(forKey: .dataWrittenToMemoryStreamKey) as? Data)
 
         let reopened = try KDBXReader.parse(written, unlockData: unlock)
         let reopenedEntry = try #require(reopened.database.root.group.entries.first)
-        guard case let .inline(data, protected) = try #require(reopenedEntry.binaries.first).value else {
+        guard case let .protectedInline(bytes) = try #require(reopenedEntry.binaries.first).value else {
             Issue.record("Expected an inline binary")
             return
         }
-        #expect(data == blob)
-        #expect(protected)
+        #expect(bytes.withRevealedBytes { Data($0) } == blob)
         let password = try #require(reopenedEntry.strings.first(where: { $0.key == "Password" }))
         #expect(password.value.revealedString == "after-the-binary")
 

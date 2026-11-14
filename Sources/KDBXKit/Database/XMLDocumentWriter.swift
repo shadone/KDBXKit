@@ -349,11 +349,10 @@ struct XMLDocumentWriter {
             // for the XML text node; XMLDocumentWriter takes String anyway.
             bytes.withRevealedString { valueNode.addText($0) }
 
-        case .unprotected, .lazyInnerCipher:
+        case .innerProtected, .lazyInnerCipher:
             // Both cases serialize the same way on disk — as base64
-            // `Protected="True"`. For `.unprotected` the bytes are
-            // already plaintext in SecureBytes; for `.lazyInnerCipher`
-            // we have to decrypt with the *reader's* keystream source
+            // `Protected="True"`. Resident values reveal into SecureBytes;
+            // lazy values decrypt with the reader's keystream source
             // and re-encrypt with the writer's fresh `encryptor`,
             // because the inner key regenerates per write.
             //
@@ -369,8 +368,8 @@ struct XMLDocumentWriter {
                 (name: "Protected", value: "True"),
             ]
 
-        case let .protectedInMemory(bytes):
-            bytes.withRevealedString { valueNode.addText($0) }
+        case .memoryProtected:
+            protectedString.value.withRevealedString { valueNode.addText($0) }
             valueNode.attributes = [
                 (name: "ProtectInMemory", value: "True"),
             ]
@@ -387,8 +386,9 @@ struct XMLDocumentWriter {
                 (name: "Ref", value: String(ref)),
             ]
 
-        case let .inline(data, protected):
-            if protected {
+        case .plainInline, .protectedInline:
+            let data = protectedBinary.value.inlineData!
+            if protectedBinary.value.isProtected {
                 // Same inner-stream treatment as protected strings:
                 // Protected="True" means the value is XOR'd with the
                 // shared keystream, consumed in document order — KeePass

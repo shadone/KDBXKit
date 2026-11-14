@@ -1474,7 +1474,6 @@ follows internally are:
     "Missing Key or Value node in CustomDataWithTimes in <FullyQualifiedPath>"
     "Negative value '<n>' for unsigned field in <FullyQualifiedPath>; dropping"
     "Failed to parse <Type> '<text>' in <FullyQualifiedPath>; dropping"
-    "Protect in memory not yet implemented in <FullyQualifiedPath>"
     "Unexpected Protected value '<value>' in Binary in <FullyQualifiedPath>"
 
 `<FullyQualifiedPath>` is produced by the XML node's
@@ -1638,18 +1637,15 @@ nor `False` triggers:
 
     "Unexpected attribute value '<value>' in attribute <name> in <path>/Entry/String/Value"
 
-#### C.2.15 `ProtectInMemory="True"` on `String/Value` (not yet implemented)
+#### C.2.15 `ProtectInMemory="True"` on `String/Value`
 
-When `<Value ProtectInMemory="True">` is encountered, KDBXKit
-records:
-
-    "Protect in memory not yet implemented in <path>/Entry/String"
-
-and falls back to `ProtectedString.Value.protectedInMemory(_:)`.
-The value is stored in the in-memory model but is not re-emitted as
-`ProtectInMemory="True"` by the writer — it round-trips as an
-ordinary unprotected string. This is an implementation limitation,
-not a parse failure.
+KDBXKit 2.0 stores this value as `ProtectedString.Value.memoryProtected`.
+Its resident payload is encrypted with an independent per-value key and
+revealed explicitly. The writer preserves `ProtectInMemory="True"` and the
+clear XML value, inside the outer encrypted vault. This hint does not request
+inner-stream ciphertext; use `Protected="True"` for that. No unimplemented
+protection warning is emitted. XML parsing/serialization necessarily has
+transient plaintext for this dialect; see the memory limits in the migration guide.
 
 #### C.2.16 Unknown children of `Entry/Binary` (protected-binary child list)
 

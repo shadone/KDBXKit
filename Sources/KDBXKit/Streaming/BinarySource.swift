@@ -36,13 +36,23 @@ public protocol BinarySource: Sendable {
 /// attachments added since the vault was opened.
 public struct DataBinarySource: BinarySource {
     /// In-memory payload bytes.
-    public let data: Data
+    private let payload: InnerHeader.BinaryContent
+    /// Explicit compatibility copy; stream directly to avoid plaintext retention.
+    public var data: Data {
+        payload.data
+    }
+
+    var isStoredEncrypted: Bool {
+        payload.isStoredEncrypted
+    }
 
     /// Mirrors ``BinarySource/shouldBeProtected`` — pass `true` for
     /// secret-shaped attachments (recovery PDFs, key backups, etc.).
     public let shouldBeProtected: Bool
 
-    public var sizeBytes: Int { data.count }
+    public var sizeBytes: Int {
+        payload.count
+    }
 
     /// - Parameters:
     ///   - data: in-memory payload to write.
@@ -50,12 +60,12 @@ public struct DataBinarySource: BinarySource {
     ///     should be flagged "protected in memory". Defaults to
     ///     `false`; pass `true` for secret-shaped attachments.
     public init(_ data: Data, shouldBeProtected: Bool = false) {
-        self.data = data
+        payload = .init(shouldBeProtected: shouldBeProtected, data: data)
         self.shouldBeProtected = shouldBeProtected
     }
 
     public func stream(into sink: inout some ByteSink) throws {
-        try data.withUnsafeBytes { buf in
+        try payload.withRevealedBytes { buf in
             try sink.write(buf)
         }
     }

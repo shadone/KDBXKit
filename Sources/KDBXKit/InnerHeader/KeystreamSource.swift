@@ -72,17 +72,15 @@ public struct KeystreamSource: Sendable {
             _ = cipher.decrypt(Data(repeating: 0, count: bytesIntoBlock))
         }
 
-        let plain = cipher.decrypt(ciphertext)
-        var plainBytes = Array(plain)
+        var plain = Array(cipher.decrypt(ciphertext))
         defer {
-            // Zero the transient plaintext copy before its heap storage is
-            // released — SecureBytes copies the bytes into its arena.
-            plainBytes.withUnsafeMutableBufferPointer { ptr in
-                guard let base = ptr.baseAddress else { return }
-                base.initialize(repeating: 0, count: ptr.count)
+            plain.withUnsafeMutableBytes { buffer in
+                if let base = buffer.baseAddress {
+                    secureZero(base, buffer.count)
+                }
             }
         }
-        return SecureBytes(plainBytes)
+        return SecureBytes(plain)
     }
 
     private func makeCipher(blockCounter: UInt64) -> any Decryptable {

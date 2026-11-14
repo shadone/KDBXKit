@@ -18,9 +18,9 @@ struct MockCryptor: Encryptable, Decryptable {
     }
 }
 
-// A random date for convenience.
-// XML document stores dates as number of full seconds since .NET epoch, so the dates we read
-// should not have any sub-second precision so that date comparison in unit tests succeeds.
+/// A random date for convenience.
+/// XML document stores dates as number of full seconds since .NET epoch, so the dates we read
+/// should not have any sub-second precision so that date comparison in unit tests succeeds.
 private let mockDate = Date(secondsSinceDotNetEpoch: 63_884_389_441)
 
 let reference = KDBX(
@@ -46,14 +46,14 @@ let reference = KDBX(
             protectUserName: true,
             protectPassword: false,
             protectURL: true,
-            protectNotes: false,
+            protectNotes: false
         ),
         customIcons: [
             .init(
                 uuid: UUID(),
                 data: Data([1, 2, 3]),
                 name: "Test Icon",
-                lastModificationTime: mockDate,
+                lastModificationTime: mockDate
             ),
         ],
         recycleBinEnabled: true,
@@ -67,7 +67,7 @@ let reference = KDBX(
         customData: [
             .init(key: "Foo", value: "Bar"),
             .init(key: "Hello", value: "World", lastModificationTime: mockDate),
-        ],
+        ]
     ),
     root: .init(
         group: .init(
@@ -83,7 +83,7 @@ let reference = KDBX(
                 expiryTime: mockDate,
                 expires: false,
                 usageCount: 123_456,
-                locationChanged: mockDate,
+                locationChanged: mockDate
             ),
             isExpanded: true,
             defaultAutoTypeSequence: "foo",
@@ -113,11 +113,11 @@ let reference = KDBX(
                         expiryTime: mockDate,
                         expires: false,
                         usageCount: 123_456,
-                        locationChanged: mockDate,
+                        locationChanged: mockDate
                     ),
                     strings: [
                         .init(key: "Title", value: .regular("Hello World")),
-                        .init(key: "Password", value: .unprotected("god")),
+                        .init(key: "Password", value: .innerProtected("god")),
                     ],
                     binaries: [
                         .init(key: "RefBinary", value: .ref(0)),
@@ -129,7 +129,7 @@ let reference = KDBX(
                         defaultSequence: "blah",
                         association: [
                             .init(window: "a-window", keystrokeSequence: "alt+f4"),
-                        ],
+                        ]
                     ),
                     customData: [
                         .init(key: "Foo", value: "Bar"),
@@ -152,11 +152,11 @@ let reference = KDBX(
                                 expiryTime: mockDate,
                                 expires: false,
                                 usageCount: 123_456,
-                                locationChanged: mockDate,
+                                locationChanged: mockDate
                             ),
                             strings: [
                                 .init(key: "Title", value: .regular("Hello World")),
-                                .init(key: "Password", value: .unprotected("god")),
+                                .init(key: "Password", value: .innerProtected("god")),
                             ],
                             binaries: [],
                             autoType: .init(
@@ -165,26 +165,26 @@ let reference = KDBX(
                                 defaultSequence: "blah",
                                 association: [
                                     .init(window: "a-window", keystrokeSequence: "alt+f4"),
-                                ],
+                                ]
                             ),
                             customData: [
                                 .init(key: "Foo", value: "Bar"),
-                            ],
+                            ]
                         ),
-                    ],
+                    ]
                 ),
             ],
             groups: [
-            ],
+            ]
         ),
-        deletedObjects: [],
+        deletedObjects: []
     )
 )
 
 struct XMLDocumentTests {
     @Test
-    func XMLDocumentReader_empty() async throws {
-        let xmlFilepath = Bundle.module.path(forResource: "Resources/database-encrypted-empty", ofType: "xml")!
+    func XMLDocumentReader_empty() throws {
+        let xmlFilepath = try #require(Bundle.module.path(forResource: "Resources/database-encrypted-empty", ofType: "xml"))
         let xmlDocument = try String(contentsOfFile: xmlFilepath, encoding: .utf8)
 
         // The fixture has no protected strings, so the keystream source's
@@ -249,7 +249,7 @@ struct XMLDocumentTests {
     func writeThenReadWithInnerEncryption() throws {
         let innerHeader = InnerHeader(
             encryptionAlgorithm: .ChaCha20,
-            encryptionKey: Data(hexString: "584f97811553076c32b4ca004c19b77421280b5e596dd0f735c8d30e3063556c76b8cc3e63aed982e6fba693c6bbf21371db2c5e0d569e61e0655f59694093d8")!,
+            encryptionKey: try #require(Data(hexString: "584f97811553076c32b4ca004c19b77421280b5e596dd0f735c8d30e3063556c76b8cc3e63aed982e6fba693c6bbf21371db2c5e0d569e61e0655f59694093d8")),
             binaryContent: []
         )
 
@@ -261,8 +261,8 @@ struct XMLDocumentTests {
         )
         try writer.write(reference)
 
-        let data = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
-        let xmlDocument = String(validating: data, as: UTF8.self)!
+        let data = try #require(outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as? Data)
+        let xmlDocument = try #require(String(validating: data, as: UTF8.self))
 
         let reader = try XMLDocumentReader(
             xmlDocument: xmlDocument,
@@ -320,33 +320,33 @@ struct XMLDocumentTests {
         let bin = try parseInlineBinaryXML(
             valueElement: #"<Value Protected="True">\#(cipher.base64EncodedString())</Value>"#
         )
-        guard case let .inline(data, protected) = bin.value else {
+        guard let data = bin.value.inlineData else {
             Issue.record("Expected inline value, got \(bin.value)")
             return
         }
         #expect(data == plain)
-        #expect(protected == true)
+        #expect(bin.value.isProtected == true)
     }
 
     @Test("Reader parses <Value>…</Value> with no attribute as protected=false")
     func parser_inlineBinary_noProtectedAttr() throws {
         let bin = try parseInlineBinaryXML(valueElement: "<Value>AQID</Value>")
-        guard case let .inline(data, protected) = bin.value else {
+        guard let data = bin.value.inlineData else {
             Issue.record("Expected inline value, got \(bin.value)")
             return
         }
         #expect(data == Data([1, 2, 3]))
-        #expect(protected == false)
+        #expect(bin.value.isProtected == false)
     }
 
     @Test("Reader parses Protected=\"False\" explicitly")
     func parser_inlineBinary_protectedFalseExplicit() throws {
         let bin = try parseInlineBinaryXML(valueElement: #"<Value Protected="False">AQID</Value>"#)
-        guard case let .inline(_, protected) = bin.value else {
+        guard bin.value.inlineByteCount != nil else {
             Issue.record("Expected inline value")
             return
         }
-        #expect(protected == false)
+        #expect(bin.value.isProtected == false)
     }
 
     @Test("Writer emits Protected=\"True\" when inline binary is protected")
@@ -359,11 +359,11 @@ struct XMLDocumentTests {
             meta: .init(generator: "test"),
             root: .init(
                 group: .init(
-                    uuid: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+                    uuid: try #require(UUID(uuidString: "00000000-0000-0000-0000-000000000001")),
                     name: "Root",
                     entries: [
                         .init(
-                            uuid: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
+                            uuid: try #require(UUID(uuidString: "00000000-0000-0000-0000-000000000002")),
                             binaries: [
                                 .init(key: "p.bin", value: .inline(Data([9, 8, 7]), protected: true)),
                                 .init(key: "u.bin", value: .inline(Data([1, 2, 3]), protected: false)),
@@ -384,8 +384,8 @@ struct XMLDocumentTests {
         )
         let writer = XMLDocumentWriter(to: outputStream, encryptor: try innerHeader.makeEncryptor())
         try writer.write(kdbx)
-        let data = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
-        let xml = String(validating: data, as: UTF8.self)!
+        let data = try #require(outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as? Data)
+        let xml = try #require(String(validating: data, as: UTF8.self))
 
         // The protected attribute is on p.bin's Value (whose content is
         // now keystream ciphertext — NOT the raw CQgH bytes), and absent
@@ -401,13 +401,13 @@ struct XMLDocumentTests {
             keystreamSource: try innerHeader.makeKeystreamSource()
         )
         let parsed = try reader.parse()
-        let bins = parsed.root.group.entries.first!.binaries
-        guard case let .inline(d1, p1) = bins[0].value, p1 == true else {
+        let bins = try #require(parsed.root.group.entries.first?.binaries)
+        guard let d1 = bins[0].value.inlineData, bins[0].value.isProtected else {
             Issue.record("p.bin lost its protected flag")
             return
         }
         #expect(d1 == Data([9, 8, 7]))
-        guard case let .inline(d2, p2) = bins[1].value, p2 == false else {
+        guard let d2 = bins[1].value.inlineData, !bins[1].value.isProtected else {
             Issue.record("u.bin gained a protected flag")
             return
         }
@@ -525,15 +525,15 @@ struct XMLDocumentTests {
         // exact triple so a future writer refactor can't drift back.
         let inner = InnerHeader(
             encryptionAlgorithm: .ChaCha20,
-            encryptionKey: Data(hexString: "584f97811553076c32b4ca004c19b77421280b5e596dd0f735c8d30e3063556c76b8cc3e63aed982e6fba693c6bbf21371db2c5e0d569e61e0655f59694093d8")!,
+            encryptionKey: try #require(Data(hexString: "584f97811553076c32b4ca004c19b77421280b5e596dd0f735c8d30e3063556c76b8cc3e63aed982e6fba693c6bbf21371db2c5e0d569e61e0655f59694093d8")),
             binaryContent: []
         )
         let outputStream = OutputStream(toMemory: ())
         outputStream.open()
         let writer = XMLDocumentWriter(to: outputStream, encryptor: try inner.makeEncryptor())
         try writer.write(reference)
-        let data = outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as! Data
-        let xml = String(validating: data, as: UTF8.self)!
+        let data = try #require(outputStream.property(forKey: .dataWrittenToMemoryStreamKey) as? Data)
+        let xml = try #require(String(validating: data, as: UTF8.self))
         let header = xml.split(separator: "\n").first.map(String.init) ?? ""
         #expect(header.contains("<?xml"))
         #expect(header.contains(#"version="1.0""#))

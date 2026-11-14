@@ -1,76 +1,90 @@
 # Security Primitives
 
-How KDBXKit handles credentials and other sensitive data in memory.
+How KDBXKit limits plaintext residence and handles explicitly revealed values.
 
 ## Overview
 
-A password-manager library has a different memory-management contract than a general-purpose library. Anything that touches cleartext key material — passwords, key files, derived keys, decrypted entry strings — needs to live in a buffer that won't bleed to swap, won't be handed to the next allocator caller still warm, and won't leak through Swift's standard `String` and `Data` types (neither of which can be securely zeroed).
-
-KDBXKit's answer is two types: ``SecureBytes`` for arbitrary key material, and ``KDBX/ProtectedString`` for entry-level secrets. Both have a hard rule: **no cleartext crosses the API boundary as a `Swift.String`.**
-
-For a wider view of the engineering posture (cryptographic primitives, integrity ordering, threat model), see the project's `docs/security.md`.
+``SecureBytes`` holds zero-on-release plaintext buffers and keys. ``ProtectedBytes``
+retains authenticated ciphertext with an independent generated key/nonce.
+``KDBX/ProtectedString`` and ``KDBX/ProtectedBinary`` distinguish wire-format flags
+from resident storage. These types do not eliminate plaintext during use, and
+cannot defend a compromised process that can read keys and ciphertext together.
 
 ## SecureBytes
 
-A page-aligned, `mlock`'d, zero-on-deinit byte buffer.
+Small buffers share page-aligned arenas; large ones get dedicated regions.
+The pages use best-effort mlock, and each owned slice is erased on final release
+with platform non-elidable zeroing. A failed mlock does not prevent allocation.
+Read access is scoped through withUnsafeBytes; equality compares the byte contents
+in constant time. Explicit toData/revealedString accessors create caller-owned
+plaintext copies and must be used with care.
 
 ```swift
-let bytes = SecureBytes(utf8: "secret")
-bytes.withUnsafeBytes { buf in
-    // use buf for the lifetime of this closure
-}
-// bytes' buffer is zeroed and freed when the last reference releases.
-```
-
-Properties:
-
-- **Page-aligned allocation** via `posix_memalign` so the entire region can be `mlock`'d.
-- **`mlock(2)`-pinned** so the kernel can't page the bytes to swap. Best-effort: if `RLIMIT_MEMLOCK` rejects the call (common on iOS background processes), the page still holds the bytes — it just isn't pinned. Failure is silent by design; refusing to unlock would be worse UX.
-- **Zeroed on `deinit`** via `memset_s` on Apple/BSD or `explicit_bzero` on Linux. Both are functions the compiler is forbidden from optimizing away.
-- **Read access only through `withUnsafeBytes`** — no subscript, no `Data` accessor — so callers can't escape the buffer past its lifetime.
-- **Constant-time equality.** `==` XOR-OR-accumulates every byte; no short-circuit on first mismatch. Comparing two `SecureBytes` doesn't leak content via timing.
-
-When in doubt: if it's key material or about to be, hold it in `SecureBytes`.
-
-## ProtectedString
-
-Entry-level secrets — passwords, TOTP seeds, custom protected strings.
-
-```swift
-let password = entry.strings.first(where: { $0.key == "Password" })?.value
-
-password?.withRevealedString { plaintext in
-    // `plaintext` is a Swift.String that lives only for this closure.
-    keychain.set(plaintext, for: entry.uuid)
+let bytes = SecureBytes(utf8: "typed at the boundary")
+bytes.withUnsafeBytes { buffer in
+    // Consume buffer here; do not retain its pointer.
 }
 ```
 
-The closure form is the documented pattern. There's also `revealedString: String` and `bytes: SecureBytes` for ergonomic use, but `withRevealedString` makes the lifetime explicit at the call site.
+Data/UTF-8 constructors copy directly into the arena, without intermediate
+plaintext arrays. The generic Sequence constructor erases its scratch array.
+None of these constructors erase the caller's source value.
 
-The underlying bytes are held as ``SecureBytes``, so anything derived inherits the page-locked + secure-zero guarantees.
-
-### Constructing protected values
+## Protected strings
 
 ```swift
-let v1 = KDBX.ProtectedString.Value.regular("secret")            // standard protected
-let v2 = KDBX.ProtectedString.Value.unprotected("public note")   // standard non-protected
-let v3 = KDBX.ProtectedString.Value.protectedInMemory("secret")  // protected always
+let secret = KDBX.ProtectedString.Value.innerProtected("new password")
+let note = KDBX.ProtectedString.Value.regular("public note")
+let memoryHint = KDBX.ProtectedString.Value.memoryProtected("XML-only hint")
+
+secret.withRevealedString { plaintext in
+    // Use it only for the intended operation; do not retain or log it.
+}
 ```
 
-`.regular(_:)` is what you want most of the time — protected in memory and on disk for standard secret fields.
+innerProtected stores encrypted resident bytes and serializes inner-stream
+ciphertext with Protected=True. Parsed protected XML values remain lazy inner
+ciphertext until requested. regular stores SecureBytes and writes clear XML;
+it is inappropriate when a field must have inner-stream protection. memoryProtected
+stores encrypted resident bytes but preserves ProtectInMemory=True and clear XML,
+inside the outer encrypted vault. It is a different wire-format hint.
 
-## What KDBXKit can't protect
+In 2.0, unprotected/protectedInMemory remain deprecated constructor factories,
+not enum cases. They construct the corresponding encrypted resident values.
+Exhaustive switches must migrate to the new cases. Explicit bytes/revealedString
+accessors can let plaintext escape; scoped closures express intent, not a language
+restriction preventing copying.
 
-`SecureBytes` and `withRevealedString` defend against specific failure modes — they don't make your process invulnerable.
+## Protected attachments
 
-- **Process-memory introspection.** Anything that can attach a debugger, `ptrace`, read `/proc/<pid>/mem`, or read a core dump can recover unlocked secrets. `SecureBytes` defends against swap and allocator reuse, not against an attacker with the same trust level as the host process.
-- **What you do with `String` after revealing.** Once a closure has a `Swift.String`, the host can copy it, store it, log it. We can't prevent that. The closure form makes the lifetime intent explicit; honoring it is the host's job.
-- **Password bytes during `UnlockData.init(masterPassword:)`.** Swift `String` storage can't be securely zeroed. Treat the init call site as a boundary: get the typed password into KDBXKit fast, drop the original `String` reference, and let ARC collect it.
+Use ProtectedBinary.Value.makeInline(data, protected: flag). Protected payloads
+retain ProtectedBytes; unprotected payloads use plainInline. The deprecated inline
+constructor also honors the flag. BinaryContent and DataBinarySource enforce the
+same policy. Pool inlineValue shares encrypted storage with entries/history.
+
+Use inlineByteCount/count and isProtected for metadata without revealing content.
+Use withRevealedBytes for a scoped operation or a SecureBytesSink for extraction.
+Explicit inlineData/BinaryContent.data reads create plaintext copies for callers.
+The pool's memory flag does not add inner-stream encryption to on-disk pool bytes;
+those bytes are protected by the outer vault cipher.
+
+## Limits
+
+- A debugger, memory reader or compromised process can obtain keys and plaintext.
+- Source Strings/Data and copies escaping reveal closures cannot be erased by us.
+- XML parsing, cryptographic SDKs, UI, export and streaming have transient plaintext
+  working data; Swift/ARC cannot promise every internal copy vanishes synchronously.
+- Opt-in diagnostic XML retention keeps plaintext and must not be used routinely.
+- mlock is best effort. Zero-on-release protects owned buffers, not arbitrary
+  allocator/stack/SDK copies or an application that deliberately retains a reveal.
+
+The CLI does not reveal a field it will only print as masked. Applications should
+likewise avoid decrypting for metadata and never store plaintext accessor results
+in model state.
 
 ## Other primitives
 
-- ``KDBX/ProtectedBinary`` — attachment payloads that should be page-locked. Same memory contract as `ProtectedString`.
-- `ConstantTime` (internal) — XOR-OR comparison used for HMAC verification and any other secret-derived comparison.
-- `SecureRandom` (internal) — wraps `SystemRandomNumberGenerator` for salt / IV / nonce generation. CSPRNG-quality entropy on every supported platform.
-
-For sink-level secure-byte handling during streaming binary extraction, see ``SecureBytesSink`` (a ``ByteSink`` whose buffer is itself a ``SecureBytes``).
+ConstantTime supplies secret-derived comparisons, SecureRandom provides system
+entropy for format salts/IVs, and ``SecureBytesSink`` bounds extraction buffers.
+The file-format inner stream and per-value resident protection have separate keys
+and purposes; resident protection does not change the KDBX format.

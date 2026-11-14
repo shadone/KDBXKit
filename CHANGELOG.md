@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-14
+
+### Changed
+
+- Replace misleading protected-string enum cases with `innerProtected` and
+  `memoryProtected`. Deprecated constructor factories remain and now encrypt
+  resident storage. Exhaustive switches must migrate; see `docs/migrating-to-2.0.md`.
+- Split inline attachment storage into `plainInline` and `protectedInline`;
+  canonical and compatibility factories honor the protection flag. Flagged pool
+  payloads and DataBinarySource payloads also retain encrypted resident storage.
+- Preserve XML memory-protection hints without the obsolete unimplemented warning.
+- Avoid intermediate plaintext arrays in secure-buffer boundary constructors,
+  erase generic-constructor scratch bytes and lazy-decryption scratch bytes, and avoid
+  decrypting CLI fields that will only be masked.
+
+### Added
+
+- Immutable ProtectedBytes with per-value ChaChaPoly keys/nonces, scoped reveals,
+  zero-on-release key storage, and protected-memory/format regressions.
+- Pool metadata and shared inline-storage APIs that avoid incidental decryption.
+
 ## [1.4.0] - 2026-11-14
 
 ### Added

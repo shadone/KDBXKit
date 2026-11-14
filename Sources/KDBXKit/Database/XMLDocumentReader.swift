@@ -25,7 +25,9 @@ import Foundation
 /// `mutating`.
 private final class KeystreamCursor {
     var position: Int = 0
-    func advance(by count: Int) { position += count }
+    func advance(by count: Int) {
+        position += count
+    }
 }
 
 /// Mutable bag of parser diagnostics. Lives in a class so the recursive
@@ -36,7 +38,9 @@ private final class KeystreamCursor {
 /// by other KDBX-aware tools that we don't yet model.
 private final class ParserWarnings {
     var messages: [String] = []
-    func add(_ message: String) { messages.append(message) }
+    func add(_ message: String) {
+        messages.append(message)
+    }
 }
 
 /// Mutable collector for the `<Meta><Binaries>` pool harvested during a
@@ -129,7 +133,9 @@ struct XMLDocumentReader {
     /// produced by `KDBXWriter` against the current model; non-empty
     /// indicates the source file contained something we silently dropped
     /// or repaired.
-    var collectedWarnings: [String] { warnings.messages }
+    var collectedWarnings: [String] {
+        warnings.messages
+    }
 
     init(
         xmlDocument: String,
@@ -194,12 +200,12 @@ struct XMLDocumentReader {
     }
 
     /// `Z`-suffixed or `±HH:MM` ISO-8601 with second precision.
-    // `ISO8601DateFormatter` is documented thread-safe by Apple (the
-    // `DateFormatter` family explicitly says formatters are safe to share
-    // across threads once configured), but Swift 6 strict concurrency
-    // can't see the framework annotation. `nonisolated(unsafe)` asserts
-    // the property we know to hold — cheaper than rebuilding a formatter
-    // for every date in the file (a populated vault has thousands).
+    /// `ISO8601DateFormatter` is documented thread-safe by Apple (the
+    /// `DateFormatter` family explicitly says formatters are safe to share
+    /// across threads once configured), but Swift 6 strict concurrency
+    /// can't see the framework annotation. `nonisolated(unsafe)` asserts
+    /// the property we know to hold — cheaper than rebuilding a formatter
+    /// for every date in the file (a populated vault has thousands).
     private nonisolated(unsafe) static let iso8601Plain: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime]
@@ -1208,12 +1214,10 @@ struct XMLDocumentReader {
                 // new offset.
                 cursor.advance(by: data.count)
             } else {
-                value = .unprotected("")
+                value = .innerProtected("")
             }
         } else if let shouldProtectInMemory, shouldProtectInMemory {
-            // TODO: we are currently not protecting in memory
-            record("Protect in memory not yet implemented in \(node.fullyQualifiedName)")
-            value = .protectedInMemory(rawValue ?? "")
+            value = .memoryProtected(rawValue ?? "")
         } else {
             value = .regular(rawValue ?? "")
         }
@@ -1289,9 +1293,9 @@ struct XMLDocumentReader {
                 // inline bytes as plain Data — and advance the shared
                 // cursor so every later protected value decrypts at the
                 // right offset.
-                let decrypted = keystreamSource.decrypt(ciphertext: data, at: cursor.position).toData()
+                let decrypted = keystreamSource.decrypt(ciphertext: data, at: cursor.position)
                 cursor.advance(by: data.count)
-                value = .inline(decrypted, protected: true)
+                value = .makeInline(decrypted, protected: true)
             } else {
                 value = .inline(data, protected: false)
             }
