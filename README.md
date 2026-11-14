@@ -64,7 +64,7 @@ Add KDBXKit to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/shadone/KDBXKit.git", from: "1.4.0"),
+    .package(url: "https://github.com/shadone/KDBXKit.git", from: "2.0.0"),
 ],
 targets: [
     .target(
@@ -244,3 +244,5 @@ act -j linux            # run the workflow's Linux job locally
 ## License
 
 BSD 2-Clause. See [LICENSE](LICENSE).
+
+For protected-value enum and storage changes, see the [2.0 migration guide](docs/migrating-to-2.0.md).
