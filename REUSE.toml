@@ -73,6 +73,7 @@ path = [
     "Package.resolved",
     "Examples/HelloKDBX/Package.resolved",
     ".github/**",
+    ".woodpecker.yaml",
     "scripts/**",
     "Fuzz/.dockerignore",
 ]

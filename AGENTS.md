@@ -3,7 +3,7 @@
 Guidance for coding agents when working in the `KDBXKit/` repo (Swift library + `kdbx` CLI for KeePass 2.x / KDBX v4 files).
 For repo-wide layout and the multi-repo version-control model, see `../AGENTS.md`.
 
-License: BSD 2-Clause (see `LICENSE`). The repo is [REUSE](https://reuse.software) 3.3-compliant — every file declares copyright + an SPDX identifier, enforced by `.github/workflows/reuse.yml`. New Swift sources need the standard header (`// Copyright (c) <year>, Denis Dzyubenko <denis@ddenis.info>` + `// SPDX-License-Identifier: BSD-2-Clause`); the CryptoSwift-derived `Crypto/Salsa20.swift` + `Crypto/ChaCha20.swift` are `Zlib` (keep their notice intact); vendored `Sources/CArgon2/**` (`CC0-1.0 OR Apache-2.0`), the Reichl `KDBX_XML.xsd` (BSD-2-Clause), and binary fixtures are declared in `REUSE.toml`. License texts live in `LICENSES/`. Verify with `uvx reuse lint` (or `pipx run reuse lint`).
+License: BSD 2-Clause (see `LICENSE`). The repo is [REUSE](https://reuse.software) 3.3-compliant — every file declares copyright + an SPDX identifier, checked by the prepared `.woodpecker.yaml` pipeline (GitHub mirror workflows are manual-only). New Swift sources need the standard header (`// Copyright (c) <year>, Denis Dzyubenko <denis@ddenis.info>` + `// SPDX-License-Identifier: BSD-2-Clause`); the CryptoSwift-derived `Crypto/Salsa20.swift` + `Crypto/ChaCha20.swift` are `Zlib` (keep their notice intact); vendored `Sources/CArgon2/**` (`CC0-1.0 OR Apache-2.0`), the Reichl `KDBX_XML.xsd` (BSD-2-Clause), and binary fixtures are declared in `REUSE.toml`. License texts live in `LICENSES/`. Verify with `uvx reuse lint` (or `pipx run reuse lint`).
 
 ## Module layout
 
@@ -191,7 +191,7 @@ Bare `Set.self` in a `subcommands:` array collides with `Swift.Set<...>.Type`. U
 
 ## Cross-repo coordination
 
-This library is consumed by `Passie/` (the iOS/macOS apps) via `.package(path: "../../KDBXKit")` in `Passie/Modules/Package.swift`. There's no submodule wiring.
+This library is consumed by `Passie/` through tagged releases from the GitHub mirror in `Passie/Modules/Package.swift` and `Passie/project.yml`. There is no submodule wiring; adjacent checkouts are independent.
 
 - When a change spans both repos (e.g., new `SecureBytes` API consumed by `PassieData`), **land the KDBXKit side first**, then commit the Passie side referencing the new API.
 - When designing a new KDBXKit type that the Passie UI layer will surface, expect `PassieData` to add a wrapper (e.g. `VaultUnlock` wraps `UnlockData`) so `PassieUI` doesn't have to `import KDBXKit`. Keep new public types Sendable-clean. Note KDF cost *policy* (the fast/balanced/paranoid tiers and their tuned numbers) lives entirely in the app — `PassieData.VaultCreationParams` owns Passie's tiers; KDBXKit exposes only the single portable `KDFParameters.argon2idDefault()`.

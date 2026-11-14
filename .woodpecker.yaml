@@ -1,0 +1,34 @@
+when:
+  - event: [push, pull_request, tag, manual]
+
+labels:
+  platform: linux/amd64
+  backend: kubernetes
+
+clone:
+  - name: clone
+    image: woodpeckerci/plugin-git:2
+    backend_options:
+      kubernetes:
+        secrets:
+          - name: step-ca-root
+            key: ca.crt
+            target:
+              file: /etc/ssl/certs/step-ca.crt
+    environment:
+      GIT_SSL_CAINFO: /etc/ssl/certs/step-ca.crt
+      PLUGIN_DEPTH: "1"
+      PLUGIN_TAGS: "false"
+
+steps:
+  - name: swift
+    image: swift:6.2-jammy
+    commands:
+      - apt-get update && apt-get install -y --no-install-recommends zlib1g-dev
+      - swift build
+      - swift test --parallel
+  - name: licensing
+    image: python:3.13-slim
+    commands:
+      - pip install --disable-pip-version-check reuse==6.2.0
+      - reuse lint

@@ -7,7 +7,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/shadone/KDBXKit/actions/workflows/ci.yml"><img src="https://github.com/shadone/KDBXKit/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/Swift-6.1%2B-orange?logo=swift&logoColor=white" alt="Swift 6.1+">
   <img src="https://img.shields.io/badge/Platforms-macOS%2015%20%7C%20iOS%2018%20%7C%20Linux-blue" alt="Platforms">
   <img src="https://img.shields.io/badge/License-BSD%202--Clause-green" alt="License: BSD 2-Clause">
@@ -65,7 +64,7 @@ Add KDBXKit to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/shadone/KDBXKit.git", from: "1.0.0"),
+    .package(url: "https://github.com/shadone/KDBXKit.git", from: "1.4.0"),
 ],
 targets: [
     .target(
