@@ -402,7 +402,7 @@ struct KeePassXCInteropTests {
         // Seed from an existing 4.x fixture so the binary pool lives
         // in the inner header (KDBX 4 form) rather than Meta/Binaries
         // (KDBX 3.1 form, which kpxc-cli's db-create still defaults to
-        // — see CLAUDE.md). Drive keepassxc-cli through several
+        // — see AGENTS.md). Drive keepassxc-cli through several
         // attachment-import calls of varying sizes and re-open with
         // KDBXKit to assert every payload survived intact.
         let fixturePath = Bundle.module.path(forResource: "Resources/simple-argon2id-aes256", ofType: "kdbx")!

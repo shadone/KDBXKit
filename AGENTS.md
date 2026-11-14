@@ -1,7 +1,7 @@
-# KDBXKit - CLAUDE.md
+# KDBXKit - AGENTS.md
 
-Guidance for Claude Code when working in the `KDBXKit/` repo (Swift library + `kdbx` CLI for KeePass 2.x / KDBX v4 files).
-For repo-wide layout and the multi-repo version-control model, see `../CLAUDE.md`.
+Guidance for coding agents when working in the `KDBXKit/` repo (Swift library + `kdbx` CLI for KeePass 2.x / KDBX v4 files).
+For repo-wide layout and the multi-repo version-control model, see `../AGENTS.md`.
 
 License: BSD 2-Clause (see `LICENSE`). The repo is [REUSE](https://reuse.software) 3.3-compliant — every file declares copyright + an SPDX identifier, enforced by `.github/workflows/reuse.yml`. New Swift sources need the standard header (`// Copyright (c) <year>, Denis Dzyubenko <denis@ddenis.info>` + `// SPDX-License-Identifier: BSD-2-Clause`); the CryptoSwift-derived `Crypto/Salsa20.swift` + `Crypto/ChaCha20.swift` are `Zlib` (keep their notice intact); vendored `Sources/CArgon2/**` (`CC0-1.0 OR Apache-2.0`), the Reichl `KDBX_XML.xsd` (BSD-2-Clause), and binary fixtures are declared in `REUSE.toml`. License texts live in `LICENSES/`. Verify with `uvx reuse lint` (or `pipx run reuse lint`).
 

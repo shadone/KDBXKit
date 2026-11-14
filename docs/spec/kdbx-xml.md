@@ -802,7 +802,7 @@ the same `parseDate` helper without per-field fallback logic.
 
 The writer (`XMLDocumentWriter`) always emits the 4.x seconds-base64
 dialect, consistent with the rule that KDBXKit only ever writes KDBX
-4.x files (§ legacy-format migration note in CLAUDE.md).  Producers
+4.x files (§ legacy-format migration note in AGENTS.md).  Producers
 MUST NOT mix dialects within a file.
 
 ### 8.3 Empty and absent values
@@ -1025,7 +1025,7 @@ Implementation reference: `KDBX/Color.swift`,
 `Database/XMLDocumentWriter.swift`,
 `Extensions/Data+asUUIDLE.swift`,
 `Extensions/UUID+uint128.swift`,
-`KDBXKit/CLAUDE.md §Format dialects we round-trip`.
+`KDBXKit/AGENTS.md §Format dialects we round-trip`.
 
 ## Appendix A (Normative): XML Schema reference
 
@@ -1720,7 +1720,7 @@ well-formed KDBX 4.x file does not contain `<Meta><Binaries>`.
 
 When adding a third-party fixture to
 `Tests/KDBXKitTests/Resources/`, the convention (per
-`KDBXKit/CLAUDE.md`) is to assert
+`KDBXKit/AGENTS.md`) is to assert
 `KDBXContent.parserWarnings == []` to catch features that are not
 modelled. If the assertion fails, the choice is:
 

@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-14
+
+### Added
+
+- Shared `KDBXReader.validateSupportedFormat(_:)` header validation.
+- Bounds-checked byte cursor across binary readers, malformed-input regression
+  coverage, and always-on writer XML compatibility checks.
+- Stdin and prompt channels for protected CLI field values.
+
+### Fixed
+
+- Reject malformed lengths and AES-KDF salts with errors rather than process
+  traps; bound recursive XML entry/history parsing and inner-header buffering.
+- Stage streaming writes atomically and refuse dangling attachment references
+  or inconsistent binary source arrays before replacing a vault.
+- Encrypt protected inline and legacy binary payloads correctly and preserve
+  legacy binary reference mappings and supported unknown fields.
+- Fail truncated attachment extraction; handle zlib buffer exhaustion safely.
+- Regenerate inner-stream keys on save and tighten secure-buffer key handling.
+- Remove inner-stream keys from CLI info output and avoid command-line secrets.
+- Serialize CLI test descriptor swaps and expand writer, zeroization, and
+  KeePassXC compatibility regression coverage.
+
 ## [1.3.0] - 2026-06-11
 
 ### Added

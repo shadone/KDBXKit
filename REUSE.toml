@@ -52,7 +52,7 @@ SPDX-License-Identifier = "BSD-2-Clause"
 path = [
     "README.md",
     "SECURITY.md",
-    "CLAUDE.md",
+    "AGENTS.md",
     "CHANGELOG.md",
     "docs/**/*.md",
     "Examples/HelloKDBX/README.md",
