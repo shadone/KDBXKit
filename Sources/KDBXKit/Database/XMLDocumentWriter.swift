@@ -71,10 +71,10 @@ struct XMLDocumentWriter {
         value ? "True" : "False"
     }
 
+    /// The UUID's 16 bytes in RFC 4122 order, as KeePass and KeePassXC
+    /// write them, so the UUID they show is the one this library reads.
     private func encode(_ value: UUID) -> String {
-        value.toUInt128()
-            .toDataLittleEndian()
-            .base64EncodedString()
+        withUnsafeBytes(of: value.uuid) { Data($0) }.base64EncodedString()
     }
 
     private func encode(_ value: Data) -> String {

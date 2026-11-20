@@ -364,10 +364,11 @@ struct XMLDocumentReader {
         return value
     }
 
-    /// - parameter string: A 128-bit UUID encoded using Base64.
+    /// - parameter string: A 128-bit UUID encoded using Base64, its 16 bytes
+    ///   in RFC 4122 order as KeePass and KeePassXC write them.
     private func parseUUID(_ string: String, node: Node) throws(Error) -> UUID {
         guard
-            let uuidValue = Data(base64Encoded: string)?.asUUIDLE()
+            let uuidValue = Data(base64Encoded: string)?.asUUID()
         else {
             throw .corrupted(reason: "Failed to parse UUID '\(string)' from \(node.fullyQualifiedName)")
         }
